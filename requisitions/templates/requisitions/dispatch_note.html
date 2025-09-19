@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}撥料單 - {{ requisition.order_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">撥料單</h2>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            撥料單資訊
+        </div>
+        <div class="card-body">
+            <p><strong>訂單單號:</strong> {{ requisition.order_number }}</p>
+            <p><strong>需求流程:</strong> {{ requisition.process_type }}</p>
+            <p><strong>申請人:</strong> {{ requisition.applicant.username }}</p>
+            <p><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</p>
+            <p><strong>備註:</strong> {{ requisition.remarks|default:"無" }}</p>
+        </div>
+    </div>
+
+    <h3 class="mb-3">撥料物料</h3>
+    {% if materials %}
+        {% include 'requisitions/_material_table.html' with materials=materials show_change_input=False show_actions=True %}
+    {% else %}
+    <p>此撥料單沒有物料。</p>
+    {% endif %}
+
+    <h3 class="mb-3">相關圖片</h3>
+    {% if dispatch_note_images %}
+    <div class="row">
+        {% for image in dispatch_note_images %}
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <img src="{{ image.image.url }}" class="card-img-top" alt="撥料單圖片">
+                <div class="card-body">
+                    <p class="card-text"><small class="text-muted">上傳於: {{ image.uploaded_at|date:"Y-m-d H:i" }}</small></p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>沒有相關圖片。</p>
+    {% endif %}
+
+<<<<<<< HEAD
+
+=======
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{% url 'requisition_detail' pk=requisition.pk %}" class="btn btn-secondary">返回撥料單詳情</a>
+        {% if requisition.status != 'completed' %}
+            <a href="{% url 'requisition_sign_off' pk=requisition.pk %}" class="btn btn-primary">簽收撥料單</a>
+        {% endif %}
+    </div>
+>>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM Content Loaded. Initializing dispatch action buttons.');
+        const dispatchActionButtons = document.querySelectorAll('.dispatch-action-btn');
+        console.log('Found dispatch action buttons:', dispatchActionButtons.length);
+
+        dispatchActionButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                console.log('Button clicked!');
+                const materialId = this.dataset.materialId;
+                const action = this.dataset.action; // 'yes' or 'no'
+                const requisitionPk = "{{ requisition.pk }}"; // Assuming requisition.pk is available in context
+                const url = `/requisitions/${requisitionPk}/update_material_dispatch_status/`;
+                console.log('Material ID:', materialId, 'Action:', action, 'Requisition PK:', requisitionPk, 'URL:', url);
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}', // Assuming csrf_token is available
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        material_id: materialId,
+                        action: action
+                    })
+                })
+                .then(response => {
+                    console.log('Response received:', response);
+                    if (!response.ok) {
+                        // Log response text for more details on server error
+                        return response.text().then(text => { throw new Error(`HTTP error! status: ${response.status}, body: ${text}`); });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Data received:', data);
+                    if (data.success) {
+                        // Update the UI for the specific material
+                        const statusCell = document.querySelector(`.dispatch-status-${materialId}`);
+                        if (statusCell) {
+                            let newBadgeClass = '';
+                            let newBadgeText = '';
+                            if (action === 'yes') {
+                                newBadgeClass = 'bg-success';
+                                newBadgeText = '已撥料';
+                            } else { // action === 'no'
+                                newBadgeClass = 'bg-secondary';
+                                newBadgeText = '未撥料';
+                            }
+                            statusCell.innerHTML = `<span class="badge ${newBadgeClass}">${newBadgeText}</span>`;
+                        }
+                        // Optionally disable buttons for this row
+                        const rowButtons = button.closest('td').querySelectorAll('.dispatch-action-btn');
+                        rowButtons.forEach(btn => btn.disabled = true);
+
+                        // alert(data.message); // Removed alert
+                    } else {
+                        // alert('操作失敗: ' + data.message); // Removed alert
+                    }
+                })
+                .catch(error => {
+                    console.error('Error during fetch:', error);
+                    // alert('發生錯誤，請重試。' + error.message); // Removed alert
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

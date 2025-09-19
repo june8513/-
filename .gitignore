@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Database
+db.sqlite3
+
+# Generated files
+output.xlsx
+
+# Media files
+media/
+
+# Secrets
+API key.txt

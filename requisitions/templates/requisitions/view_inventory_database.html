@@ -1,0 +1,34 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}庫存資料庫檢視{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">庫存資料庫檢視</h2>
+
+{% if inventory_items %}
+<div class="table-responsive">
+    <table class="table table-striped table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>物料</th>
+                <th>儲格</th>
+                <th>庫存數量</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in inventory_items %}
+            <tr>
+                <td>{{ item.material_number }}</td>
+                <td>{{ item.storage_bin }}</td>
+                <td>{{ item.stock_quantity }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info" role="alert">
+    庫存資料庫中沒有資料。
+</div>
+{% endif %}
+{% endblock %}

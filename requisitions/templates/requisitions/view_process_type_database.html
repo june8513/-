@@ -1,0 +1,34 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}投料點資料庫檢視{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">投料點資料庫檢視 (output.xlsx)</h2>
+
+{% if data %}
+<div class="table-responsive">
+    <table class="table table-striped table-bordered">
+        <thead class="table-dark">
+            <tr>
+                {% for header in headers %}
+                <th>{{ header }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            <tr>
+                {% for value in row.values %}
+                <td>{{ value }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info" role="alert">
+    投料點資料庫 (output.xlsx) 中沒有資料或檔案不存在。
+</div>
+{% endif %}
+{% endblock %}

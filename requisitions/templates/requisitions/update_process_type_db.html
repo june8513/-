@@ -1,0 +1,33 @@
+{% extends 'requisitions/base.html' %}
+
+{% load widget_tweaks %}
+
+{% block title %}更新投料點資料庫{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">更新投料點資料庫</h2>
+    <p class="text-muted">此頁面允許您上傳新的 Excel 檔案 (<code>output.xlsx</code>) 來覆蓋現有的投料點資料庫。</p>
+    
+    <div class="alert alert-warning" role="alert">
+        <strong>注意：</strong> 上傳新檔案將會立即覆蓋舊檔案，此操作無法復原。請確認您上傳的檔案格式正確無誤。
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="{{ form.file.id_for_label }}" class="form-label">{{ form.file.label }}</label>
+            {{ form.file|add_class:"form-control" }}
+            {% if form.file.help_text %}
+                <div class="form-text">{{ form.file.help_text }}</div>
+            {% endif %}
+            {% for error in form.file.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-upload me-2"></i>上傳並更新
+        </button>
+        <a href="{% url 'homepage' %}" class="btn btn-secondary">取消</a>
+    </form>
+{% endblock %}

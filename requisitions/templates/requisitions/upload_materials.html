@@ -1,0 +1,108 @@
+{% extends 'requisitions/base.html' %}
+
+{% load widget_tweaks %}
+
+{% block title %}上傳物料清單 - {{ requisition.work_order_number }}{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">上傳物料清單 - {{ requisition.work_order_number }}</h2>
+        <div class="alert alert-info">
+        <p class="mb-1">請上傳包含以下欄位的 Excel 檔案：</p>
+        <ul class="mb-1">
+            <li><strong>訂單單號</strong></li>
+            <li><strong>物料</strong></li>
+            <li><strong>品名</strong></li>
+            <li><strong>機型</strong> (此為新增的必要欄位)</li>
+            <li><strong>需求數量</strong></li>
+            <li><strong>庫存數量</strong></li>
+        </ul>
+        <p class="mb-0">注意：Excel 的欄位名稱必須與上述完全相符。</p>
+    </div>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="mb-3">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field|add_class:"form-control" }}
+                {% if field.help_text %}
+                    <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% for error in field.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">上傳</button>
+    </form>
+
+    {% if requisition.current_material_list_version and requisition.current_material_list_version.items.all %}
+        <h3 class="mt-4">已載入物料清單 (當前版本: {{ requisition.current_material_list_version.uploaded_at|date:"Y-m-d H:i" }})</h3>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>工單單號</th>
+                        <th>物料</th>
+                        <th>品名</th>
+                        <th>需求數量</th>
+                        <th>庫存數量</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in requisition.current_material_list_version.items.all %}
+                        <tr>
+                            <td>{{ item.work_order_number }}</td>
+                            <td>{{ item.material_number }}</td>
+                            <td>{{ item.item_name }}</td>
+                            <td>{{ item.required_quantity }}</td>
+                            <td>{{ item.stock_quantity }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="mt-4">此申請單沒有當前物料清單。</p>
+    {% endif %}
+
+    {% if material_versions %}
+        <h3 class="mt-4">歷史物料清單版本</h3>
+        {% for version in material_versions %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    版本: {{ version.uploaded_at|date:"Y-m-d H:i" }} (上傳人員: {{ version.uploaded_by.username|default:"未知" }})
+                </div>
+                <div class="card-body">
+                    {% if version.items.all %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>工單單號</th>
+                                        <th>物料</th>
+                                        <th>品名</th>
+                                        <th>需求數量</th>
+                                        <th>庫存數量</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in version.items.all %}
+                                        <tr>
+                                            <td>{{ item.work_order_number }}</td>
+                                            <td>{{ item.material_number }}</td>
+                                            <td>{{ item.item_name }}</td>
+                                            <td>{{ item.required_quantity }}</td>
+                                            <td>{{ item.stock_quantity }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p>此版本沒有物料明細。</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endblock %}

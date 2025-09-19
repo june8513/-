@@ -1,0 +1,132 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}投料點管理{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">投料點管理</h2>
+
+{% if messages %}
+    <ul class="messages list-unstyled">
+        {% for message in messages %}
+            <li{% if message.tags %} class="alert alert-{{ message.tags }} fade show"{% endif %}>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card-header">新增投料點</div>
+    <div class="card-body">
+        <form method="post" action="{% url 'process_types_management' %}">
+            {% csrf_token %}
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    {{ form.name.label_tag }}
+                    {{ form.name }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.machine_model.label_tag }}
+                    {{ form.machine_model }}
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" name="add_process_type" class="btn btn-primary">新增</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">現有投料點</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>投料點名稱</th>
+                        <th>所屬機型</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pt in process_types %}
+                        <tr>
+                            <td>{{ pt.name }}</td>
+                            <td>{{ pt.machine_model.name }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-warning me-2" data-bs-toggle="modal" data-bs-target="#editProcessTypeModal" data-id="{{ pt.id }}" data-name="{{ pt.name }}" data-machine-model-id="{{ pt.machine_model.id }}">編輯</button>
+                                <form method="post" action="{% url 'process_types_management' %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="process_type_id" value="{{ pt.id }}">
+                                    <button type="submit" name="delete_process_type" class="btn btn-sm btn-danger" onclick="return confirm('您確定要刪除此投料點嗎？此操作無法復原。')">刪除</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">目前沒有投料點。</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Process Type Modal -->
+<div class="modal fade" id="editProcessTypeModal" tabindex="-1" aria-labelledby="editProcessTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editProcessTypeModalLabel">編輯投料點</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'process_types_management' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" name="process_type_id" id="editProcessTypeId">
+                    <div class="mb-3">
+                        <label for="editProcessTypeName" class="form-label">投料點名稱</label>
+                        <input type="text" class="form-control" id="editProcessTypeName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editProcessTypeMachineModel" class="form-label">所屬機型</label>
+                        <select class="form-select" id="editProcessTypeMachineModel" name="machine_model" required>
+                            {% for mm in machine_models %}
+                                <option value="{{ mm.id }}">{{ mm.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" name="edit_process_type" class="btn btn-primary">儲存變更</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    var editProcessTypeModal = document.getElementById('editProcessTypeModal')
+    editProcessTypeModal.addEventListener('show.bs.modal', function (event) {
+        var button = event.relatedTarget
+        var id = button.getAttribute('data-id')
+        var name = button.getAttribute('data-name')
+        var machineModelId = button.getAttribute('data-machine-model-id')
+
+        var modalProcessTypeId = editProcessTypeModal.querySelector('#editProcessTypeId')
+        var modalProcessTypeName = editProcessTypeModal.querySelector('#editProcessTypeName')
+        var modalProcessTypeMachineModel = editProcessTypeModal.querySelector('#editProcessTypeMachineModel')
+
+        modalProcessTypeId.value = id
+        modalProcessTypeName.value = name
+        modalProcessTypeMachineModel.value = machineModelId
+    })
+</script>
+{% endblock %}

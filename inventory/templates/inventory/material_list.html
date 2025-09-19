@@ -1,0 +1,113 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}主庫存清單{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="my-4">主庫存清單 (庫存操作)</h2>
+
+    <!-- Messages -->
+    {% if messages %}
+        <ul class="messages list-unstyled">
+            {% for message in messages %}
+                <li class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}" role="alert">
+                    {{ message }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <!-- Top Action Row -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <form action="{% url 'import_material_master' %}" method="post" enctype="multipart/form-data" class="d-flex">
+                {% csrf_token %}
+                <div class="input-group">
+                    <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
+                    <button type="submit" class="btn btn-success">匯入主物料資料</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{% url 'stocktake_list' %}" class="btn btn-info me-2">查看盤點單列表</a>
+            <a href="{% url 'export_master_material_differences' %}" class="btn btn-warning">匯出差異清單</a>
+        </div>
+    </div>
+
+    <!-- Filtering Form -->
+    <form method="get" class="mb-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" name="location_filter" class="form-control" placeholder="篩選庫位..." value="{{ location_filter }}">
+                    <button class="btn btn-outline-secondary" type="submit">篩選</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Material List Table and Quantity Update Form -->
+    <form action="{% url 'update_quantities' %}" method="post">
+        {% csrf_token %}
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=location&order={% if sort_by == 'location' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">庫位</a>
+                    </th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=bin&order={% if sort_by == 'bin' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">儲格</a>
+                    </th>
+                    <th style="width: 15%;">
+                        <a href="?sort_by=material_code&order={% if sort_by == 'material_code' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">物料</a>
+                    </th>
+                    <th>
+                        <a href="?sort_by=material_description&order={% if sort_by == 'material_description' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">物料說明</a>
+                    </th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=system_quantity&order={% if sort_by == 'system_quantity' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">系統庫存</a>
+                    </th>
+                    <th style="width: 10%;">變動數量</th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=latest_counted_quantity&order={% if sort_by == 'latest_counted_quantity' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">最新盤點數量</a>
+                    </th>
+                    <th style="width: 10%;">最新差異</th>
+                    <th style="width: 15%;">
+                        <a href="?sort_by=last_counted_date&order={% if sort_by == 'last_counted_date' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">上次盤點日期</a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for material in materials %}
+                    <tr {% if material.current_difference is not None and material.current_difference != 0 %}class="table-danger"{% endif %}>
+                        <td>{{ material.location }}</td>
+                        <td>{{ material.bin }}</td>
+                        <td>{{ material.material_code }}</td>
+                        <td>{{ material.material_description }}</td>
+                        <td>{{ material.system_quantity }}</td>
+                        <td>
+                            <input type="number" name="quantity_{{ material.id }}" class="form-control form-control-sm" placeholder="負數撥料, 正數退料">
+                        </td>
+                        <td>{{ material.latest_counted_quantity|default:"N/A" }}</td>
+                        <td {% if material.current_difference is not None and material.current_difference != 0 %}class="fw-bold"{% endif %}>
+                            {% if material.current_difference is not None %}
+                                {{ material.current_difference }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>{{ material.last_counted_date|date:"Y-m-d H:i"|default:"N/A" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center">沒有主物料資料，請匯入。</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-primary">確認本頁所有變更</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

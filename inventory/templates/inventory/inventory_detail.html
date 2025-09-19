@@ -1,0 +1,66 @@
+{% extends 'requisitions/base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}盤點單詳情: {{ inventory.inventory_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="my-4">盤點單: {{ inventory.inventory_id }}</h2>
+    <p><strong>建立人員:</strong> {{ inventory.user.username }}</p>
+    <p><strong>建立日期:</strong> {{ inventory.created_at|date:"Y-m-d H:i" }}</p>
+
+    <hr>
+
+    <!-- Filtering Form -->
+    <form method="get" class="mb-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" name="location_filter" class="form-control" placeholder="篩選庫位..." value="{{ location_filter }}">
+                    <button class="btn btn-outline-secondary" type="submit">篩選</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <h3 class="my-4">盤點品項列表</h3>
+    <form method="post" action="{% url 'update_inventory_items' pk=inventory.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary mb-3">儲存所有變更</button>
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 10%;">庫位</th>
+                    <th style="width: 10%;">儲格</th>
+                    <th style="width: 15%;">物料</th>
+                    <th>物料說明</th>
+                    <th style="width: 10%;">庫存數量</th>
+                    <th style="width: 10%;">盤點數量</th>
+                    <th style="width: 10%;">狀態</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>{{ item.location }}</td>
+                        <td>{{ item.bin }}</td>
+                        <td>{{ item.material_code }}</td>
+                        <td>{{ item.material_description }}</td>
+                        <td>{{ item.system_quantity }}</td>
+                        <td>
+                            <input type="number" name="counted_quantity_{{ item.id }}" class="form-control form-control-sm" value="{{ item.counted_quantity|default_if_none:'' }}">
+                        </td>
+                        <td>
+                             <span class="badge {% if item.status == '已盤點' %}bg-success{% else %}bg-warning{% endif %}">{{ item.status }}</span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center">此盤點單尚無品項，請由 Excel 匯入。</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
+</div>
+{% endblock %}

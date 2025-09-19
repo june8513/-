@@ -1,0 +1,116 @@
+{% extends 'requisitions/base.html' %}
+
+{% load widget_tweaks %}
+
+{% block title %}建立撥料申請單{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">建立撥料申請單</h2>
+    <form method="post" id="requisition-form" data-get-process-types-url="{% url 'get_available_process_types' %}">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="{{ form.order_number.id_for_label }}" class="form-label">{{ form.order_number.label }}</label>
+            {{ form.order_number|add_class:"form-control"|attr:"id:id_order_number" }}
+            {% if form.order_number.help_text %}
+                <div class="form-text">{{ form.order_number.help_text }}</div>
+            {% endif %}
+            {% for error in form.order_number.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            <label for="{{ form.request_date.id_for_label }}" class="form-label">{{ form.request_date.label }}</label>
+            {{ form.request_date|add_class:"form-control" }}
+            {% if form.request_date.help_text %}
+                <div class="form-text">{{ form.request_date.help_text }}</div>
+            {% endif %}
+            {% for error in form.request_date.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            <label for="{{ form.process_type.id_for_label }}" class="form-label">{{ form.process_type.label }}</label>
+            {{ form.process_type|add_class:"form-control" }}
+            {% if form.process_type.help_text %}
+                <div class="form-text">{{ form.process_type.help_text }}</div>
+            {% endif %}
+            {% for error in form.process_type.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            <label for="{{ form.remarks.id_for_label }}" class="form-label">{{ form.remarks.label }}</label>
+            {{ form.remarks|add_class:"form-control" }}
+            {% if form.remarks.help_text %}
+                <div class="form-text">{{ form.remarks.help_text }}</div>
+            {% endif %}
+            {% for error in form.remarks.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary">建立</button>
+    </form>
+
+    
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const orderInput = document.getElementById('id_order_number');
+    const processTypeSelect = document.getElementById('id_process_type');
+    const form = document.getElementById('requisition-form');
+    const getProcessTypesUrl = form.dataset.getProcessTypesUrl;
+
+    // Initially disable the process_type select
+    processTypeSelect.disabled = true;
+    processTypeSelect.innerHTML = '<option value="">請先輸入訂單單號</option>';
+
+    orderInput.addEventListener('blur', function() {
+        const orderNumber = this.value.trim();
+
+        if (orderNumber) {
+            // Use the URL from the data attribute
+            fetch(`${getProcessTypesUrl}?order_number=${orderNumber}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    processTypeSelect.innerHTML = ''; // Clear existing options
+                    if (data.available_process_types && data.available_process_types.length > 0) {
+                        processTypeSelect.disabled = false;
+                        console.log('Process type select enabled:', processTypeSelect.disabled); // Add this line
+                        processTypeSelect.innerHTML = '<option value="">請選擇需求流程</option>';
+                        data.available_process_types.forEach(function(pt) {
+                            const option = document.createElement('option');
+                            option.value = pt.value;
+                            option.textContent = pt.label;
+                            processTypeSelect.appendChild(option);
+                        });
+                    } else {
+                        processTypeSelect.disabled = true;
+                        console.log('Process type select disabled:', processTypeSelect.disabled); // Add this line
+                        processTypeSelect.innerHTML = '<option value="">此訂單已無可用流程</option>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching process types:', error);
+                    processTypeSelect.disabled = true;
+                    processTypeSelect.innerHTML = '<option value="">無法載入流程(請檢查主控台)</option>';
+                });
+        } else {
+            // If order input is empty, disable and reset the select
+            processTypeSelect.innerHTML = '<option value="">請先輸入訂單單號</option>';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "requisitions/base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <h1>歡迎使用撥料系統</h1>
+            <p>請登入以繼續</p>
+            <a href="{% url 'login' %}" class="btn btn-primary">登入</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends 'requisitions/base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}盤點單詳情: {{ stocktake.stocktake_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="my-4">盤點單: {{ stocktake.name|default:stocktake.stocktake_id }}</h2>
+    <p><strong>建立人員:</strong> {{ stocktake.created_by.username }}</p>
+    <p><strong>建立日期:</strong> {{ stocktake.created_at|date:"Y-m-d H:i" }}</p>
+    <p><strong>狀態:</strong> <span class="badge {% if stocktake.status == '已完成' %}bg-success{% else %}bg-warning{% endif %}">{{ stocktake.status }}</span></p>
+
+    <hr>
+
+    <!-- Messages -->
+    {% if messages %}
+        <ul class="messages list-unstyled">
+            {% for message in messages %}
+                <li class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}" role="alert">
+                    {{ message }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <!-- Filtering Form -->
+    <form method="get" class="mb-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" name="location_filter" class="form-control" placeholder="篩選庫位..." value="{{ location_filter }}">
+                    <button class="btn btn-outline-secondary" type="submit">篩選</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <h3 class="my-4">盤點品項列表</h3>
+    <form method="post" action="{% url 'update_stocktake_items' pk=stocktake.pk %}">
+        {% csrf_token %}
+        {% if stocktake.status == '進行中' %}
+            <button type="submit" name="action" value="save_quantities" class="btn btn-primary mb-3">儲存盤點數量</button>
+            <button type="submit" name="action" value="complete_stocktake" class="btn btn-success mb-3 ms-2">完成盤點</button>
+        {% else %}
+            <button type="button" class="btn btn-secondary mb-3" disabled>盤點已完成</button>
+            <a href="{% url 'export_stocktake_differences' pk=stocktake.pk %}" class="btn btn-success mb-3 ms-2">匯出盤點差異</a>
+        {% endif %}
+
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=material__location&order={% if sort_by == 'material__location' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">庫位
+                            {% if sort_by == 'material__location' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=material__bin&order={% if sort_by == 'material__bin' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">儲格
+                            {% if sort_by == 'material__bin' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th style="width: 15%;">
+                        <a href="?sort_by=material__material_code&order={% if sort_by == 'material__material_code' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">物料
+                            {% if sort_by == 'material__material_code' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="?sort_by=material__material_description&order={% if sort_by == 'material__material_description' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">物料說明
+                            {% if sort_by == 'material__material_description' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=system_quantity_on_record&order={% if sort_by == 'system_quantity_on_record' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">系統數量
+                            {% if sort_by == 'system_quantity_on_record' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=counted_quantity&order={% if sort_by == 'counted_quantity' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">盤點數量
+                            {% if sort_by == 'counted_quantity' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th style="width: 10%;">差異</th>
+                    <th style="width: 10%;">
+                        <a href="?sort_by=status&order={% if sort_by == 'status' and order == 'asc' %}desc{% else %}asc{% endif %}{% if location_filter %}&location_filter={{ location_filter }}{% endif %}">狀態
+                            {% if sort_by == 'status' %}
+                                {% if order == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>{{ item.material.location }}</td>
+                        <td>{{ item.material.bin }}</td>
+                        <td>{{ item.material.material_code }}</td>
+                        <td>{{ item.material.material_description }}</td>
+                        <td>{{ item.system_quantity_on_record }}</td>
+                        <td>
+                            {% if stocktake.status == '進行中' %}
+                                <input type="number" name="counted_quantity_{{ item.id }}" class="form-control form-control-sm counted-quantity-input" value="{{ item.counted_quantity|default_if_none:'' }}">
+                            {% else %}
+                                {{ item.counted_quantity|default:"N/A" }}
+                            {% endif %}
+                        </td>
+                        <td>{{ item.difference|default:"N/A" }}</td>
+                        <td>
+                             <span class="badge {% if item.status == '已盤點' %}bg-success{% else %}bg-warning{% endif %}">{{ item.status }}</span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center">此盤點單尚無品項。</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
+</div>
+{% endblock %}

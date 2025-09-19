@@ -1,0 +1,16 @@
+{% load widget_tweaks %}
+<form method="post" enctype="multipart/form-data" action="{% url 'upload_requisition_images' requisition.pk %}" id="upload-image-form">
+    {% csrf_token %}
+    <div class="mb-3">
+        {{ form.images.label_tag }}
+        {{ form.images|attr:"multiple" }}
+        {% if form.images.errors %}
+            <div class="invalid-feedback d-block">
+                {% for error in form.images.errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary" id="submit-image-upload">上傳</button>
+</form>

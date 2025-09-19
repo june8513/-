@@ -1,0 +1,70 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}訂單主物料清單{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">訂單主物料清單</h2>
+    <a href="{% url 'requisition_list' %}" class="btn btn-secondary mb-3">返回待撥料申請</a>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Search and Filter Form -->
+    <form method="get" class="mb-4 p-3 bg-light border rounded">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4">
+                <label for="order_number" class="form-label fw-bold">訂單單號</label>
+                <input type="text" name="order_number" id="order_number" class="form-control" placeholder="請輸入訂單單號" value="{{ selected_order|default_if_none:'' }}">
+            </div>
+            <div class="col-12 col-md-4">
+                <label for="process_type" class="form-label fw-bold">投料點</label>
+                <select name="process_type" id="process_type" class="form-select">
+                    <option value="">所有投料點</option>
+                    {% for value, label in process_type_choices %}
+                        <option value="{{ value }}" {% if selected_process_type == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-auto form-check form-switch d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" id="showInactive" name="show_inactive" value="true" {% if show_inactive %}checked{% endif %}>
+                <label class="form-check-label ms-2" for="showInactive">顯示已歸檔物料</label>
+            </div>
+            <div class="col-12 col-md-auto">
+                <button type="submit" class="btn btn-primary w-100">查詢 / 篩選</button>
+            </div>
+            <div class="col-12 col-md-auto">
+                <a href="{% url 'work_order_material_list' %}" class="btn btn-outline-secondary w-100">清除所有條件</a>
+            </div>
+        </div>
+    </form>
+
+    {% if selected_order %}
+        <h3 class="mb-3">訂單: {{ selected_order }} 的物料清單</h3>
+        {% if machine_models_for_display %}
+            <p class="mb-3"><strong>機型:</strong> {{ machine_models_for_display|join:", " }}</p>
+        {% endif %}
+        
+        <form method="post" action="{% url 'update_work_order_quantities' %}">
+            {% csrf_token %}
+            <input type="hidden" name="order_number" value="{{ selected_order }}">
+            <input type="hidden" name="process_type_filter" value="{{ selected_process_type|default_if_none:'' }}">
+            {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True %}
+            <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-primary">確認本頁所有變更</button>
+            </div>
+        </form>
+    {% else %}
+        <div class="alert alert-info">
+            請先輸入訂單單號以查詢其物料清單。
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "requisitions/base.html" %}
+
+{% load widget_tweaks %}
+
+{% block title %}上傳物料明細 Excel{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>上傳物料明細 Excel</h2>
+    <p>請上傳包含訂單、機型、物料、物料說明和需求數量的 Excel 檔案。</p>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="mb-3">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field|add_class:"form-control" }}
+                {% if field.help_text %}
+                    <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% for error in field.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">上傳</button>
+    </form>
+
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>
+{% endblock %}

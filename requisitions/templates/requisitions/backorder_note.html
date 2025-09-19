@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}欠料單 - {{ requisition.order_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">欠料單</h2>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            欠料單資訊
+        </div>
+        <div class="card-body">
+            <p><strong>訂單單號:</strong> {{ requisition.order_number }}</p>
+            <p><strong>需求流程:</strong> {{ requisition.process_type }}</p>
+            <p><strong>申請人:</strong> {{ requisition.applicant.username }}</p>
+            <p><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</p>
+            <p><strong>備註:</strong> {{ requisition.remarks|default:"無" }}</p>
+        </div>
+    </div>
+
+    <h3 class="mb-3">欠料物料</h3>
+    {% if shortage_materials %}
+        {% include 'requisitions/_material_table.html' with materials=shortage_materials show_change_input=False show_actions=False %}
+    {% else %}
+    <p>此撥料單沒有欠料物料。</p>
+    {% endif %}
+
+<<<<<<< HEAD
+    
+=======
+    <a href="{% url 'requisition_detail' pk=requisition.pk %}" class="btn btn-secondary mt-4">返回撥料單詳情</a>
+>>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
+    <a href="{% url 'generate_backorder_note_excel' pk=requisition.pk %}" class="btn btn-success mt-4">下載 Excel</a>
+</div>
+{% endblock %}

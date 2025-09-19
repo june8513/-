@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Requisition List</title>
+    <style>
+        body { font-family: sans-serif; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #dddddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        h1 { text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>撥料申請單列表</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>工單單號</th>
+                <th>需求流程</th>
+                <th>申請人</th>
+                <th>需求日期</th>
+                <th>狀態</th>
+                <th>建立時間</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in requisitions %}
+            <tr>
+                <td>{{ r.work_order_number }}</td>
+                <td>{{ r.get_process_type_display }}</td>
+                <td>{{ r.applicant.get_full_name }}</td>
+                <td>{{ r.request_date|date:"Y-m-d" }}</td>
+                <td>{{ r.get_status_display }}</td>
+                <td>{{ r.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

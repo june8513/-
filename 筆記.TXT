@@ -1,0 +1,38 @@
+需求流程與資料庫投料點相同有 機頭 主軸 懸臂 角度頭 機械 電裝 角度頭 出貨 其他
+
+1. 開啟命令提示字元 (CMD) 或 PowerShell
+
+   2. 切換到專案目錄
+      請在命令提示字元中輸入以下指令，然後按下 Enter：
+   1     cd C:\Users\gfpap\OneDrive\桌面\撥料
+
+   3. 啟動虛擬環境
+      這個專案有虛擬環境，可以確保套件獨立不互相干擾。請執行以下指令：
+
+   1     .\venv\Scripts\activate
+      當你看到命令提示字元前面出現 (venv) 字樣時，表示已成功啟動。
+
+   4. 安裝必要的套件
+      接著，我們需要安裝這個專案所有需要的 Python 套件。請執行：
+   1     pip install -r requirements.txt
+
+   5. 執行資料庫遷移
+      這個指令會根據專案的設定，建立或更新資料庫的結構。
+   1     python manage.py migrate
+
+   6. 啟動開發伺服器
+      最後，執行這個指令來啟動網站：
+   1     python manage.py runserver
+
+
+
+TMEPPRD9TD
+YDX7KC8S53
+YK92C5KR5T
+ZGFAKA5EZM
+YTMTS2XB57
+JPBJ6WXASP
+BSCQ98VR8P
+PP9G3U663F
+U4HNMP8F3F
+KP4SPW7KNW

@@ -1,0 +1,66 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}資料庫檢視{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">訂單主物料清單資料庫</h2>
+
+<form method="post" action="{% url 'clear_work_order_material_database' %}" class="mb-3">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger" onclick="return confirm('您確定要清空工單主物料清單資料庫嗎？此操作無法復原。')">清空資料庫</button>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>訂單</th>
+                <th>機型</th>
+                <th>物料</th>
+                <th>物料說明</th>
+                <th>需求數量</th>
+                <th>投料點</th>
+                <th>已撥料數量</th>
+                <th>簽收狀態</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in materials %}
+                <tr data-machine-model-id="{{ material.machine_model.id }}">
+                    <td>{{ material.order_number }}</td>
+                    <td>{{ material.machine_model.name|default_if_none:"" }}</td>
+                    <td>{{ material.material_number }}</td>
+                    <td>{{ material.item_name }}</td>
+                    <td>{{ material.required_quantity|floatformat:2 }}</td>
+                    <td>
+    {{ material.process_type.name|default_if_none:"---" }}
+</td>
+                    <td>
+                        {% if material.confirmed_quantity is not None %}
+                            {{ material.confirmed_quantity|floatformat:2 }}
+                        {% else %}
+                            <span class="text-muted">未撥料</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if material.is_signed_off %}
+                            <span class="badge bg-success">已簽收</span>
+                        {% else %}
+                            <span class="badge bg-secondary">未簽收</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center">資料庫中沒有物料。</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div id="alert-container" style="position: fixed; top: 1rem; right: 1rem; z-index: 1050;"></div>
+
+{% endblock %}
+
+

@@ -1,0 +1,168 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}撥料申請詳情 - {{ requisition.order_number }}{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">撥料申請詳情 - {{ requisition.order_number }}</h2>
+
+    <div class="mb-3">
+        <a href="{% url 'supplement_material' pk=requisition.pk %}" class="btn btn-info">
+            <i class="fas fa-plus"></i> 補料
+        </a>
+        <a href="{% url 'generate_dispatch_note' pk=requisition.pk %}" class="btn btn-success">產生撥料單</a>
+        <a href="{% url 'generate_backorder_note' pk=requisition.pk %}" class="btn btn-warning">產生欠料單</a>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <p><strong>訂單單號:</strong> {{ requisition.order_number }}</p>
+            <p><strong>申請人:</strong> {{ requisition.applicant.get_full_name }}</p>
+            <p><strong>需求日期:</strong> {{ requisition.request_date }}</p>
+            <p><strong>需求流程:</strong> {{ requisition.process_type }}</p>
+            <p><strong>機型:</strong> {{ machine_models_display|default:"無" }}</p>
+            <p><strong>狀態:</strong> <span class="badge bg-{% if requisition.status == 'pending' %}warning{% elif requisition.status == 'materials_confirmed' %}info{% elif requisition.status == 'completed' %}success{% else %}secondary{% endif %}">{{ requisition.get_status_display }}</span></p>
+            <p><strong>備註:</strong> {{ requisition.remarks|default:"無" }}</p>
+            <p><strong>建立時間:</strong> {{ requisition.created_at|date:"Y-m-d H:i" }}</p>
+        </div>
+        <div class="col-md-6">
+            <p><strong>物料確認人員:</strong> {% if requisition.material_confirmed_by %}{{ requisition.material_confirmed_by.get_full_name|default:requisition.material_confirmed_by.username }}{% else %}-{% endif %}</p>
+            <p><strong>物料確認時間:</strong> {{ requisition.material_confirmed_date|date:"Y-m-d H:i"|default:"-" }}</p>
+            <p><strong>最終簽收人員:</strong> {% if requisition.sign_off_by %}{{ requisition.sign_off_by.get_full_name|default:requisition.sign_off_by.username }}{% else %}-{% endif %}</p>
+            <p><strong>最終簽收時間:</strong> {{ requisition.sign_off_date|date:"Y-m-d H:i"|default:"-" }}</p>
+        </div>
+    </div>
+
+    <h3 class="mt-4 mb-3">撥料與收料情況總覽 (當前訂單)</h3>
+    {% if process_type_summary %}
+        <div class="table-responsive mb-4">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>需求流程</th>
+                        <th>總需求數量</th>
+                        <th>總確認撥料數量</th>
+                        <th>總最終簽收數量</th>
+                        <th>項目總數</th>
+                        <th>已確認項目數</th>
+                        <th>已簽收項目數</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for process_type_value, summary_data in process_type_summary.items %}
+                    <tr>
+                        <td>{{ summary_data.label }}</td>
+                        <td>{{ summary_data.total_required|floatformat:2 }}</td>
+                        <td>{{ summary_data.total_confirmed|floatformat:2 }}</td>
+                        <td>{{ summary_data.total_signed_off|floatformat:2 }}</td>
+                        <td>{{ summary_data.items_count }}</td>
+                        <td>{{ summary_data.confirmed_items_count }}</td>
+                        <td>{{ summary_data.signed_off_items_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="mb-4">無撥料與收料情況總覽數據。</p>
+    {% endif %}
+
+    <!-- DEBUG: Image Upload Section Start -->
+    <h3 class="mt-4 mb-3">圖片上傳</h3>
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" action="{% url 'requisition_detail' pk=requisition.pk %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="{{ image_form.images.id_for_label }}" class="form-label">{{ image_form.images.label }}</label>
+                    <input type="file" name="{{ image_form.images.html_name }}" id="{{ image_form.images.id_for_label }}" class="form-control" multiple>
+                    {% if image_form.images.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in image_form.images.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <button type="submit" class="btn btn-primary">上傳圖片</button>
+            </form>
+        </div>
+    </div>
+
+    <h3 class="mt-4 mb-3">已上傳圖片</h3>
+    {% if requisition_images %}
+        <div class="row">
+            {% for image in requisition_images %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <img src="{{ image.image.url }}" class="card-img-top" alt="Requisition Image">
+                        <div class="card-body">
+                            <p class="card-text"><small class="text-muted">上傳於: {{ image.uploaded_at|date:"Y-m-d H:i" }} by {{ image.uploaded_by.username }}</small></p>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>此撥料單沒有上傳圖片。</p>
+    {% endif %}
+
+    <h3 class="mt-4 mb-3">物料清單版本歷史</h3>
+    {% if material_versions %}
+        {% for version in material_versions %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    版本: {{ version.uploaded_at|date:"Y-m-d H:i" }} (上傳人員: {% if version.uploaded_by %}{{ version.uploaded_by.get_full_name|default:version.uploaded_by.username }}{% else %}未知{% endif %})
+                    <div>
+                        <form action="{% url 'activate_material_version' requisition.pk version.pk %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-primary">激活此版本</button>
+                        </form>
+                        {% if is_admin or is_applicant %}
+                            <form action="{% url 'requisition_sign_off_version' requisition.pk version.pk %}" method="get" class="d-inline ms-2">
+                                <button type="submit" class="btn btn-sm btn-success">簽收此版本</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if version.items.all %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-bordered table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>訂單單號</th>
+                                        <th>物料</th>
+                                        <th>品名</th>
+                                        <th>需求數量</th>
+                                        <th>庫存數量</th>
+                                        <th>確認撥料數量</th>
+                                        <th>最終簽收已確認</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in version.items.all %}
+                                        <tr>
+                                            <td>{{ item.order_number }}</td>
+                                            <td>{{ item.material_number }}</td>
+                                            <td>{{ item.item_name }}</td>
+                                            <td>{{ item.required_quantity }}</td>
+                                            <td>{{ item.stock_quantity }}</td>
+                                            <td>{{ item.confirmed_quantity|default:"-" }}</td>
+                                            <td>{% if item.is_signed_off %}<span class="badge bg-success">是</span>{% else %}<span class="badge bg-danger">否</span>{% endif %}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p>此版本沒有物料明細。</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>此撥料單沒有物料清單版本歷史。</p>
+    {% endif %}
+
+    <a href="{% url 'requisition_history' %}" class="btn btn-secondary mt-3">返回歷史記錄</a>
+{% endblock %}

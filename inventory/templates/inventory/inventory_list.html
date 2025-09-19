@@ -1,0 +1,28 @@
+
+{% extends 'requisitions/base.html' %}
+
+{% block title %}盤點單列表{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="my-4">盤點單列表</h2>
+    <form action="{% url 'create_inventory' %}" method="post" class="mb-3 d-inline-block">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">建立新盤點單</button>
+    </form>
+    <form action="{% url 'import_inventory' %}" method="post" enctype="multipart/form-data" class="mb-3 d-inline-block">
+        {% csrf_token %}
+        <input type="file" name="excel_file" class="form-control-file" accept=".xlsx, .xls" required>
+        <button type="submit" class="btn btn-info">從 Excel 匯入</button>
+    </form>
+    <div class="list-group">
+        {% for inventory in inventories %}
+            <a href="{% url 'inventory_detail' pk=inventory.pk %}" class="list-group-item list-group-item-action">
+                {{ inventory.inventory_id }} - {{ inventory.user.username }} - {{ inventory.created_at|date:"Y-m-d H:i" }}
+            </a>
+        {% empty %}
+            <p class="list-group-item">沒有盤點單</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

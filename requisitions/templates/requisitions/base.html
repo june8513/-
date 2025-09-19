@@ -1,0 +1,106 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}撥料申請與電子簽收系統{% endblock %}</title>
+    <!-- Bootstrap CSS from CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="{% static 'requisitions/css/all.min.css' %}">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="{% static 'requisitions/css/custom_styles.css' %}">
+</head>
+<body class="d-flex flex-column min-vh-100">
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+            <div class="container-fluid">
+                <div class="d-flex justify-content-between w-100 align-items-center">
+                    <!-- Left: Logo Dropdown -->
+                    <div class="dropdown">
+                        <a class="navbar-brand" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="{% static 'requisitions/images/Hartford_logo.png' %}" alt="Hartford Logo" height="40">
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuLink">
+                            <li><a class="dropdown-item" href="{% url 'homepage' %}">儀表板</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">撥料申請管理</h6></li>
+                            {% if is_admin or is_material_handler %}
+                                <li><a class="dropdown-item" href="{% url 'requisition_list' %}">待撥料申請</a></li>
+                            {% endif %}
+                            {% if is_admin or is_applicant %}
+                                <li><a class="dropdown-item" href="{% url 'requisition_create' %}">建立申請單</a></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'requisition_history' %}">已撥料申請</a></li>
+<<<<<<< HEAD
+                            <li><a class="dropdown-item" href="{% url 'work_order_material_list' %}">工單主物料清單</a></li>
+=======
+>>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
+                            <li><hr class="dropdown-divider"></li>
+                            {% if is_admin or is_material_handler %}
+                                <li><a class="dropdown-item" href="{% url 'work_order_material_list' %}">庫存盤點</a></li>
+                            {% endif %}
+<<<<<<< HEAD
+=======
+                            <li><a class="dropdown-item" href="{% url 'work_order_material_list' %}">工單主物料清單</a></li>
+>>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
+                        </ul>
+                    </div>
+
+                    <!-- Center: Title -->
+                    <a href="{% url 'homepage' %}" class="navbar-brand mx-auto fw-bold fs-5">撥料申請系統</a>
+
+                    <!-- Right: User Info -->
+                    <ul class="navbar-nav d-flex flex-row align-items-center">
+                        {% if user.is_authenticated %}
+                            <li class="nav-item me-3">
+                                <span class="navbar-text">歡迎, {{ user.username }}!</span>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'logout' %}">登出</a>
+                            </li>
+                        {% else %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'login' %}">登入</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="flex-shrink-0 mt-5 pt-4">
+        <div class="container">
+            {% if messages %}
+                <div class="messages-container">
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show" role="alert">
+                            {{ message|safe }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% block content %}
+            {% endblock %}
+        </div>
+    </main>
+
+    <footer class="footer mt-auto py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">© {% now "Y" %} Hartford. All Rights Reserved.</span>
+        </div>
+    </footer>
+
+    <!-- Bootstrap Bundle with Popper from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    {% block extra_js %}
+    {% endblock %}
+</body>
+</html>

@@ -1,0 +1,190 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}撥料申請歷史記錄{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">撥料申請歷史記錄</h2>
+
+    <form method="get" class="row g-3 align-items-end mb-4">
+        <div class="col-12 col-md-auto">
+            <label for="order_number" class="form-label">訂單單號:</label>
+            <input type="text" id="order_number" name="order_number" value="{{ request.GET.order_number }}" class="form-control">
+        </div>
+        <div class="col-12 col-md-auto">
+            <label for="applicant_username" class="form-label">申請人 (使用者名稱):</label>
+            <input type="text" id="applicant_username" name="applicant_username" value="{{ request.GET.applicant_username }}" class="form-control">
+        </div>
+        <div class="col-12 col-md-auto">
+            <label for="status" class="form-label">狀態:</label>
+            <select id="status" name="status" class="form-select">
+                <option value="">所有狀態</option>
+                {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-auto">
+            <label for="process_type" class="form-label">需求流程:</label>
+            <select id="process_type" name="process_type" class="form-select">
+                <option value="">所有流程</option>
+                {% for value, label in process_type_choices %}
+                    <option value="{{ value }}" {% if request.GET.process_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-auto">
+            <label for="start_date" class="form-label">起始日期:</label>
+            <input type="date" id="start_date" name="start_date" value="{{ request.GET.start_date }}" class="form-control">
+        </div>
+        <div class="col-12 col-md-auto">
+            <label for="end_date" class="form-label">結束日期:</label>
+            <input type="date" id="end_date" name="end_date" value="{{ request.GET.end_date }}" class="form-control">
+        </div>
+        
+        <div class="col-md-auto">
+            <button type="submit" class="btn btn-outline-primary">篩選</button>
+        </div>
+        <div class="col-md-auto">
+            <a href="{% url 'requisition_history' %}" class="btn btn-outline-secondary">清除篩選</a>
+        </div>
+    </form>
+
+    {% if history_requisitions %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>訂單單號</th>
+                        <th>申請人</th>
+                        <th>需求日期</th>
+                        <th>需求流程</th>
+                        <th>機型</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in history_requisitions %}
+                        <tr>
+                            <td>{{ req.order_number }}</td>
+                            <td>{{ req.applicant.get_full_name }}</td>
+                            <td>{{ req.request_date }}</td>
+                            <td>{{ req.process_type }}</td>
+                            <td>{{ req.machine_models_display }}</td>
+                            <td><span class="badge bg-{% if req.status == 'pending' %}warning{% elif req.status == 'materials_confirmed' %}info{% elif req.status == 'completed' %}success{% else %}secondary{% endif %}">{{ req.get_status_display }}</span></td>
+                            <td>
+                                <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary">撥料</a>
+                                <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success ms-1">撥料單</a>
+                                <a href="{% url 'generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning ms-1">欠料單</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if history_requisitions.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?page={{ history_requisitions.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">上一頁</a></li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">上一頁</span></li>
+                {% endif %}
+
+                {% for i in history_requisitions.paginator.page_range %}
+                    {% if history_requisitions.number == i %}
+                        <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                    {% else %}
+                        <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if history_requisitions.has_next %}
+                    <li class="page-item"><a class="page-link" href="?page={{ history_requisitions.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">下一頁</a></li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">下一頁</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+
+    {% else %}
+        <p class="mt-4">沒有符合條件的歷史撥料申請單。</p>
+    {% endif %}
+
+<!-- View Requisition Images Modal -->
+<div class="modal fade" id="viewRequisitionImagesModal" tabindex="-1" aria-labelledby="viewRequisitionImagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewRequisitionImagesModalLabel">已上傳圖片</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="requisition-images-gallery" class="row">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const viewImagesModal = document.getElementById('viewRequisitionImagesModal');
+        if (viewImagesModal) {
+            viewImagesModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget; // Button that triggered the modal
+                const requisitionPk = button.getAttribute('data-requisition-pk'); // Extract info from data-* attributes
+                const galleryDiv = document.getElementById('requisition-images-gallery');
+                const imagesUrl = `/requisitions/${requisitionPk}/images_json/`;
+
+                // Clear previous content and show loading spinner
+                galleryDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+                fetch(imagesUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        galleryDiv.innerHTML = ''; // Clear spinner
+                        if (data.images && data.images.length > 0) {
+                            data.images.forEach(image => {
+                                const colDiv = document.createElement('div');
+                                colDiv.className = 'col-md-4 mb-4'; // Bootstrap grid for 3 images per row
+
+                                const img = document.createElement('img');
+                                img.src = image.url;
+                                img.alt = image.filename;
+                                img.className = 'img-fluid rounded shadow-sm'; // Responsive image, rounded corners, shadow
+
+                                const filenameDiv = document.createElement('div');
+                                filenameDiv.className = 'text-muted mt-2 text-center';
+                                filenameDiv.textContent = image.filename;
+
+                                colDiv.appendChild(img);
+                                colDiv.appendChild(filenameDiv);
+                                galleryDiv.appendChild(colDiv);
+                            });
+                        } else {
+                            galleryDiv.innerHTML = '<p class="text-center text-muted">沒有找到圖片。</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading images:', error);
+                        galleryDiv.innerHTML = '<p class="text-danger text-center">無法載入圖片。請稍後再試。</p>';
+                    });
+            });
+        }
+    });
+</script>
+{% endblock %}
+
