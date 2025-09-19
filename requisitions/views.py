@@ -720,12 +720,8 @@ def material_confirmation(request, pk):
             items = formset.save()
             
             for item in items:
-<<<<<<< HEAD
                 if item.confirmed_quantity is not None and item.confirmed_quantity > item.required_quantity:
                     messages.warning(request, f"物料 {item.material_number} 的撥料數量 ({item.confirmed_quantity}) 超過需求數量 ({item.required_quantity})。")
-
-=======
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
                 if item.source_material and item.confirmed_quantity is not None:
                     item.source_material.confirmed_quantity = item.confirmed_quantity
                     item.source_material.save()
@@ -805,12 +801,8 @@ def requisition_sign_off(request, pk, version_pk=None):
         target_version = requisition.material_versions.order_by('-uploaded_at').first()
 
     if not target_version:
-<<<<<<< HEAD
-        return redirect('requisition_list')
-=======
         messages.error(request, "找不到要簽收的物料清單版本。")
         return redirect('requisition_detail', pk=requisition.pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     target_version_items = RequisitionItem.objects.filter(material_list_version=target_version)
     
@@ -827,11 +819,7 @@ def requisition_sign_off(request, pk, version_pk=None):
 
     if not all_items_confirmed_in_target_version:
         messages.warning(request, "此物料清單版本中的所有物料尚未確認，無法進行最終簽收。")
-<<<<<<< HEAD
-        return redirect('requisition_list')
-=======
         return redirect('requisition_detail', pk=requisition.pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     queryset = target_version_items
 
@@ -861,11 +849,7 @@ def requisition_sign_off(request, pk, version_pk=None):
                     else:
                         messages.info(request, f"物料清單版本 '{target_version.uploaded_at.strftime('%Y-%m-%d %H:%M')}' 已全部最終簽收。")
 
-<<<<<<< HEAD
-                return redirect('requisition_list')
-=======
                 return redirect('requisition_detail', pk=requisition.pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
             else:
                 messages.info(request, "最終簽收已保存，但仍有未簽收項目。")
                 if version_pk:
@@ -980,9 +964,7 @@ def user_logout(request):
     return redirect('login')
 
 
-<<<<<<< HEAD
 
-=======
 @login_required
 def requisition_detail(request, pk):
     requisition = get_object_or_404(Requisition.objects.select_related('applicant').prefetch_related('material_versions__items'), pk=pk)
@@ -1036,7 +1018,6 @@ def requisition_detail(request, pk):
         'machine_models_display': machine_models_display,
     }
     return render(request, 'requisitions/requisition_detail.html', context)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
 
 @login_required
@@ -1048,11 +1029,7 @@ def activate_material_version(request, pk, version_pk):
 
     if not is_material_handler and not is_admin:
         messages.error(request, "您沒有權限激活物料清單版本。")
-<<<<<<< HEAD
-        return redirect('requisition_list')
-=======
         return redirect('requisition_detail', pk=requisition.pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     old_version = get_object_or_404(MaterialListVersion, pk=version_pk, requisition=requisition)
 
@@ -1090,11 +1067,7 @@ def activate_material_version(request, pk, version_pk):
         except Exception as e:
             messages.error(request, f"激活物料清單版本時發生錯誤: {e}")
     
-<<<<<<< HEAD
-    return redirect('requisition_list')
-=======
     return redirect('requisition_detail', pk=requisition.pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
 
 def get_available_process_types(request):
@@ -1883,12 +1856,7 @@ def supplement_material(request, pk):
     is_admin = request.user.is_superuser
     is_material_handler = request.user.groups.filter(name='撥料人員').exists()
     if not is_admin and not is_material_handler:
-        messages.error(request, "您沒有權限執行此操作。")
-<<<<<<< HEAD
-        return redirect('requisition_list')
-=======
         return redirect('requisition_detail', pk=pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     # Prevent supplementing a completed requisition
     if requisition.status == 'completed':
@@ -1917,11 +1885,7 @@ def supplement_material(request, pk):
         selected_material_ids = request.POST.getlist('material_ids')
         if not selected_material_ids:
             messages.error(request, "您沒有選擇任何物料。")
-<<<<<<< HEAD
-            return redirect('requisition_list')
-=======
             return redirect('supplement_material', pk=pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
         try:
             with transaction.atomic():
@@ -1974,19 +1938,11 @@ def supplement_material(request, pk):
                 requisition.save()
 
                 messages.success(request, f"成功補料 {len(selected_material_ids)} 項，申請單狀態已重置為待撥料。")
-<<<<<<< HEAD
-                return redirect('requisition_list')
-
-        except Exception as e:
-            messages.error(request, f"補料時發生錯誤: {e}")
-            return redirect('requisition_list')
-=======
                 return redirect('requisition_detail', pk=pk)
 
         except Exception as e:
             messages.error(request, f"補料時發生錯誤: {e}")
             return redirect('supplement_material', pk=pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     context = {
         'requisition': requisition,
@@ -2014,17 +1970,10 @@ def upload_requisition_images(request, pk):
                 messages.success(request, f"成功上傳 {uploaded_count} 張圖片！")
             else:
                 messages.info(request, "沒有圖片被上傳。")
-<<<<<<< HEAD
-            return redirect('requisition_list') # Redirect to prevent re-submission
-        else:
-            messages.error(request, "圖片上傳失敗，請檢查檔案格式。")
-    return redirect('requisition_list') # Redirect if not POST or form not valid
-=======
             return redirect('requisition_detail', pk=pk) # Redirect to prevent re-submission
         else:
             messages.error(request, "圖片上傳失敗，請檢查檔案格式。")
     return redirect('requisition_detail', pk=pk) # Redirect if not POST or form not valid
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
 
 
@@ -2091,13 +2040,8 @@ def update_work_order_quantities(request):
                   current_confirmed = material.confirmed_quantity if material.confirmed_quantity is not None else Decimal('0')
 
                   new_confirmed_quantity = current_confirmed + quantity_change
-<<<<<<< HEAD
-
                   if new_confirmed_quantity > material.required_quantity:
                       messages.warning(request, f"物料 {material.material_number} 的撥料數量 ({new_confirmed_quantity}) 超過需求數量 ({material.required_quantity})。")
-
-=======
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
                   material.confirmed_quantity = new_confirmed_quantity
                   material.save()
 
@@ -2160,7 +2104,6 @@ def generate_dispatch_note(request, pk):
 def generate_backorder_note(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
 
-<<<<<<< HEAD
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(
         Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
@@ -2168,9 +2111,6 @@ def generate_backorder_note(request, pk):
     inventory_subquery_stock_quantity = Subquery(
         Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
     )
-
-=======
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
     # Filter for active materials where required_quantity > confirmed_quantity
     # and are associated with this specific requisition and its process type
     shortage_materials = WorkOrderMaterial.objects.filter(
@@ -2182,13 +2122,9 @@ def generate_backorder_note(request, pk):
         shortage_quantity=ExpressionWrapper(
             F('required_quantity') - Coalesce(F('confirmed_quantity'), 0),
             output_field=DecimalField()
-<<<<<<< HEAD
         ),
         storage_bin=inventory_subquery_storage_bin,
         stock_quantity=inventory_subquery_stock_quantity
-=======
-        )
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
     ).order_by('order_number', 'material_number').distinct()
 
     context = {
@@ -2200,7 +2136,6 @@ def generate_backorder_note(request, pk):
 
 @login_required
 def export_backorder_note_excel(request, pk):
-<<<<<<< HEAD
     requisition = get_object_or_404(Requisition, pk=pk)
 
     # Subquery to get storage_bin and stock_quantity from Inventory
@@ -2237,13 +2172,6 @@ def export_backorder_note_excel(request, pk):
         "庫存": [m.stock_quantity for m in shortage_materials],
     }
     df = pd.DataFrame(data)
-=======
-    # 這裡只是示範用，建立一個 DataFrame
-    df = pd.DataFrame([
-        {"品項": "A", "數量": 10},
-        {"品項": "B", "數量": 5},
-    ])
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -2255,26 +2183,6 @@ def export_backorder_note_excel(request, pk):
     )
     response['Content-Disposition'] = f'attachment; filename=backorder_{pk}.xlsx'
     return response
-<<<<<<< HEAD
-
-=======
-    # 這裡只是示範用，建立一個 DataFrame
-    df = pd.DataFrame([
-        {"品項": "A", "數量": 10},
-        {"品項": "B", "數量": 5},
-    ])
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Backorder')
-
-    response = HttpResponse(
-        output.getvalue(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = f'attachment; filename=backorder_{pk}.xlsx'
-    return response
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
 @login_required
 def update_dispatch_note(request, pk):

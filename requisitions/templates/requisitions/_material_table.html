@@ -46,11 +46,7 @@
                         {% elif material.confirmed_quantity > 0 and material.confirmed_quantity < material.required_quantity %}
                             <span class="badge bg-warning">部分撥料</span>
                         {% else %} {# This is the case where buttons should appear #}
-<<<<<<< HEAD
                             <span class="badge bg-info">未簽收</span>
-=======
-                            <span class="badge bg-info">未處理 (Debug: Confirmed: {{ material.confirmed_quantity }}, SignedOff: {{ material.is_signed_off }})</span>
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
                         {% endif %}
                     </td>
                     {% if show_actions %}

@@ -52,22 +52,14 @@
             </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">添加到申請單</button>
-<<<<<<< HEAD
-                {% url 'requisition_list' %}
-=======
                 <a href="{% url 'requisition_detail' pk=requisition.pk %}" class="btn btn-secondary">取消</a>
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
             </div>
         </form>
     {% else %}
         <div class="alert alert-info" role="alert">
             沒有可用的物料可以添加到此申請單。所有主物料清單中的物料都已經存在於此申請單中了。
         </div>
-<<<<<<< HEAD
-        <a href="{% url 'requisition_list' %}" class="btn btn-secondary">返回詳情頁</a>
-=======
         <a href="{% url 'requisition_detail' pk=requisition.pk %}" class="btn btn-secondary">返回詳情頁</a>
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
     {% endif %}
 </div>
 {% endblock %}

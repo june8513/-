@@ -15,18 +15,11 @@ urlpatterns = [
     path('upload_material_details_excel/', views.upload_material_details_excel, name='upload_material_details_excel'),
     path('<int:pk>/material_confirmation/', views.material_confirmation, name='material_confirmation'),
     path('<int:pk>/material_confirmation/export/excel/', views.export_material_confirmation_excel, name='export_material_confirmation_excel'), # New URL for material handler confirmation
-<<<<<<< HEAD
-
-    path('<int:pk>/delete/', views.requisition_delete, name='requisition_delete'), # New URL for deleting requisition
-    path('history/', views.requisition_history, name='requisition_history'),
-
-=======
     path('<int:pk>/sign_off/<int:version_pk>/', views.requisition_sign_off, name='requisition_sign_off_version'),
     path('<int:pk>/sign_off/', views.requisition_sign_off, name='requisition_sign_off'),
     path('<int:pk>/delete/', views.requisition_delete, name='requisition_delete'), # New URL for deleting requisition
     path('history/', views.requisition_history, name='requisition_history'),
     path('<int:pk>/detail/', views.requisition_detail, name='requisition_detail'), # New URL for requisition detail
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
     path('login/', views.user_login, name='login'),
     path('logout/', views.user_logout, name='logout'),
     path('<int:pk>/activate_version/<int:version_pk>/', views.activate_material_version, name='activate_material_version'),

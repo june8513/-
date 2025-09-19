@@ -6,16 +6,11 @@
 <div class="container-fluid">
     <h2 class="mb-4">欠料單物料彙總</h2>
 
-<<<<<<< HEAD
     {% if summarized_shortages %}
-=======
-    {% if shortage_materials %}
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
         <div class="table-responsive">
             <table class="table table-striped table-bordered">
                 <thead class="table-dark">
                     <tr>
-<<<<<<< HEAD
                         <th>物料號碼</th>
                         <th>品名</th>
                         <th>總欠料數量</th>
@@ -29,25 +24,6 @@
                             <td>{{ material.item_name }}</td>
                             <td>{{ material.total_shortage|floatformat:2 }}</td>
                             <td title="{{ material.orders }}">{{ material.truncated_orders }}</td>
-=======
-                        <th>訂單單號</th>
-                        <th>物料號碼</th>
-                        <th>品名</th>
-                        <th>需求數量</th>
-                        <th>已撥料數量</th>
-                        <th>欠料數量</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for material in shortage_materials %}
-                        <tr>
-                            <td>{{ material.order_number }}</td>
-                            <td>{{ material.material_number }}</td>
-                            <td>{{ material.item_name }}</td>
-                            <td>{{ material.required_quantity|floatformat:2 }}</td>
-                            <td>{{ material.confirmed_quantity|default:"0"|floatformat:2 }}</td>
-                            <td>{{ material.shortage_quantity|floatformat:2 }}</td>
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
                         </tr>
                     {% endfor %}
                 </tbody>
