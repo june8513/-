@@ -1861,11 +1861,7 @@ def supplement_material(request, pk):
     # Prevent supplementing a completed requisition
     if requisition.status == 'completed':
         messages.error(request, "無法為已完成的申請單補料。")
-<<<<<<< HEAD
-        return redirect('requisition_list')
-=======
         return redirect('requisition_detail', pk=pk)
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
 
     # Get materials already in the current version
     current_material_pks = []
