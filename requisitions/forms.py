@@ -85,10 +85,7 @@ class ProcessTypeForm(forms.ModelForm):
 
 
 class RequisitionImageUploadForm(forms.Form):
-    images = forms.FileField(
-        label='選擇圖片',
-        required=False,
-    )
+    pass
 
 class StagedBulkUploadMaterialsForm(forms.Form):
     file = forms.FileField(label='選擇分階段批量物料 Excel 檔案')

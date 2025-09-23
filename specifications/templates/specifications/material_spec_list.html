@@ -1,0 +1,48 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}物料規格查詢{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>物料規格查詢</h1>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <form action="{% url 'import_material_specs' %}" method="post" enctype="multipart/form-data" class="d-flex">
+                {% csrf_token %}
+                <div class="input-group">
+                    <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
+                    <button type="submit" class="btn btn-success">匯入物料規格</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <form method="get">
+                <div class="input-group">
+                    <input type="text" name="q" class="form-control" placeholder="搜尋物料..." value="{{ request.GET.q }}">
+                    <button class="btn btn-primary" type="submit">搜尋</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>物料號碼</th>
+                <th>物料說明</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in materials %}
+            <tr>
+                <td>{{ material.material_code }}</td>
+                <td>{{ material.material_description }}</td>
+                <td><a href="{% url 'material_spec_edit' material.id %}" class="btn btn-sm btn-primary">編輯規格</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

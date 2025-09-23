@@ -9,6 +9,7 @@ urlpatterns = [
     path('accounts/', include('django.contrib.auth.urls')),
     path('requisitions/', include('requisitions.urls')),
     path('inventory/', include('inventory.urls')),
+    path('specifications/', include('specifications.urls')),
     path('', homepage, name='homepage'), # Map root URL to homepage view
 ]
 

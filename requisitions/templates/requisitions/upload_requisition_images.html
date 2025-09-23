@@ -1,16 +1,17 @@
+{% extends 'requisitions/base.html' %}
 {% load widget_tweaks %}
-<form method="post" enctype="multipart/form-data" action="{% url 'upload_requisition_images' requisition.pk %}" id="upload-image-form">
-    {% csrf_token %}
-    <div class="mb-3">
-        {{ form.images.label_tag }}
-        {{ form.images|attr:"multiple" }}
-        {% if form.images.errors %}
-            <div class="invalid-feedback d-block">
-                {% for error in form.images.errors %}
-                    <p>{{ error }}</p>
-                {% endfor %}
-            </div>
-        {% endif %}
-    </div>
-    <button type="submit" class="btn btn-primary" id="submit-image-upload">上傳</button>
-</form>
+
+{% block title %}上傳圖片 - {{ requisition.order_number }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>為訂單 {{ requisition.order_number }} 上傳圖片</h1>
+
+    <form action="{% url 'upload_requisition_images' requisition.pk %}" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="images" multiple class="form-control mb-3">
+        <button type="submit" class="btn btn-primary">上傳</button>
+        <a href="{% url 'view_requisition_images' requisition.pk %}" class="btn btn-secondary">取消</a>
+    </form>
+</div>
+{% endblock %}

@@ -3,6 +3,9 @@ from . import views
 
 urlpatterns = [
     path('', views.homepage, name='homepage'), # New homepage
+    path('finished_goods_dispatch/', views.finished_goods_dispatch, name='finished_goods_dispatch'),
+    path('<int:pk>/images/', views.view_requisition_images, name='view_requisition_images'),
+    path('<int:pk>/upload_page/', views.upload_requisition_images_page, name='upload_requisition_images_page'),
     path('list/', views.requisition_list, name='requisition_list'), # Renamed from ''
     path('list/export/excel/', views.export_requisitions_excel, name='export_requisitions_excel'),
     path('material_list/export/excel/', views.export_work_order_materials_excel, name='export_work_order_materials_excel'),
@@ -19,7 +22,6 @@ urlpatterns = [
     path('<int:pk>/sign_off/', views.requisition_sign_off, name='requisition_sign_off'),
     path('<int:pk>/delete/', views.requisition_delete, name='requisition_delete'), # New URL for deleting requisition
     path('history/', views.requisition_history, name='requisition_history'),
-    path('<int:pk>/detail/', views.requisition_detail, name='requisition_detail'), # New URL for requisition detail
     path('login/', views.user_login, name='login'),
     path('logout/', views.user_logout, name='logout'),
     path('<int:pk>/activate_version/<int:version_pk>/', views.activate_material_version, name='activate_material_version'),

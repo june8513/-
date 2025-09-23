@@ -1,0 +1,27 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}查看圖片 - {{ requisition.order_number }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>訂單 {{ requisition.order_number }} 的圖片</h1>
+    <a href="{% url 'generate_dispatch_note' pk=requisition.pk %}" class="btn btn-secondary mb-4">回到該撥料單</a>
+
+    <div class="row">
+        {% for image in images %}
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <img src="{{ image.image.url }}" class="card-img-top">
+                <div class="card-body">
+                    <p class="card-text"><small class="text-muted">上傳於: {{ image.uploaded_at|date:"Y-m-d H:i" }} by {{ image.uploaded_by.username }}</small></p>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col">
+            <p>沒有圖片。</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

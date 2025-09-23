@@ -27,6 +27,23 @@ from requisitions.utils import process_order_model_excel, process_material_detai
 
 
 @login_required
+def finished_goods_dispatch(request):
+    return render(request, 'requisitions/finished_goods_dispatch.html')
+
+@login_required
+def view_requisition_images(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+    images = requisition.images.all()
+    return render(request, 'requisitions/view_requisition_images.html', {'requisition': requisition, 'images': images})
+
+@login_required
+def upload_requisition_images_page(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+    form = RequisitionImageUploadForm()
+    return render(request, 'requisitions/upload_requisition_images.html', {'requisition': requisition, 'form': form})
+
+
+@login_required
 def view_process_type_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
@@ -407,38 +424,62 @@ def upload_materials(request, pk):
                         original_missing = [key for key, val in column_map.items() if val in missing_cols]
                         raise ValueError(f"上傳的 Excel 檔案中缺少必要的欄位，請檢查是否包含： {', '.join(original_missing)}")
 
+                    df_aggregated = df.groupby([
+                        'order_number', 'material_number', 'machine_model'
+                    ]).agg({
+                        'required_quantity': 'sum',
+                        'item_name': 'first',
+                        'stock_quantity': 'first'
+                    }).reset_index()
+
+                    # Create a list of tuples for all materials to fetch
+                    materials_to_find = [
+                        (str(row['order_number']).strip(), str(row['material_number']).strip(), str(row['machine_model']).strip())
+                        for index, row in df_aggregated.iterrows()
+                    ]
+
+                    found_materials = []
+                    batch_size = 500
+                    for i in range(0, len(materials_to_find), batch_size):
+                        batch = materials_to_find[i:i + batch_size]
+                        query = Q()
+                        for order, material, machine in batch:
+                            query |= Q(order_number=order, material_number=material, machine_model__name=machine)
+                        found_materials.extend(WorkOrderMaterial.objects.filter(query).select_related('machine_model'))
+
+                    # Create a dictionary for quick lookup
+                    materials_dict = {
+                        (m.order_number, m.material_number, m.machine_model.name): m
+                        for m in found_materials
+                    }
+
                     items_to_create = []
                     not_found_materials = []
 
-                    for index, row in df.iterrows():
+                    for index, row in df_aggregated.iterrows():
                         order_number = str(row['order_number']).strip()
                         material_number = str(row['material_number']).strip()
                         machine_model_name = str(row['machine_model']).strip()
-                        
-                        try:
-                            work_order_material = WorkOrderMaterial.objects.get(
-                                order_number=order_number,
-                                material_number=material_number,
-                                machine_model__name=machine_model_name
-                            )
-                        except WorkOrderMaterial.DoesNotExist:
-                            not_found_materials.append(f"訂單 {order_number}, 物料 {material_number}, 機型 {machine_model_name}")
-                            continue
 
-                        items_to_create.append(
-                            RequisitionItem(
-                                material_list_version=new_material_version,
-                                source_material=work_order_material,
-                                order_number=order_number,
-                                material_number=material_number,
-                                item_name=row['item_name'],
-                                required_quantity=row['required_quantity'],
-                                stock_quantity=row.get('stock_quantity', 0),
-                                confirmed_quantity=None,
-                                is_signed_off=False,
+                        work_order_material = materials_dict.get((order_number, material_number, machine_model_name))
+
+                        if work_order_material:
+                            items_to_create.append(
+                                RequisitionItem(
+                                    material_list_version=new_material_version,
+                                    source_material=work_order_material,
+                                    order_number=order_number,
+                                    material_number=material_number,
+                                    item_name=row['item_name'],
+                                    required_quantity=row['required_quantity'],
+                                    stock_quantity=row.get('stock_quantity', 0),
+                                    confirmed_quantity=None,
+                                    is_signed_off=False,
+                                )
                             )
-                        )
-                    
+                        else:
+                            not_found_materials.append(f"訂單 {order_number}, 物料 {material_number}, 機型 {machine_model_name}")
+
                     if not_found_materials:
                         error_message = "上傳失敗，因為在主物料清單中找不到以下物料，請檢查資料是否正確: <br><ul>" + "".join([f"<li>{item}</li>" for item in not_found_materials]) + "</ul>"
                         messages.error(request, error_message, extra_tags='safe')
@@ -872,68 +913,52 @@ def requisition_history(request):
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-    # CORE CHANGE: Only show requisitions that HAVE been dispatched.
-    history_requisitions = Requisition.objects.filter(dispatch_performed=True).select_related('applicant').order_by('-updated_at')
+    history_requisitions_qs = Requisition.objects.filter(dispatch_performed=True).select_related('applicant').order_by('-updated_at')
 
-    # Keep other filters for user convenience
     work_order_number = request.GET.get('work_order_number')
     applicant_username = request.GET.get('applicant_username')
     process_type = request.GET.get('process_type')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
-    material_number = request.GET.get('material_number')
+    material_or_item_search = request.GET.get('material_or_item_search')
 
     if work_order_number:
-        history_requisitions = history_requisitions.filter(order_number__icontains=work_order_number)
+        history_requisitions_qs = history_requisitions_qs.filter(order_number__icontains=work_order_number)
     if applicant_username:
-        history_requisitions = history_requisitions.filter(applicant__username__icontains=applicant_username)
+        history_requisitions_qs = history_requisitions_qs.filter(applicant__username__icontains=applicant_username)
     if process_type:
-        history_requisitions = history_requisitions.filter(process_type=process_type)
+        history_requisitions_qs = history_requisitions_qs.filter(process_type=process_type)
     if start_date:
-        history_requisitions = history_requisitions.filter(request_date__gte=start_date)
+        history_requisitions_qs = history_requisitions_qs.filter(request_date__gte=start_date)
     if end_date:
-        history_requisitions = history_requisitions.filter(request_date__lte=end_date)
-    from django.db.models import OuterRef, Subquery, Q, Exists
-
-    material_or_item_search = request.GET.get('material_or_item_search')
+        history_requisitions_qs = history_requisitions_qs.filter(request_date__lte=end_date)
+    
     if material_or_item_search:
-        # Subquery to get the latest MaterialListVersion for each Requisition
         latest_material_version_subquery = Subquery(
             MaterialListVersion.objects.filter(
                 requisition=OuterRef('pk')
             ).order_by('-uploaded_at').values('pk')[:1]
         )
-
-        # Filter RequisitionItems that match the search term AND belong to the latest MaterialListVersion
         matching_items_subquery = RequisitionItem.objects.filter(
             Q(material_number__icontains=material_or_item_search) |
             Q(item_name__icontains=material_or_item_search),
             material_list_version__pk=latest_material_version_subquery)
-
-        # Filter Requisitions that have at least one matching item
-        history_requisitions = history_requisitions.filter(
+        history_requisitions_qs = history_requisitions_qs.filter(
             Exists(matching_items_subquery.filter(material_list_version__requisition=OuterRef('pk')))
         ).distinct()
 
-    # Attach machine models to each requisition based on order number
-    for req in history_requisitions:
+    paginator = Paginator(history_requisitions_qs, 10)
+    page_number = request.GET.get('page')
+    requisitions_page = paginator.get_page(page_number)
+
+    for req in requisitions_page:
         machine_model_names = list(WorkOrderMaterial.objects.filter(
             order_number=req.order_number
         ).values_list('machine_model__name', flat=True).distinct().order_by('machine_model__name'))
         req.machine_models_display = ", ".join(machine_model_names)
 
-    paginator = Paginator(history_requisitions.distinct(), 10) # Use distinct after filtering across tables
-    page = request.GET.get('page')
-    try:
-        requisitions_page = paginator.page(page)
-    except PageNotAnInteger:
-        requisitions_page = paginator.page(1)
-    except EmptyPage:
-        requisitions_page = paginator.page(paginator.num_pages)
-
     return render(request, 'requisitions/requisition_history.html', {
         'history_requisitions': requisitions_page,
-        # status_choices is no longer needed as this page is only for dispatched items
     })
 
 
@@ -963,61 +988,6 @@ def user_logout(request):
     messages.info(request, "您已成功登出。")
     return redirect('login')
 
-
-
-@login_required
-def requisition_detail(request, pk):
-    requisition = get_object_or_404(Requisition.objects.select_related('applicant').prefetch_related('material_versions__items'), pk=pk)
-
-    # Get the current material list version
-    current_material_list_version = requisition.material_versions.order_by('-uploaded_at').first()
-
-    material_versions = requisition.material_versions.all()
-
-    process_type_summary = {}
-    for pt in ProcessType.objects.all():
-        process_type_summary[pt.name] = {
-            'label': pt.name,
-            'total_required': 0,
-            'total_confirmed': 0,
-            'total_signed_off': 0,
-            'items_count': 0,
-            'confirmed_items_count': 0,
-            'signed_off_items_count': 0,
-        }
-
-    if current_material_list_version:
-        current_items = RequisitionItem.objects.filter(
-            material_list_version=current_material_list_version
-        )
-
-        for item in current_items:
-            if requisition.process_type in process_type_summary:
-                process_type_summary[requisition.process_type]['total_required'] += item.required_quantity
-                process_type_summary[requisition.process_type]['items_count'] += 1
-                if item.confirmed_quantity is not None:
-                    process_type_summary[requisition.process_type]['total_confirmed'] += item.confirmed_quantity
-                    process_type_summary[requisition.process_type]['confirmed_items_count'] += 1
-                if item.is_signed_off:
-                    process_type_summary[requisition.process_type]['total_signed_off'] += item.confirmed_quantity if item.confirmed_quantity is not None else 0
-                    process_type_summary[requisition.process_type]['signed_off_items_count'] += 1
-
-    filtered_process_type_summary = {k: v for k, v in process_type_summary.items() if v['items_count'] > 0}
-
-    machine_model_names = list(WorkOrderMaterial.objects.filter(
-        order_number=requisition.order_number
-    ).values_list('machine_model__name', flat=True).distinct().order_by('machine_model__name'))
-    machine_models_display = ", ".join(machine_model_names)
-
-    context = {
-        'requisition': requisition,
-        'material_versions': material_versions,
-        'is_admin': request.user.is_superuser,
-        'is_applicant': request.user.groups.filter(name='申請人員').exists(),
-        'process_type_summary': filtered_process_type_summary,
-        'machine_models_display': machine_models_display,
-    }
-    return render(request, 'requisitions/requisition_detail.html', context)
 
 
 @login_required
@@ -1384,37 +1354,16 @@ def work_order_material_list(request):
     }
     return render(request, 'requisitions/work_order_material_list.html', context)
 
-<<<<<<< HEAD
-from collections import defaultdict
-
-@login_required
-def shortage_materials_list(request):
-=======
 @login_required
 def shortage_materials_list(request):
     # Only allow superusers or material handlers to view this page
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-<<<<<<< HEAD
-    # Get all requisitions that have been dispatched
-    dispatched_requisitions = Requisition.objects.filter(dispatch_performed=True)
-
-    # Create a Q object to filter WorkOrderMaterial based on dispatched requisitions
-    q_objects = Q()
-    for req in dispatched_requisitions:
-        q_objects |= Q(order_number=req.order_number, process_type__name=req.process_type)
-
-    # Filter for shortage materials from the dispatched requisitions
-    shortage_materials_qs = WorkOrderMaterial.objects.filter(
-        q_objects,
-=======
     # Filter for active materials where required_quantity > confirmed_quantity
     # Also annotate with the calculated shortage_quantity
     shortage_materials = WorkOrderMaterial.objects.filter(
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
         is_active=True,
         required_quantity__gt=F('confirmed_quantity')
     ).annotate(
@@ -1422,44 +1371,10 @@ def shortage_materials_list(request):
             F('required_quantity') - Coalesce(F('confirmed_quantity'), 0),
             output_field=DecimalField()
         )
-<<<<<<< HEAD
-    ).order_by('material_number')
-
-    # Aggregate the results
-    aggregated_shortages = defaultdict(lambda: {'total_shortage': 0, 'orders': set()})
-    for material in shortage_materials_qs:
-        key = material.material_number
-        aggregated_shortages[key]['total_shortage'] += material.shortage_quantity
-        aggregated_shortages[key]['orders'].add(material.order_number)
-        # Keep a reference to one of the material objects to access other details like item_name
-        if 'material_details' not in aggregated_shortages[key]:
-            aggregated_shortages[key]['material_details'] = material
-
-    # Prepare the context for the template
-    summarized_shortages = []
-    for material_number, data in aggregated_shortages.items():
-        orders_list = sorted(list(data['orders']))
-        orders_str = ', '.join(orders_list)
-        truncated_orders_str = orders_str
-        if len(orders_list) > 3:  # For example, truncate after 3 orders
-            truncated_orders_str = ', '.join(orders_list[:3]) + '...'
-
-        summarized_shortages.append({
-            'material_number': material_number,
-            'item_name': data['material_details'].item_name,
-            'total_shortage': data['total_shortage'],
-            'orders': orders_str,
-            'truncated_orders': truncated_orders_str
-        })
-
-    context = {
-        'summarized_shortages': summarized_shortages,
-=======
     ).order_by('order_number', 'material_number').distinct()
 
     context = {
         'shortage_materials': shortage_materials,
->>>>>>> 4ac9e3d0ff5915a8953899870be6616b6f0653c9
     }
     return render(request, 'requisitions/shortage_materials_list.html', context)
 
@@ -1966,10 +1881,10 @@ def upload_requisition_images(request, pk):
                 messages.success(request, f"成功上傳 {uploaded_count} 張圖片！")
             else:
                 messages.info(request, "沒有圖片被上傳。")
-            return redirect('requisition_detail', pk=pk) # Redirect to prevent re-submission
+            return redirect('view_requisition_images', pk=pk) # Redirect to prevent re-submission
         else:
             messages.error(request, "圖片上傳失敗，請檢查檔案格式。")
-    return redirect('requisition_detail', pk=pk) # Redirect if not POST or form not valid
+    return redirect('view_requisition_images', pk=pk) # Redirect if not POST or form not valid
 
 
 

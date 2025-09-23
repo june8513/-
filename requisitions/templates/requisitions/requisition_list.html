@@ -91,7 +91,7 @@
                     {% for req in requisitions %}
                         <tr>
                             <td><a href="#" class="requisition-link" data-bs-toggle="modal" data-bs-target="#requisitionModal" data-requisition-pk="{{ req.pk }}">{{ req.order_number }}</a></td>
-                            <td>{{ req.applicant.get_full_name }}</td>
+                            <td>{{ req.applicant.username }}</td>
                             <td>{{ req.request_date }}</td>
                             <td>{{ req.process_type }}</td>
                             <td>{{ req.machine_models_display }}</td>

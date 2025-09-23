@@ -7,70 +7,51 @@
     <div class="row mb-4">
         <div class="col">
             <h1 class="display-6">儀表板</h1>
-            <p class="text-muted">歡迎回來, {{ user.username }}！從這裡開始您的工作。</p>
+            <p class="text-muted">歡迎回來, {{ user.username }}！請選擇您要執行的功能。</p>
         </div>
     </div>
 
     <div class="row">
-        <!-- REQUISITION MANAGEMENT -->
-        {% if user.is_superuser or is_applicant or is_material_handler %}
-        <div class="col-md-6 col-lg-4 mb-4">
+        <div class="col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title"><i class="fas fa-file-alt me-2"></i>撥料申請管理</h5>
-                    <p class="card-text flex-grow-1">管理撥料申請，包括建立、處理和查看歷史記錄。</p>
-                    <div class="btn-group w-100" role="group">
-                        {% if is_admin or is_material_handler %}
-                            <a href="{% url 'requisition_list' %}" class="btn btn-primary"><i class="fas fa-list-ul me-1"></i> 待撥料申請</a>
-                        {% endif %}
-                        {% if is_admin or is_applicant %}
-                            <a href="{% url 'requisition_create' %}" class="btn btn-primary"><i class="fas fa-plus me-1"></i> 建立申請單</a>
-                        {% endif %}
-                        <a href="{% url 'requisition_history' %}" class="btn btn-primary"><i class="fas fa-history me-1"></i> 已撥料申請</a>
-                    </div>
+                <div class="card-body text-center">
+                    <h5 class="card-title">成品撥料</h5>
+                    <p class="card-text">管理撥料申請，包括建立、處理和查看歷史記錄。</p>
+                    <a href="{% url 'finished_goods_dispatch' %}" class="btn btn-primary">前往</a>
                 </div>
             </div>
         </div>
-        {% endif %}
-
-        <!-- GENERAL ACTIONS -->
-        <div class="col-md-6 col-lg-4 mb-4">
+        <div class="col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title"><i class="fas fa-history me-2"></i>查詢與清單</h5>
-                    <p class="card-text flex-grow-1">檢視工單主物料清單。</p>
-                    <div class="btn-group w-100" role="group">
-                        <a href="{% url 'work_order_material_list' %}" class="btn btn-primary"><i class="fas fa-clipboard-list me-1"></i> 主物料清單</a>
-                        <a href="{% url 'shortage_materials_list' %}" class="btn btn-warning"><i class="fas fa-exclamation-triangle me-1"></i> 欠料單物料彙總</a>
-                    </div>
+                <div class="card-body text-center">
+                    <h5 class="card-title">庫存盤點</h5>
+                    <p class="card-text">建立和管理庫存盤點單。</p>
+                    <a href="{% url 'stocktake_list' %}" class="btn btn-primary">前往</a>
                 </div>
             </div>
         </div>
-
-        <!-- ADMIN ACTIONS -->
-        {% if user.is_superuser %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 shadow-sm border-danger">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title text-danger"><i class="fas fa-shield-alt me-2"></i>系統管理</h5>
-                    <p class="card-text flex-grow-1">管理系統設定與核心資料。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'upload_order_model_excel' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-file-excel me-1"></i> 上傳訂單與機型</a>
-                        <a href="{% url 'upload_material_details_excel' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-file-excel me-1"></i> 上傳物料明細</a>
-                        <a href="{% url 'upload_inventory_data' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-upload me-1"></i> 上傳庫存數量</a>
-                        <a href="{% url 'upload_storage_bin_data' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-upload me-1"></i> 上傳儲格資料</a>
-                        <a href="{% url 'update_process_type_db' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-database me-1"></i> 更新投料點資料庫</a>
-                        <a href="{% url 'view_database' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-table me-1"></i> 訂單主物料清單檢視</a>
-                        <a href="{% url 'inventory_database' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-boxes me-1"></i> 庫存資料庫檢視</a>
-                        <a href="{% url 'view_process_type_database' %}" class="btn btn-outline-danger"><i class="fas fa-file-excel me-1"></i> 投料點資料庫檢視</a>
-                    </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">ZROM物料</h5>
+                    <p class="card-text">（功能開發中）</p>
+                    <a href="#" class="btn btn-secondary disabled">前往</a>
                 </div>
             </div>
         </div>
-        {% endif %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">物料明細查詢</h5>
+                    <p class="card-text">查詢工單的主物料清單。</p>
+                    <a href="{% url 'material_spec_list' %}" class="btn btn-primary">前往</a>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- LOGOUT ACTION -->
     <div class="row mt-3">
         <div class="col text-center">
             <a href="{% url 'logout' %}" class="btn btn-outline-danger"><i class="fas fa-sign-out-alt me-1"></i> 登出</a>

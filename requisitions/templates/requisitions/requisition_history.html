@@ -67,7 +67,7 @@
                     {% for req in history_requisitions %}
                         <tr>
                             <td>{{ req.order_number }}</td>
-                            <td>{{ req.applicant.get_full_name }}</td>
+                            <td>{{ req.applicant.username }}</td>
                             <td>{{ req.request_date }}</td>
                             <td>{{ req.process_type }}</td>
                             <td>{{ req.machine_models_display }}</td>
