@@ -1,0 +1,63 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}已歸檔訂單主物料清單{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">已歸檔訂單主物料清單</h2>
+    <a href="{% url 'work_order_material_list' %}" class="btn btn-secondary mb-3">返回訂單主物料清單</a>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Search and Filter Form -->
+    <form method="get" class="mb-4 p-3 bg-light border rounded">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4">
+                <label for="order_number" class="form-label fw-bold">訂單單號</label>
+                <input type="text" name="order_number" id="order_number" class="form-control" placeholder="請輸入訂單單號" value="{{ selected_order|default_if_none:'' }}">
+            </div>
+            <div class="col-12 col-md-4">
+                <label for="process_type" class="form-label fw-bold">投料點</label>
+                <select name="process_type" id="process_type" class="form-select">
+                    <option value="">所有投料點</option>
+                    {% for value, label in process_type_choices %}
+                        <option value="{{ value }}" {% if selected_process_type == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-auto">
+                <button type="submit" class="btn btn-primary w-100">查詢 / 篩選</button>
+            </div>
+            <div class="col-12 col-md-auto">
+                <a href="{% url 'archived_work_order_material_list' %}" class="btn btn-outline-secondary w-100">清除所有條件</a>
+            </div>
+            <div class="col-12 col-md-auto">
+                <a href="{% url 'export_archived_work_order_materials_excel' %}?{{ query_params }}" class="btn btn-success w-100">
+                    <i class="fas fa-file-excel me-1"></i> 匯出 Excel
+                </a>
+            </div>
+        </div>
+    </form>
+
+    {% if selected_order %}
+        <h3 class="mb-3">訂單: {{ selected_order }} 的已歸檔物料清單</h3>
+        {% if machine_models_for_display %}
+            <p class="mb-3"><strong>機型:</strong> {{ machine_models_for_display|join:", " }}</p>
+        {% endif %}
+        
+        {% include 'requisitions/_material_table.html' with materials=materials show_change_input=False %}
+    {% else %}
+        <div class="alert alert-info">
+            請先輸入訂單單號以查詢其已歸檔物料清單。
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

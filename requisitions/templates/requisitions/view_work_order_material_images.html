@@ -1,0 +1,30 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}查看物料圖片 - {{ material.order_number }} - {{ material.material_number }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">物料圖片 - {{ material.order_number }} - {{ material.material_number }}</h1>
+    <a href="javascript:history.back()" class="btn btn-secondary mb-3">返回</a>
+
+    {% if images %}
+        <div class="row">
+            {% for image in images %}
+                <div class="col-md-4 mb-4">
+                    <div class="card shadow-sm">
+                        <img src="{{ image.image.url }}" class="card-img-top" alt="物料圖片">
+                        <div class="card-body">
+                            <p class="card-text">上傳於: {{ image.uploaded_at|date:"Y-m-d H:i" }}</p>
+                            <p class="card-text">上傳者: {{ image.uploaded_by.username }}</p>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            此物料沒有上傳任何圖片。
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

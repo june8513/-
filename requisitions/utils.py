@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from django.db import transaction
-from requisitions.models import WorkOrderMaterial, MachineModel, ProcessType
+from requisitions.models import WorkOrderMaterial, MachineModel, ProcessType, Requisition
 from inventory.models import Material, MaterialTransaction
 from decimal import Decimal
 from django.conf import settings
@@ -42,6 +42,7 @@ def process_order_model_excel(excel_file_path):
                 new_excel_combinations.add((order_number, machine_model_name))
 
         with transaction.atomic():
+            deactivated_order_numbers = set()
             # Deactivate existing WorkOrderMaterial records that are not in the new Excel
             # Iterate through all currently active combinations in the DB
             existing_active_combinations_in_db = set(WorkOrderMaterial.objects.filter(is_active=True).values_list(
@@ -55,6 +56,12 @@ def process_order_model_excel(excel_file_path):
                         order_number=db_order_num,
                         machine_model__name=db_machine_model_name
                     ).update(is_active=False)
+                    # Collect order numbers that had materials deactivated
+                    deactivated_order_numbers.add(db_order_num)
+
+            # Archive Requisitions whose WorkOrderMaterial records were deactivated
+            if deactivated_order_numbers:
+                Requisition.objects.filter(order_number__in=deactivated_order_numbers).update(is_archived=True)
 
             # Process the new Excel data (update_or_create)
             for _, row in df_upload.iterrows():

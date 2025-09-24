@@ -107,7 +107,7 @@ def _filter_requisitions(request, sort_by='created_at', order='desc', material_s
         order_field = '-' + order_field
 
     # CORE CHANGE: Only show requisitions that have NOT been dispatched.
-    base_queryset = Requisition.objects.filter(dispatch_performed=False).order_by(order_field).select_related('applicant')
+    base_queryset = Requisition.objects.filter(dispatch_performed=False, is_archived=False).order_by(order_field).select_related('applicant')
 
     # Keep role-based filtering, but on the undispatched list
     if is_admin:
@@ -220,6 +220,140 @@ def requisition_list(request):
     return render(request, 'requisitions/requisition_list.html', context)
 
 @login_required
+def archived_requisition_list(request):
+    is_admin = request.user.is_superuser
+    is_applicant = request.user.groups.filter(name='申請人員').exists()
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not is_admin and not is_applicant and not is_material_handler:
+        messages.error(request, "您沒有權限查看此頁面。")
+        return redirect('homepage')
+
+    sort_by = request.GET.get('sort_by', 'created_at')
+    order = request.GET.get('order', 'desc')
+
+    sort_mapping = {
+        'work_order_number': 'order_number',
+        'applicant': 'applicant__username',
+        'request_date': 'request_date',
+        'process_type': 'process_type',
+        'status': 'status',
+        'created_at': 'created_at',
+    }
+    model_sort_by = sort_mapping.get(sort_by, 'created_at')
+
+    order_field = model_sort_by
+    if order == 'desc':
+        order_field = '-' + order_field
+
+    base_queryset = Requisition.objects.filter(is_archived=True).order_by(order_field).select_related('applicant')
+
+    if is_admin:
+        all_requisitions = base_queryset
+    elif is_applicant:
+        all_requisitions = base_queryset.filter(applicant=request.user)
+    elif is_material_handler:
+        all_requisitions = base_queryset
+    else:
+        all_requisitions = Requisition.objects.none()
+
+    process_type_filter = request.GET.get('process_type')
+    if process_type_filter:
+        all_requisitions = all_requisitions.filter(process_type=process_type_filter)
+
+    unique_requisitions = []
+    seen_combinations = set()
+    for req in all_requisitions: 
+        combination = (req.order_number, req.process_type)
+        if combination not in seen_combinations:
+            machine_model_names = list(WorkOrderMaterial.objects.filter(
+                order_number=req.order_number
+            ).values_list('machine_model__name', flat=True).distinct().order_by('machine_model__name'))
+            
+            req.machine_models_display = ", ".join(machine_model_names)
+            unique_requisitions.append(req)
+            seen_combinations.add(combination)
+    
+    paginator = Paginator(unique_requisitions, 10)
+    page = request.GET.get('page')
+    try:
+        requisitions_page = paginator.page(page)
+    except PageNotAnInteger:
+        requisitions_page = paginator.page(1)
+    except EmptyPage:
+        requisitions_page = paginator.page(paginator.num_pages)
+
+    process_types = Requisition.objects.order_by('process_type').values_list('process_type', flat=True).distinct()
+    process_type_choices = [(pt, pt) for pt in process_types if pt]
+
+    context = {
+        'requisitions': requisitions_page,
+        'is_admin': is_admin,
+        'is_applicant': is_applicant,
+        'is_material_handler': is_material_handler,
+        'process_type_choices': process_type_choices,
+        'selected_process_type': process_type_filter,
+        'sort_by': sort_by,
+        'order': order,
+        'query_params': request.GET.urlencode(),
+    }
+    return render(request, 'requisitions/archived_requisition_list.html', context)
+
+@login_required
+def export_archived_requisitions_excel(request):
+    requisitions = Requisition.objects.filter(is_archived=True)
+    
+    # Prepare data for Requisitions sheet
+    requisition_data = {
+        "訂單": [r.order_number for r in requisitions],
+        "需求流程": [r.get_process_type_display() for r in requisitions],
+        "申請人": [r.applicant.username for r in requisitions],
+        "需求日期": [r.request_date.strftime('%Y-%m-%d') if r.request_date else '' for r in requisitions],
+        "狀態": [r.get_status_display() for r in requisitions],
+        "建立時間": [r.created_at.strftime('%Y-%m-%d %H:%M') for r in requisitions],
+        "是否已歸檔": ["是" if r.is_archived else "否" for r in requisitions],
+    }
+    df_requisitions = pd.DataFrame(requisition_data)
+
+    # Prepare data for Requisition Items sheet
+    all_requisition_items = []
+    for req in requisitions:
+        if req.current_material_list_version:
+            items = req.current_material_list_version.items.all().select_related('source_material')
+            for item in items:
+                all_requisition_items.append({
+                    "訂單單號": req.order_number,
+                    "需求流程": req.get_process_type_display(),
+                    "物料": item.material_number,
+                    "品名": item.item_name,
+                    "需求數量": item.required_quantity,
+                    "庫存數量": item.stock_quantity,
+                    "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
+                    "最終簽收已確認": "是" if item.is_signed_off else "否",
+                })
+    df_items = pd.DataFrame(all_requisition_items)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_requisitions.to_excel(writer, index=False, sheet_name='已歸檔撥料申請單')
+        if not df_items.empty:
+            df_items.to_excel(writer, index=False, sheet_name='已歸檔撥料物料明細')
+        else:
+            empty_df_items = pd.DataFrame(columns=[
+                "訂單", "需求流程", "物料", "物料說明", "需求數量", "撥料數量 (實際撥出)", "最終簽收已確認"
+            ])
+            empty_df_items.to_excel(writer, index=False, sheet_name='已歸檔撥料物料明細')
+
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="archived_requisitions.xlsx"'
+    return response
+
+@login_required
 def export_requisitions_excel(request):
     requisitions = _filter_requisitions(request)
     
@@ -304,6 +438,37 @@ def export_work_order_materials_excel(request):
     response['Content-Disposition'] = f'attachment; filename="order_materials_{order_number}.xlsx"'
     return response
 
+@login_required
+def export_archived_work_order_materials_excel(request):
+    order_number = request.GET.get('order_number', None)
+    materials = WorkOrderMaterial.objects.none()
+
+    if order_number:
+        materials = WorkOrderMaterial.objects.filter(order_number=order_number, is_active=False)
+    
+    data = {
+        "訂單單號": [m.order_number for m in materials],
+        "物料": [m.material_number for m in materials],
+        "物料說明": [m.item_name for m in materials],
+        "需求數量": [m.required_quantity for m in materials],
+        "投料點": [m.get_process_type_display() for m in materials],
+        "已撥料數量": [m.confirmed_quantity if m.confirmed_quantity is not None else '' for m in materials],
+        "簽收狀態": ["已簽收" if m.is_signed_off else "未簽收" for m in materials],
+        "是否啟用": ["是" if m.is_active else "否" for m in materials],
+    }
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='ArchivedWorkOrderMaterials')
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="archived_order_materials_{order_number}.xlsx"'
+    return response
 
 
 
@@ -913,7 +1078,7 @@ def requisition_history(request):
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-    history_requisitions_qs = Requisition.objects.filter(dispatch_performed=True).select_related('applicant').order_by('-updated_at')
+    history_requisitions_qs = Requisition.objects.filter(dispatch_performed=True, is_archived=False).select_related('applicant').order_by('-updated_at')
 
     work_order_number = request.GET.get('work_order_number')
     applicant_username = request.GET.get('applicant_username')
@@ -1353,6 +1518,94 @@ def work_order_material_list(request):
         'show_inactive': show_inactive, # New context variable
     }
     return render(request, 'requisitions/work_order_material_list.html', context)
+
+
+@login_required
+def archived_work_order_material_list(request):
+    is_admin = request.user.is_superuser
+    is_applicant = request.user.groups.filter(name='申請人員').exists()
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not is_admin and not is_applicant and not is_material_handler:
+        messages.error(request, "您沒有權限查看此頁面。")
+        return redirect('homepage')
+
+    order_number = request.GET.get('order_number', None)
+    sort_by = request.GET.get('sort_by', 'material_number')
+    order = request.GET.get('order', 'asc')
+    process_type_filter_id = request.GET.get('process_type', None)
+
+    materials = WorkOrderMaterial.objects.none()
+    process_type_choices = []
+    machine_models_for_display = []
+    order_numbers = WorkOrderMaterial.objects.values_list('order_number', flat=True).distinct()
+
+    selected_process_type_for_context = None
+
+    if order_number:
+        inventory_subquery_storage_bin = Subquery(
+            Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
+        )
+        inventory_subquery_stock_quantity = Subquery(
+            Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
+        )
+
+        materials = WorkOrderMaterial.objects.filter(
+            order_number=order_number,
+            is_active=False # Filter for inactive materials
+        ).select_related('process_type').annotate(
+            import_count=Count('requisition_items'),
+            storage_bin=inventory_subquery_storage_bin,
+            stock_quantity=inventory_subquery_stock_quantity
+        )
+
+        all_materials_for_order = WorkOrderMaterial.objects.filter(order_number=order_number, is_active=False)
+        unique_process_type_ids = all_materials_for_order.values_list('process_type__id', flat=True).distinct()
+        unique_process_types = ProcessType.objects.filter(id__in=unique_process_type_ids).order_by('name')
+        process_type_choices = []
+        seen_names = set()
+        for pt in unique_process_types:
+            if pt.name not in seen_names:
+                process_type_choices.append((pt.id, str(pt)))
+                seen_names.add(pt.name)
+
+        if process_type_filter_id:
+            materials = materials.filter(process_type__id=process_type_filter_id)
+            selected_process_type_for_context = process_type_filter_id
+
+        sort_mapping = {
+            'material_number': 'material_number',
+            'item_name': 'item_name',
+            'required_quantity': 'required_quantity',
+            'process_type': 'process_type__name',
+            'confirmed_quantity': 'confirmed_quantity',
+            'is_signed_off': 'is_signed_off',
+        }
+        model_sort_by = sort_mapping.get(sort_by, 'material_number')
+        order_field = f'{'-' if order == "desc" else ""}{model_sort_by}'
+        materials = materials.order_by(order_field)
+
+        unique_machine_model_ids = materials.values_list('machine_model__id', flat=True).distinct()
+        unique_machine_models = MachineModel.objects.filter(id__in=unique_machine_model_ids).order_by('name')
+        machine_models_for_display = [str(mm) for mm in unique_machine_models]
+
+    query_params = request.GET.copy()
+    if 'page' in query_params:
+        del query_params['page']
+
+    context = {
+        'materials': materials,
+        'order_numbers': order_numbers,
+        'selected_order': order_number,
+        'sort_by': sort_by,
+        'order': order,
+        'process_type_choices': process_type_choices,
+        'selected_process_type': selected_process_type_for_context,
+        'machine_models_for_display': machine_models_for_display,
+        'query_params': query_params.urlencode(),
+    }
+    return render(request, 'requisitions/archived_work_order_material_list.html', context)
+
 
 from collections import defaultdict
 from django.db.models import Sum
@@ -1951,6 +2204,12 @@ def upload_work_order_material_images(request, pk):
                 )
             messages.success(request, "圖片上傳成功！")
     return redirect(request.META.get('HTTP_REFERER', 'work_order_material_list'))
+
+@login_required
+def view_work_order_material_images(request, pk):
+    material = get_object_or_404(WorkOrderMaterial, pk=pk)
+    images = material.work_order_material_images.all()
+    return render(request, 'requisitions/view_work_order_material_images.html', {'material': material, 'images': images})
 
 
 

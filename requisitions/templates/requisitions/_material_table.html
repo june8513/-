@@ -35,7 +35,7 @@
                     <td>{{ material.confirmed_quantity|default:"0"|floatformat:2 }}</td>
                     {% if show_change_input %}
                     <td>
-                        <input type="number" step="0.01" name="change_{{ material.pk }}" class="form-control form-control-sm" {% if not material.is_active %}disabled{% endif %}>
+                        <input type="number" step="0.01" name="change_{{ material.pk }}" class="form-control form-control-sm no-spinners" {% if not material.is_active %}disabled{% endif %}>
                     </td>
                     {% endif %}
                     <td class="dispatch-status-{{ material.pk }}">
@@ -70,3 +70,30 @@
         </tbody>
     </table>
 </div>
+
+<style>
+    /* Hide spin buttons for number input */
+    .no-spinners::-webkit-outer-spin-button,
+    .no-spinners::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .no-spinners[type=number] {
+        -moz-appearance: textfield;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const numberInputs = document.querySelectorAll('.no-spinners[type="number"]');
+
+        numberInputs.forEach(input => {
+            input.addEventListener('keydown', function(event) {
+                if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                }
+            });
+        });
+    });
+</script>

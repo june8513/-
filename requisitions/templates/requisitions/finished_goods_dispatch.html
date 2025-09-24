@@ -1,12 +1,12 @@
 {% extends 'requisitions/base.html' %}
 
-{% block title %}儀表板 - 撥料系統{% endblock %}
+{% block title %}成品撥料 - 撥料系統{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row mb-4">
         <div class="col">
-            <h1 class="display-6">儀表板</h1>
+            <h1 class="display-6">成品撥料</h1>
             <p class="text-muted">歡迎回來, {{ user.username }}！從這裡開始您的工作。</p>
         </div>
     </div>
@@ -42,6 +42,7 @@
                     <div class="btn-group w-100" role="group">
                         <a href="{% url 'work_order_material_list' %}" class="btn btn-primary"><i class="fas fa-clipboard-list me-1"></i> 主物料清單</a>
                         <a href="{% url 'shortage_materials_list' %}" class="btn btn-warning"><i class="fas fa-exclamation-triangle me-1"></i> 欠料單物料彙總</a>
+                        <a href="{% url 'archived_requisition_list' %}" class="btn btn-info"><i class="fas fa-archive me-1"></i> 已歸檔撥料單</a>
                     </div>
                 </div>
             </div>

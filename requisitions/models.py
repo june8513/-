@@ -39,6 +39,7 @@ class Requisition(models.Model):
     process_type = models.CharField(max_length=100, verbose_name="需求流程", db_index=True, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="狀態", db_index=True)
     dispatch_performed = models.BooleanField(default=False, verbose_name="已執行撥料")
+    is_archived = models.BooleanField(default=False, verbose_name="是否已歸檔")
     
     material_confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisitions_material_confirmed', verbose_name="物料確認人員")
     material_confirmed_date = models.DateTimeField(null=True, blank=True, verbose_name="物料確認日期")

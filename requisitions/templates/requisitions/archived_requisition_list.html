@@ -1,0 +1,124 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}已歸檔撥料申請單{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">已歸檔撥料申請單</h2>
+
+    <form method="get" class="row g-3 align-items-end mb-4">
+        <div class="col-12 col-md-auto">
+            <label for="process_type" class="form-label">需求流程:</label>
+            <select id="process_type" name="process_type" class="form-select">
+                <option value="">所有流程</option>
+                {% for value, label in process_type_choices %}
+                    <option value="{{ value }}" {% if selected_process_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-auto">
+            <button type="submit" class="btn btn-outline-primary">篩選</button>
+        </div>
+        <div class="col-md-auto">
+            <a href="{% url 'archived_requisition_list' %}" class="btn btn-outline-secondary">清除篩選</a>
+        </div>
+        <div class="col-md-auto">
+            <a href="{% url 'export_archived_requisitions_excel' %}?{{ query_params }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-1"></i> 匯出 Excel
+            </a>
+        </div>
+    </form>
+
+    {% if requisitions %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>
+                            <a href="?sort_by=order_number&order={% if sort_by == 'order_number' and order == 'asc' %}desc{% else %}asc{% endif %}{% for key, value in request.GET.items %}{% if key != 'sort_by' and key != 'order' and key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="text-white text-decoration-none">
+                                訂單單號 {% if sort_by == 'order_number' %}
+                                    {% if order == 'asc' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort-down"></i>{% endif %}
+                                {% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort_by=applicant&order={% if sort_by == 'applicant' and order == 'asc' %}desc{% else %}asc{% endif %}{% for key, value in request.GET.items %}{% if key != 'sort_by' and key != 'order' and key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="text-white text-decoration-none">
+                                申請人 {% if sort_by == 'applicant' %}
+                                    {% if order == 'asc' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort-down"></i>{% endif %}
+                                {% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort_by=request_date&order={% if sort_by == 'request_date' and order == 'asc' %}desc{% else %}asc{% endif %}{% for key, value in request.GET.items %}{% if key != 'sort_by' and key != 'order' and key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="text-white text-decoration-none">
+                                需求日期 {% if sort_by == 'request_date' %}
+                                    {% if order == 'asc' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort-down"></i>{% endif %}
+                                {% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort_by=process_type&order={% if sort_by == 'process_type' and order == 'asc' %}desc{% else %}asc{% endif %}{% for key, value in request.GET.items %}{% if key != 'sort_by' and key != 'order' and key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="text-white text-decoration-none">
+                                需求流程 {% if sort_by == 'process_type' %}
+                                    {% if order == 'asc' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort-down"></i>{% endif %}
+                                {% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>機型</th>
+                        <th>狀態</th>
+                        <th>建立時間</th>
+                        <th>備註</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requisitions %}
+                        <tr>
+                            <td><a href="#" class="requisition-link" data-bs-toggle="modal" data-bs-target="#requisitionModal" data-requisition-pk="{{ req.pk }}">{{ req.order_number }}</a></td>
+                            <td>{{ req.applicant.username }}</td>
+                            <td>{{ req.request_date }}</td>
+                            <td>{{ req.process_type }}</td>
+                            <td>{{ req.machine_models_display }}</td>
+                            <td><span class="badge bg-secondary">已歸檔</span></td>
+                            <td>{{ req.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ req.remarks|default:"" }}</td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}&show_inactive=True" class="btn btn-primary btn-sm">查看物料</a>
+                                    <a href="{% url 'view_requisition_images' pk=req.pk %}" class="btn btn-info btn-sm"><i class="fas fa-image"></i> 查看圖片</a>
+                                </div>
+                            </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if requisitions.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?page={{ requisitions.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">上一頁</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">上一頁</span></li>
+                    {% endif %}
+
+                    {% for i in requisitions.paginator.page_range %}
+                        {% if requisitions.number == i %}
+                            <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                        {% else %}
+                            <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if requisitions.has_next %}
+                        <li class="page-item"><a class="page-link" href="?page={{ requisitions.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">下一頁</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">下一頁</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+
+        {% else %}
+            <p>目前沒有已歸檔的撥料申請單。</p>
+        {% endif %}
+    
+
+
+{% endblock %}
