@@ -2206,10 +2206,16 @@ def upload_work_order_material_images(request, pk):
     return redirect(request.META.get('HTTP_REFERER', 'work_order_material_list'))
 
 @login_required
-def view_work_order_material_images(request, pk):
-    material = get_object_or_404(WorkOrderMaterial, pk=pk)
-    images = material.work_order_material_images.all()
-    return render(request, 'requisitions/view_work_order_material_images.html', {'material': material, 'images': images})
+def view_work_order_material_images(request, material_code):
+    materials = WorkOrderMaterial.objects.filter(material_number=material_code)
+    all_images = WorkOrderMaterialImage.objects.filter(work_order_material__in=materials).distinct()
+
+    context = {
+        'material_code': material_code,
+        'images': all_images,
+        'materials': materials,
+    }
+    return render(request, 'requisitions/view_work_order_material_images.html', context)
 
 
 

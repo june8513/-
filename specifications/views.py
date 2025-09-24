@@ -10,10 +10,11 @@ from django.db import transaction
 @login_required
 def material_spec_list(request):
     query = request.GET.get('q')
+    materials = Material.objects.none()  # Return no materials by default
     if query:
-        materials = Material.objects.filter(material_code__icontains=query)
-    else:
-        materials = Material.objects.all()
+        # Using select_related to fetch the specification along with the material
+        # to avoid extra database queries in the template.
+        materials = Material.objects.filter(material_code__icontains=query).select_related('specification')
     return render(request, 'specifications/material_spec_list.html', {'materials': materials})
 
 @login_required
@@ -72,4 +73,18 @@ def import_material_specs(request):
         except Exception as e:
             messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
 
+    return redirect('material_spec_list')
+
+@login_required
+def redirect_to_material_edit(request):
+    if request.method == 'POST':
+        material_code = request.POST.get('material_code')
+        if material_code:
+            try:
+                material = Material.objects.get(material_code=material_code)
+                return redirect('material_spec_edit', material_id=material.id)
+            except Material.DoesNotExist:
+                messages.error(request, f"物料號碼 '{material_code}' 不存在。")
+        else:
+            messages.error(request, "請輸入物料號碼。")
     return redirect('material_spec_list')

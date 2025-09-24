@@ -13,6 +13,12 @@
         {% for field in form %}
         <div class="mb-3">
             <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {% if field.name == 'image' and material.specification.image %}
+                <div class="mb-2">
+                    <img src="{{ material.specification.image.url }}" alt="Current Image" style="max-width: 200px; height: auto;">
+                    <p>目前圖片</p>
+                </div>
+            {% endif %}
             {{ field|add_class:"form-control" }}
             {% if field.help_text %}
                 <div class="form-text">{{ field.help_text }}</div>

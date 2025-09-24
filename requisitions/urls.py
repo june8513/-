@@ -54,6 +54,6 @@ urlpatterns = [
     path('<int:pk>/supplement/', views.supplement_material, name='supplement_material'),
     path('<int:pk>/upload_images/', views.upload_requisition_images, name='upload_requisition_images'),
     path('work_order_material/<int:pk>/upload_images/', views.upload_work_order_material_images, name='upload_work_order_material_images'),
-    path('work_order_material/<int:pk>/images/', views.view_work_order_material_images, name='view_work_order_material_images'),
+    path('work_order_material/<str:material_code>/images/', views.view_work_order_material_images, name='view_work_order_material_images'),
     path('shortage_materials/', views.shortage_materials_list, name='shortage_materials_list'),
 ]

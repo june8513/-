@@ -93,3 +93,18 @@ class MaterialTransaction(models.Model):
 
     def __str__(self):
         return f"{self.timestamp.strftime('%Y-%m-%d %H:%M')} - {self.material.material_code} - {self.get_transaction_type_display()}: {self.quantity_change}"
+
+
+class MaterialImage(models.Model):
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='images', verbose_name="所屬物料")
+    image = models.ImageField(upload_to='material_images/', verbose_name="物料圖片")
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上傳時間")
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="上傳人員")
+
+    class Meta:
+        verbose_name = "物料圖片"
+        verbose_name_plural = "物料圖片"
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"圖片 for {self.material.material_code} ({self.uploaded_at.strftime('%Y-%m-%d %H:%M')})"

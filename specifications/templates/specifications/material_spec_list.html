@@ -4,21 +4,49 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1>物料規格查詢</h1>
+    <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#actionsModal">
+            功能
+        </button>
+    </div>
 
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <form action="{% url 'import_material_specs' %}" method="post" enctype="multipart/form-data" class="d-flex">
-                {% csrf_token %}
-                <div class="input-group">
-                    <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
-                    <button type="submit" class="btn btn-success">匯入物料規格</button>
+    <!-- Actions Modal -->
+    <div class="modal fade" id="actionsModal" tabindex="-1" aria-labelledby="actionsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="actionsModalLabel">功能</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-            </form>
+                <div class="modal-body">
+                    <!-- Import Form -->
+                    <form action="{% url 'import_material_specs' %}" method="post" enctype="multipart/form-data" class="mb-4">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
+                            <button type="submit" class="btn btn-success">匯入物料規格</button>
+                        </div>
+                    </form>
+
+                    <hr> <!-- Separator -->
+
+                    <!-- Edit Material Form -->
+                    <form action="{% url 'redirect_to_material_edit' %}" method="post">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="text" name="material_code" class="form-control" placeholder="輸入物料號碼編輯" required>
+                            <button type="submit" class="btn btn-primary">編輯物料</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="col-md-6">
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
             <form method="get">
-                <div class="input-group">
+                <div class="input-group mb-4">
                     <input type="text" name="q" class="form-control" placeholder="搜尋物料..." value="{{ request.GET.q }}">
                     <button class="btn btn-primary" type="submit">搜尋</button>
                 </div>
@@ -31,7 +59,9 @@
             <tr>
                 <th>物料號碼</th>
                 <th>物料說明</th>
-                <th></th>
+                <th>大小</th>
+                <th>重量</th>
+                <th>圖片</th>
             </tr>
         </thead>
         <tbody>
@@ -39,10 +69,48 @@
             <tr>
                 <td>{{ material.material_code }}</td>
                 <td>{{ material.material_description }}</td>
-                <td><a href="{% url 'material_spec_edit' material.id %}" class="btn btn-sm btn-primary">編輯規格</a></td>
+                <td>{{ material.specification.size|default:"" }}</td>
+                <td>{{ material.specification.weight|default:"" }}</td>
+                <td>
+                    {% if material.specification.image %}
+                        <a href="#" class="image-link" data-bs-toggle="modal" data-bs-target="#imageModal" data-image-url="{{ material.specification.image.url }}">
+                            <img src="{{ material.specification.image.url }}" alt="Material Image" style="max-width: 50px; height: auto;">
+                        </a>
+                    {% else %}
+                        無圖片
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">物料圖片</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img src="" class="img-fluid" id="enlargedImage" alt="Enlarged Material Image">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var imageModal = document.getElementById('imageModal');
+        imageModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget; // Button that triggered the modal
+            var imageUrl = button.getAttribute('data-image-url'); // Extract info from data-image-url attribute
+            var modalImage = imageModal.querySelector('#enlargedImage');
+            modalImage.src = imageUrl;
+        });
+    });
+</script>
 {% endblock %}
