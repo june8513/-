@@ -1354,27 +1354,67 @@ def work_order_material_list(request):
     }
     return render(request, 'requisitions/work_order_material_list.html', context)
 
+from collections import defaultdict
+from django.db.models import Sum
+
 @login_required
 def shortage_materials_list(request):
-    # Only allow superusers or material handlers to view this page
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-    # Filter for active materials where required_quantity > confirmed_quantity
-    # Also annotate with the calculated shortage_quantity
-    shortage_materials = WorkOrderMaterial.objects.filter(
-        is_active=True,
-        required_quantity__gt=F('confirmed_quantity')
-    ).annotate(
-        shortage_quantity=ExpressionWrapper(
-            F('required_quantity') - Coalesce(F('confirmed_quantity'), 0),
-            output_field=DecimalField()
-        )
-    ).order_by('order_number', 'material_number').distinct()
+    # Get (order_number, process_type__name) pairs from dispatched requisitions
+    dispatched_requisition_pairs = Requisition.objects.filter(
+        dispatch_performed=True
+    ).values_list('order_number', 'process_type')
+
+    # Build a Q object to filter WorkOrderMaterial based on these pairs
+    q_objects = Q()
+    if not dispatched_requisition_pairs:
+        shortage_materials_qs = WorkOrderMaterial.objects.none()
+    else:
+        for order_num, proc_type in dispatched_requisition_pairs:
+            q_objects |= Q(order_number=order_num, process_type__name=proc_type)
+
+        # Filter WorkOrderMaterial for active materials with shortages, and belonging to dispatched requisitions
+        shortage_materials_qs = WorkOrderMaterial.objects.filter(
+            q_objects,
+            is_active=True,
+            required_quantity__gt=F('confirmed_quantity')
+        ).annotate(
+            shortage_quantity=ExpressionWrapper(
+                F('required_quantity') - Coalesce(F('confirmed_quantity'), 0),
+                output_field=DecimalField()
+            )
+        ).order_by('material_number') # Order by material_number for consistent aggregation
+
+    # Perform in-Python aggregation for SQLite compatibility
+    aggregated_shortages = defaultdict(lambda: {'total_shortage': Decimal('0.00'), 'orders': set(), 'item_name': ''})
+
+    for material in shortage_materials_qs:
+        key = material.material_number
+        aggregated_shortages[key]['total_shortage'] += material.shortage_quantity
+        aggregated_shortages[key]['orders'].add(material.order_number)
+        if not aggregated_shortages[key]['item_name']: # Take the first item name found
+            aggregated_shortages[key]['item_name'] = material.item_name
+
+    # Convert defaultdict to a list of dictionaries for template rendering
+    summarized_shortages = []
+    for material_number, data in aggregated_shortages.items():
+        orders_list = sorted(list(data['orders']))
+        orders_str = ", ".join(orders_list)
+        summarized_shortages.append({
+            'material_number': material_number,
+            'item_name': data['item_name'],
+            'total_shortage': data['total_shortage'],
+            'orders_str': orders_str,
+        })
+    
+    # Sort the summarized shortages by material number
+    summarized_shortages.sort(key=lambda x: x['material_number'])
 
     context = {
-        'shortage_materials': shortage_materials,
+        'shortage_materials': summarized_shortages,
     }
     return render(request, 'requisitions/shortage_materials_list.html', context)
 

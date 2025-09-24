@@ -3,36 +3,32 @@
 {% block title %}欠料單物料彙總{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h2 class="mb-4">欠料單物料彙總</h2>
+<div class="container mt-4">
+    <h1>欠料單物料彙總</h1>
 
-    {% if summarized_shortages %}
-        <div class="table-responsive">
-            <table class="table table-striped table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>物料號碼</th>
-                        <th>品名</th>
-                        <th>總欠料數量</th>
-                        <th>訂單備註</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for material in summarized_shortages %}
-                        <tr>
-                            <td>{{ material.material_number }}</td>
-                            <td>{{ material.item_name }}</td>
-                            <td>{{ material.total_shortage|floatformat:2 }}</td>
-                            <td title="{{ material.orders }}">{{ material.truncated_orders }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="alert alert-info" role="alert">
-            目前沒有任何欠料物料。
-        </div>
-    {% endif %}
+    <table class="table table-striped table-hover table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>物料</th>
+                <th>物料說明</th>
+                <th>總欠料數量</th>
+                <th>相關訂單</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in shortage_materials %}
+                <tr>
+                    <td>{{ material.material_number }}</td>
+                    <td>{{ material.item_name }}</td>
+                    <td>{{ material.total_shortage }}</td>
+                    <td>{{ material.orders_str }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">沒有欠料物料。</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endblock %}
