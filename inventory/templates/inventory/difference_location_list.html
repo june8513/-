@@ -1,0 +1,35 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}盤點差異 - 選擇地點{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h1 class="card-title text-center">盤點差異報告 - 選擇地點</h1>
+                </div>
+                <div class="card-body">
+                    <p>請選擇要查看差異報告的儲存地點。按鈕上的數字代表該地點有差異的物料筆數。</p>
+                    <div class="d-grid gap-2">
+                        {% for loc in locations_stats %}
+                            <a href="{% url 'difference_detail_by_location' loc.location %}" class="btn btn-outline-info btn-lg p-3 d-flex justify-content-between align-items-center">
+                                <span>{{ loc.location }}</span>
+                                <span class="badge bg-danger rounded-pill">{{ loc.difference_items }}</span>
+                            </a>
+                        {% empty %}
+                            <div class="alert alert-success" role="alert">
+                                太棒了！目前沒有任何盤點差異。
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="card-footer text-muted">
+                    <a href="{% url 'inventory_home' %}" class="btn btn-secondary btn-sm">返回庫存管理主頁</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}庫存管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">庫存管理主頁</h1>
+    <div class="d-grid gap-3 col-md-6 mx-auto">
+        <a href="{% url 'inventory_update' %}" class="btn btn-primary btn-lg p-3">庫存更新</a>
+        <a href="{% url 'stocktake_location_list' %}" class="btn btn-secondary btn-lg p-3">庫存盤點</a>
+        <a href="{% url 'difference_location_list' %}" class="btn btn-info btn-lg p-3">盤點差異</a>
+    </div>
+</div>
+{% endblock %}

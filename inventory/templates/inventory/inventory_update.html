@@ -1,0 +1,35 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}庫存更新{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h1 class="card-title text-center">庫存更新</h1>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">請上傳包含以下欄位的 Excel 檔案來更新庫存：</p>
+                    <p><code>儲存地點</code>, <code>儲格</code>, <code>物料</code>, <code>物料說明</code>, <code>未限制</code> (此欄位將用於更新系統庫存與盤點數)</p>
+                    <hr>
+                    <form action="{% url 'run_inventory_update' %}" method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="input-group mb-3">
+                            <input type="file" name="excel_file" class="form-control" id="excel_file_input" accept=".xlsx, .xls" required>
+                            <label class="input-group-text" for="excel_file_input">選擇檔案</label>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">開始匯入更新</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-muted">
+                    <a href="{% url 'inventory_home' %}" class="btn btn-secondary btn-sm">返回庫存管理主頁</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

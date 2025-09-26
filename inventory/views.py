@@ -5,44 +5,49 @@ from .models import Material, Stocktake, StocktakeItem, MaterialTransaction
 import pandas as pd
 from django.db import transaction
 from django.utils import timezone
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.db.models import Count, Q, F
+import json
 
 # View for importing master material data from Excel
 @login_required
 def import_material_master(request):
     if request.method == 'POST' and request.FILES.get('excel_file'):
         excel_file = request.FILES['excel_file']
-        expected_columns = ['庫位', '儲格', '物料', '物料說明', '未限制']
+        expected_columns = ['儲存地點', '儲格', '物料', '物料說明', '未限制']
         try:
-            # Specify dtype for columns that might lose leading zeros
-            df = pd.read_excel(excel_file, dtype={'庫位': str, '儲格': str, '物料': str})
+            df = pd.read_excel(excel_file, dtype={'儲存地點': str, '儲格': str, '物料': str})
 
             if not all(col in df.columns for col in expected_columns):
                 missing_cols = ", ".join([col for col in expected_columns if col not in df.columns])
                 messages.error(request, f"Excel 檔案缺少必要的欄位，請檢查是否包含: {missing_cols}")
-                return redirect('material_list')
+                return redirect('inventory_update')
 
             with transaction.atomic():
                 for index, row in df.iterrows():
                     material_code = row['物料']
-                    # Update existing material or create new one
+                    new_quantity = row['未限制']
+                    
                     material, created = Material.objects.update_or_create(
                         material_code=material_code,
                         defaults={
-                            'location': row['庫位'],
+                            'location': row['儲存地點'],
                             'bin': row['儲格'],
                             'material_description': row['物料說明'],
-                            'system_quantity': row['未限制'],
+                            'system_quantity': new_quantity,
+                            'latest_counted_quantity': new_quantity, # Sync counted quantity
+                            'last_counted_by': request.user, # Attribute the change
+                            'last_counted_date': timezone.now(), # Update the date
                         }
                     )
-                    # Create a transaction record for the import/update
+                    
                     MaterialTransaction.objects.create(
                         material=material,
                         user=request.user,
                         transaction_type='INITIAL_IMPORT' if created else 'MANUAL_UPDATE',
-                        quantity_change=material.system_quantity, # Or some other logic
+                        quantity_change=new_quantity, # This might need better logic
                         new_system_quantity=material.system_quantity,
-                        notes=f"匯入自 Excel 檔案: {excel_file.name}"
+                        notes=f"透過 Excel 檔案更新: {excel_file.name}"
                     )
             messages.success(request, f"成功匯入/更新 {len(df)} 筆主物料資料。")
 
@@ -50,7 +55,7 @@ def import_material_master(request):
             messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
             print(f"Error importing Excel: {e}")
 
-    return redirect('material_list')
+    return redirect('inventory_home')
 
 # View for listing master materials and providing import/stocktake creation options
 @login_required
@@ -320,4 +325,165 @@ def export_master_material_differences(request):
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="master_material_report.xlsx"' # Changed filename
     df.to_excel(response, index=False, engine='openpyxl')
+    return response
+
+@login_required
+def inventory_dashboard(request):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+    
+    return render(request, 'inventory/inventory_dashboard.html')
+
+@login_required
+def inventory_update_view(request):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+    return render(request, 'inventory/inventory_update.html')
+
+@login_required
+def stocktake_location_list(request):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+
+    locations_stats = Material.objects.exclude(
+        Q(location__isnull=True) | Q(location__exact='')
+    ).values('location').annotate(
+        total_items=Count('id'),
+        uncounted_items=Count('id', filter=Q(latest_counted_quantity__isnull=True))
+    ).order_by('location')
+
+    context = {
+        'locations_stats': locations_stats
+    }
+    return render(request, 'inventory/stocktake_location_list.html', context)
+
+@login_required
+def stocktake_detail_by_location(request, location_name):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+
+    materials = Material.objects.filter(location=location_name).order_by('bin')
+    
+    context = {
+        'location_name': location_name,
+        'materials': materials,
+    }
+    return render(request, 'inventory/stocktake_detail.html', context)
+
+@login_required
+def update_counted_quantity(request):
+    if not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': '權限不足'}, status=403)
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            material_id = data.get('material_id')
+            quantity = data.get('quantity')
+
+            material = Material.objects.get(pk=material_id)
+            
+            if quantity == '' or quantity is None:
+                material.latest_counted_quantity = None
+            else:
+                material.latest_counted_quantity = int(quantity)
+
+            material.last_counted_by = request.user
+            material.last_counted_date = timezone.now()
+            material.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '數量已更新',
+                'last_counted_by': request.user.username,
+                'last_counted_date': material.last_counted_date.isoformat()
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    
+    return JsonResponse({'status': 'error', 'message': '無效的請求'}, status=400)
+
+@login_required
+def difference_location_list(request):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+
+    locations_stats = Material.objects.exclude(
+        Q(location__isnull=True) | Q(location__exact='')
+    ).exclude(
+        latest_counted_quantity__isnull=True
+    ).exclude(
+        system_quantity=F('latest_counted_quantity')
+    ).values('location').annotate(
+        difference_items=Count('id')
+    ).order_by('location')
+
+    context = {
+        'locations_stats': locations_stats
+    }
+    return render(request, 'inventory/difference_location_list.html', context)
+
+@login_required
+def difference_detail_by_location(request, location_name):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+
+    materials = Material.objects.filter(
+        location=location_name
+    ).exclude(
+        latest_counted_quantity__isnull=True
+    ).exclude(
+        system_quantity=F('latest_counted_quantity')
+    ).order_by('bin')
+
+    # Calculate difference for each material
+    for mat in materials:
+        mat.difference = mat.latest_counted_quantity - mat.system_quantity
+
+    context = {
+        'location_name': location_name,
+        'materials': materials,
+    }
+    return render(request, 'inventory/difference_detail.html', context)
+
+@login_required
+def export_differences_excel(request, location_name):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限執行此操作。")
+        return redirect('inventory_home')
+
+    materials = Material.objects.filter(
+        location=location_name
+    ).exclude(
+        latest_counted_quantity__isnull=True
+    ).exclude(
+        system_quantity=F('latest_counted_quantity')
+    ).order_by('bin')
+
+    data = []
+    for material in materials:
+        difference = material.latest_counted_quantity - material.system_quantity
+        data.append({
+            '儲格': material.bin,
+            '物料': material.material_code,
+            '物料說明': material.material_description,
+            '庫存數': material.system_quantity,
+            '盤點數': material.latest_counted_quantity,
+            '差異數': difference,
+            '盤點人員': material.last_counted_by.username if material.last_counted_by else '',
+            '盤點時間': timezone.localtime(material.last_counted_date).strftime('%Y-%m-%d %H:%M') if material.last_counted_date else '',
+        })
+
+    df = pd.DataFrame(data)
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="盤點差異報告_{location_name}_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    df.to_excel(response, index=False, engine='openpyxl')
+    
     return response
