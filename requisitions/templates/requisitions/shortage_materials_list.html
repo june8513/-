@@ -8,40 +8,59 @@
 
     <form method="post" action="{% url 'update_shortage_arrival_dates' %}">
         {% csrf_token %}
-        <table class="table table-striped table-hover table-bordered">
-            <thead class="table-dark">
-                <tr>
-                    <th>物料</th>
-                    <th>物料說明</th>
-                    <th>總欠料數量</th>
-                    <th>相關訂單</th>
-                    <th>預計入料</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for material in shortage_materials %}
+
+        {# Desktop View #}
+        <div class="d-none d-md-block">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-dark">
                     <tr>
-                        <td>{{ material.material_number }}</td>
-                        <td>{{ material.item_name }}</td>
-                        <td>{{ material.total_shortage }}</td>
-                        <td>{{ material.orders_str }}</td>
-                        <td>
-                            {% if material.estimated_arrival_date %}
-                                <span class="{% if material.estimated_arrival_date < today %}text-danger{% endif %}">
-                                    目前設定: {{ material.estimated_arrival_date|date:"Y-m-d" }}
-                                </span>
-                                <br>
-                            {% endif %}
-                            <input type="date" name="arrival_date_{{ material.material_number }}" class="form-control form-control-sm mt-1">
-                        </td>
+                        <th>物料</th>
+                        <th>物料說明</th>
+                        <th>總欠料數量</th>
+                        <th>相關訂單</th>
+                        <th>預計入料</th>
                     </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="5" class="text-center">沒有欠料物料。</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {% for material in shortage_materials %}
+                        <tr>
+                            <td>{{ material.material_number }}</td>
+                            <td>{{ material.item_name }}</td>
+                            <td>{{ material.total_shortage|floatformat:"-2g" }}</td>
+                            <td>{{ material.orders_str }}</td>
+                            <td>
+                                <input type="date" name="arrival_date_{{ material.pk }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center">沒有欠料物料。</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile View #}
+        <div class="d-block d-md-none">
+            {% for material in shortage_materials %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{{ material.material_number }}</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">{{ material.item_name }}</h6>
+                    <p class="card-text"><strong>總欠料數量:</strong> {{ material.total_shortage|floatformat:"-2g" }}</p>
+                    <p class="card-text"><strong>相關訂單:</strong> {{ material.orders_str }}</p>
+                    <div class="form-group">
+                        <label for="arrival_date_{{ material.material_number }}"><strong>預計入料:</strong></label>
+                        <input type="date" name="arrival_date_{{ material.pk }}" id="arrival_date_{{ material.pk }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+                <div class="alert alert-info">沒有欠料物料。</div>
+            {% endfor %}
+        </div>
+
         <div class="d-flex justify-content-end mt-3">
             <button type="submit" class="btn btn-primary">更新所有預計入料日期</button>
         </div>

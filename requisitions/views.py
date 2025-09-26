@@ -1599,7 +1599,7 @@ def shortage_materials_list(request):
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-    # Get (order_number, process_type__name) pairs from dispatched requisitions
+    # Get order_number and process_type pairs from dispatched requisitions
     dispatched_requisition_pairs = Requisition.objects.filter(
         dispatch_performed=True
     ).values_list('order_number', 'process_type')
@@ -1612,48 +1612,40 @@ def shortage_materials_list(request):
         for order_num, proc_type in dispatched_requisition_pairs:
             q_objects |= Q(order_number=order_num, process_type__name=proc_type)
 
-        # Filter WorkOrderMaterial for active materials with shortages, and belonging to dispatched requisitions
+        # Filter for active, backordered materials associated with dispatched requisitions
         shortage_materials_qs = WorkOrderMaterial.objects.filter(
             q_objects,
             is_active=True,
             required_quantity__gt=F('confirmed_quantity')
-        ).annotate(
-            shortage_quantity=ExpressionWrapper(
-                F('required_quantity') - Coalesce(F('confirmed_quantity'), 0),
-                output_field=DecimalField()
-            )
-        ).order_by('material_number') # Order by material_number for consistent aggregation
+        ).exclude(material_number='PARENT_SCOPE').order_by('material_number', '-estimated_arrival_date')
 
-    # Perform in-Python aggregation for SQLite compatibility
-    aggregated_shortages = defaultdict(lambda: {'total_shortage': Decimal('0.00'), 'orders': set(), 'item_name': ''})
-
+    # Aggregate in Python
+    aggregated_shortages = {}
     for material in shortage_materials_qs:
         key = material.material_number
-        aggregated_shortages[key]['total_shortage'] += material.shortage_quantity
-        aggregated_shortages[key]['orders'].add(material.order_number)
-        if not aggregated_shortages[key]['item_name']: # Take the first item name found
-            aggregated_shortages[key]['item_name'] = material.item_name
+        if key not in aggregated_shortages:
+            aggregated_shortages[key] = {
+                'pk': material.pk, # Store the pk of the first instance
+                'material_number': material.material_number,
+                'item_name': material.item_name,
+                'total_shortage': Decimal('0.00'),
+                'orders': set(),
+                'estimated_arrival_date': material.estimated_arrival_date
+            }
+        shortage = material.required_quantity - (material.confirmed_quantity or 0)
+        if shortage > 0:
+            aggregated_shortages[key]['total_shortage'] += shortage
+            aggregated_shortages[key]['orders'].add(material.order_number)
 
-    # Convert defaultdict to a list of dictionaries for template rendering
-    summarized_shortages = []
-    for material_number, data in aggregated_shortages.items():
-        orders_list = sorted(list(data['orders']))
-        orders_str = ", ".join(orders_list)
-        summarized_shortages.append({
-            'material_number': material_number,
-            'item_name': data['item_name'],
-            'total_shortage': data['total_shortage'],
-            'orders_str': orders_str,
-        })
-    
-    # Sort the summarized shortages by material number
-    summarized_shortages.sort(key=lambda x: x['material_number'])
+    # Convert to list and format orders_str
+    summarized_shortages = list(aggregated_shortages.values())
+    for summary in summarized_shortages:
+        summary['orders_str'] = ", ".join(sorted(list(summary['orders'])))
 
     context = {
         'shortage_materials': summarized_shortages,
     }
     return render(request, 'requisitions/shortage_materials_list.html', context)
-
 
 
 @login_required
@@ -1968,30 +1960,15 @@ def update_shortage_arrival_dates(request):
 
     for key, value in request.POST.items():
         if key.startswith('arrival_date_') and value:
-            material_number = key.replace('arrival_date_', '')
+            material_pk = key.replace('arrival_date_', '')
             arrival_date = value
-
-            # Find all shortage WorkOrderMaterial items for this material number
-            # This logic should match the shortage_materials_list view
-            dispatched_requisition_pairs = Requisition.objects.filter(
-                dispatch_performed=True
-            ).values_list('order_number', 'process_type')
-
-            q_objects = Q()
-            if dispatched_requisition_pairs:
-                for order_num, proc_type in dispatched_requisition_pairs:
-                    q_objects |= Q(order_number=order_num, process_type__name=proc_type)
-
-                materials_to_update = WorkOrderMaterial.objects.filter(
-                    q_objects,
-                    material_number=material_number,
-                    is_active=True,
-                    required_quantity__gt=F('confirmed_quantity')
-                )
-                
-                updated_count = materials_to_update.update(estimated_arrival_date=arrival_date)
-                if updated_count > 0:
-                    messages.success(request, f"物料 {material_number} 的預計入料日期已更新。")
+            try:
+                material = WorkOrderMaterial.objects.get(pk=material_pk)
+                material.estimated_arrival_date = arrival_date
+                material.save()
+                messages.success(request, f"物料 {material.material_number} 的預計入料日期已更新。")
+            except (WorkOrderMaterial.DoesNotExist, ValueError):
+                messages.error(request, f"更新物料 ID {material_pk} 時發生錯誤。")
 
     return redirect('shortage_materials_list')
 
