@@ -1617,7 +1617,7 @@ def shortage_materials_list(request):
             q_objects,
             is_active=True,
             required_quantity__gt=F('confirmed_quantity')
-        ).exclude(material_number='PARENT_SCOPE').order_by('material_number', '-estimated_arrival_date')
+        ).exclude(material_number='PARENT_SCOPE').order_by('material_number', 'pk')
 
     # Aggregate in Python
     aggregated_shortages = {}
@@ -1625,7 +1625,6 @@ def shortage_materials_list(request):
         key = material.material_number
         if key not in aggregated_shortages:
             aggregated_shortages[key] = {
-                'pk': material.pk, # Store the pk of the first instance
                 'material_number': material.material_number,
                 'item_name': material.item_name,
                 'total_shortage': Decimal('0.00'),
@@ -1958,17 +1957,56 @@ def update_shortage_arrival_dates(request):
         messages.error(request, "您沒有權限執行此操作。")
         return redirect('shortage_materials_list')
 
+    # Get the same context for filtering as in the list view
+    dispatched_requisition_pairs = Requisition.objects.filter(
+        dispatch_performed=True
+    ).values_list('order_number', 'process_type')
+
+    q_objects = Q()
+    if dispatched_requisition_pairs:
+        for order_num, proc_type in dispatched_requisition_pairs:
+            q_objects |= Q(order_number=order_num, process_type__name=proc_type)
+
+    total_updated_count = 0
+    updated_materials_count = 0
+
     for key, value in request.POST.items():
-        if key.startswith('arrival_date_') and value:
-            material_pk = key.replace('arrival_date_', '')
-            arrival_date = value
+        is_desktop = key.startswith('arrival_date_desktop_')
+        is_mobile = key.startswith('arrival_date_mobile_')
+
+        if is_desktop or is_mobile:
+            if is_desktop:
+                material_number = key.replace('arrival_date_desktop_', '')
+            else:
+                material_number = key.replace('arrival_date_mobile_', '')
+            
+            arrival_date = value if value else None
+
             try:
-                material = WorkOrderMaterial.objects.get(pk=material_pk)
-                material.estimated_arrival_date = arrival_date
-                material.save()
-                messages.success(request, f"物料 {material.material_number} 的預計入料日期已更新。")
-            except (WorkOrderMaterial.DoesNotExist, ValueError):
-                messages.error(request, f"更新物料 ID {material_pk} 時發生錯誤。")
+                # Apply the full filter to get the exact set of materials that are on the shortage list
+                shortage_materials_to_update = WorkOrderMaterial.objects.filter(
+                    q_objects,
+                    material_number=material_number,
+                    is_active=True,
+                    required_quantity__gt=F('confirmed_quantity')
+                ).exclude(material_number='PARENT_SCOPE')
+
+                # We only perform an update if the value is not empty, to avoid overwriting a valid date with an empty one from the hidden input
+                if value: 
+                    if not shortage_materials_to_update.exists():
+                        continue
+
+                    updated_count = shortage_materials_to_update.update(estimated_arrival_date=arrival_date)
+
+                    if updated_count > 0:
+                        total_updated_count += updated_count
+                        updated_materials_count += 1
+
+            except Exception as e:
+                messages.error(request, f"更新物料 {material_number} 時發生錯誤: {e}")
+
+    if updated_materials_count > 0:
+        messages.success(request, f"成功更新 {updated_materials_count} 種物料，共影響 {total_updated_count} 筆欠料記錄。")
 
     return redirect('shortage_materials_list')
 

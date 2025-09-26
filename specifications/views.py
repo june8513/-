@@ -7,15 +7,39 @@ from .forms import MaterialSpecificationForm
 import pandas as pd
 from django.db import transaction
 
+from django.core.paginator import Paginator
+
 @login_required
 def material_spec_list(request):
     query = request.GET.get('q')
-    materials = Material.objects.none()  # Return no materials by default
+    is_admin = request.user.is_superuser
+
+    # Start with a base queryset
+    queryset = Material.objects.all().select_related('specification').order_by('material_code')
+
     if query:
-        # Using select_related to fetch the specification along with the material
-        # to avoid extra database queries in the template.
-        materials = Material.objects.filter(material_code__icontains=query).select_related('specification')
-    return render(request, 'specifications/material_spec_list.html', {'materials': materials})
+        # If there is a search query, filter based on it (for all users)
+        materials_list = queryset.filter(material_code__icontains=query)
+        showing_all = False
+    elif is_admin:
+        # If the user is an admin and there is no query, show all materials
+        materials_list = queryset
+        showing_all = True
+    else:
+        # If not an admin and no query, show nothing
+        materials_list = Material.objects.none()
+        showing_all = False
+
+    paginator = Paginator(materials_list, 20)  # Show 20 materials per page
+    page_number = request.GET.get('page')
+    materials_page = paginator.get_page(page_number)
+
+    return render(request, 'specifications/material_spec_list.html', {
+        'materials': materials_page,
+        'is_admin': is_admin,
+        'showing_all': showing_all,
+        'query': query,
+    })
 
 @login_required
 def material_spec_edit(request, material_id):

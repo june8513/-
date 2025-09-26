@@ -29,7 +29,7 @@
                             <td>{{ material.total_shortage|floatformat:"-2g" }}</td>
                             <td>{{ material.orders_str }}</td>
                             <td>
-                                <input type="date" name="arrival_date_{{ material.pk }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
+                                <input type="date" name="arrival_date_desktop_{{ material.material_number }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
                             </td>
                         </tr>
                     {% empty %}
@@ -52,7 +52,7 @@
                     <p class="card-text"><strong>相關訂單:</strong> {{ material.orders_str }}</p>
                     <div class="form-group">
                         <label for="arrival_date_{{ material.material_number }}"><strong>預計入料:</strong></label>
-                        <input type="date" name="arrival_date_{{ material.pk }}" id="arrival_date_{{ material.pk }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
+                        <input type="date" name="arrival_date_mobile_{{ material.material_number }}" id="arrival_date_{{ material.material_number }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
                     </div>
                 </div>
             </div>
@@ -66,4 +66,25 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    // Target both desktop and mobile inputs
+    const inputs = form.querySelectorAll('input[name^="arrival_date_desktop_"], input[name^="arrival_date_mobile_"]');
+
+    inputs.forEach(function(input) {
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                // Prevent the default Enter key action (like adding a newline or submitting the form in a different way)
+                event.preventDefault();
+                // Explicitly submit the form
+                form.submit();
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -44,11 +44,18 @@
     </div>
 
     <h1 class="text-center mb-4">物料明細查詢</h1>
+
+    {% if is_admin and showing_all %}
+        <div class="alert alert-info" role="alert">
+            您正在以管理員身份瀏覽所有物料。
+        </div>
+    {% endif %}
+
     <div class="row justify-content-center">
         <div class="col-md-8">
             <form method="get" id="searchForm">
                 <div class="mb-2"> <!-- Margin bottom for spacing -->
-                    <input type="text" name="q" id="searchInput" class="form-control" placeholder="搜尋物料..." value="{{ request.GET.q }}">
+                    <input type="text" name="q" id="searchInput" class="form-control" placeholder="搜尋物料..." value="{{ query|default:'' }}">
                 </div>
                 <div class="d-grid gap-2 d-md-block mb-4"> <!-- Bootstrap 5 utility classes for button layout -->
                     <button class="btn btn-primary" type="submit">搜尋</button>
@@ -72,7 +79,7 @@
         <tbody>
             {% for material in materials %}
             <tr>
-                <td data-label="物料號碼">{{ material.material_code }}</td>
+                <td data-label="物料號碼"><a href="{% url 'material_spec_edit' material.id %}">{{ material.material_code }}</a></td>
                 <td data-label="物料說明">{{ material.material_description }}</td>
                 <td data-label="大小">{{ material.specification.size|default:"" }}</td>
                 <td data-label="重量">{{ material.specification.weight|default:"" }}</td>
@@ -87,9 +94,46 @@
                     {% endif %}
                 </td>
             </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">
+                    {% if is_admin and not query %}
+                        資料庫中沒有物料。
+                    {% elif query %}
+                        找不到符合 "{{ query }}" 的物料。
+                    {% else %}
+                        請輸入關鍵字以搜尋物料。
+                    {% endif %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    {% if materials.has_other_pages %}
+    <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+            {% if materials.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page=1{% if query %}&q={{ query }}{% endif %}">&laquo; 首頁</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ materials.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">上一頁</a></li>
+            {% endif %}
+
+            {% for i in materials.paginator.page_range %}
+                {% if materials.number == i %}
+                    <li class="page-item active" aria-current="page"><span class="page-link">{{ i }}</span></li>
+                {% elif i > materials.number|add:'-3' and i < materials.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}">{{ i }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if materials.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ materials.next_page_number }}{% if query %}&q={{ query }}{% endif %}">下一頁</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ materials.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}">末頁 &raquo;</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
 </div>
 
 <!-- Image Modal -->
