@@ -2,6 +2,8 @@ from django import forms
 from django.forms import modelformset_factory, ClearableFileInput
 from .models import Requisition, RequisitionItem, ProcessType, MachineModel
 
+from django.core.exceptions import ValidationError # Import ValidationError
+
 class RequisitionForm(forms.ModelForm):
     order_number = forms.CharField(
         max_length=100,
@@ -13,7 +15,8 @@ class RequisitionForm(forms.ModelForm):
         choices=[], # Empty choices initially, will be populated by JS or constructor
         required=True,
         label="需求流程",
-        widget=forms.Select(attrs={'id': 'id_process_type', 'required': 'required'})
+        widget=forms.Select(attrs={'id': 'id_process_type', 'required': 'required'}),
+        error_messages={'invalid_choice': '無法申請：所選的需求流程無效或已歸檔。'} # Custom error message
     )
 
     def __init__(self, *args, **kwargs):
@@ -21,6 +24,16 @@ class RequisitionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if process_type_choices:
             self.fields['process_type'].choices = process_type_choices
+
+    def clean_process_type(self):
+        process_type_id = self.cleaned_data['process_type']
+        # Check if the submitted process_type_id is actually in the available choices
+        # This handles the case where a user might try to submit an invalid choice
+        # or a choice that was valid but became invalid (e.g., material archived)
+        available_ids = [str(choice[0]) for choice in self.fields['process_type'].choices]
+        if process_type_id not in available_ids:
+            raise ValidationError("無法申請：所選的需求流程無效或已歸檔。")
+        return process_type_id
 
     class Meta:
         model = Requisition
@@ -46,8 +59,7 @@ class UpdateProcessTypeDBForm(forms.Form):
 class UploadInventoryFileForm(forms.Form):
     file = forms.FileField(label='選擇庫存 Excel 檔案')
 
-class UploadStorageBinFileForm(forms.Form):
-    file = forms.FileField(label='選擇儲格 Excel 檔案')
+
 
 # Formset for Material Handler's confirmation
 class RequisitionItemMaterialConfirmationForm(forms.ModelForm):

@@ -31,7 +31,7 @@ urlpatterns = [
     path('<int:pk>/sign_off_item/<int:version_pk>/<int:item_pk>/', views.sign_off_item, name='sign_off_item'),
     path('update_db/', views.update_process_type_db, name='update_process_type_db'),
     path('upload_inventory/', views.upload_inventory_data, name='upload_inventory_data'),
-    path('upload_storage_bin/', views.upload_storage_bin_data, name='upload_storage_bin_data'),
+
     path('material_list/', views.work_order_material_list, name='work_order_material_list'),
     path('archived_material_list/', views.archived_work_order_material_list, name='archived_work_order_material_list'),
     path('update_work_order_quantities/', views.update_work_order_quantities, name='update_work_order_quantities'),
@@ -56,4 +56,5 @@ urlpatterns = [
     path('work_order_material/<int:pk>/upload_images/', views.upload_work_order_material_images, name='upload_work_order_material_images'),
     path('work_order_material/<str:material_code>/images/', views.view_work_order_material_images, name='view_work_order_material_images'),
     path('shortage_materials/', views.shortage_materials_list, name='shortage_materials_list'),
+    path('shortage_materials/update_dates/', views.update_shortage_arrival_dates, name='update_shortage_arrival_dates'),
 ]

@@ -1,18 +1,18 @@
 <div class="table-responsive">
-    <table class="table table-striped table-bordered">
+    <table class="table table-striped table-bordered responsive-table">
         <thead class="table-dark">
             <tr>
                 <th>物料</th>
                 <th>品名</th>
                 <th>儲格</th>
-                <th>庫存</th>
-                <th>需求數量</th>
                 <th>投料點</th>
-                <th>已撥料數量</th>
+                <th>簽收狀態</th>
+                <th>需求</th>
+                <th>已撥料</th>
+                <th>庫存</th>
                 {% if show_change_input %}
                 <th style="width: 15%;">本次變動</th>
                 {% endif %}
-                <th>簽收狀態</th>
                 {% if show_actions %}
                 <th>操作</th>
                 {% endif %}
@@ -21,24 +21,18 @@
         <tbody id="materials-tbody">
             {% for material in materials %}
                 <tr data-process-type="{{ material.process_type.id }}" class="{% if not material.is_active %}table-secondary{% endif %}">
-                    <td>
-                        {{ material.material_number }}
+                    <td data-label="物料">
+                        <a href="{% url 'material_spec_list' %}?q={{ material.material_number }}" class="text-decoration-none text-dark">
+                            {{ material.material_number }}
+                        </a>
                         {% if not material.is_active %}
                             <span class="badge bg-danger ms-1">已歸檔</span>
                         {% endif %}
                     </td>
-                    <td class="text-truncate-cell">{{ material.item_name }}</td>
-                    <td>{{ material.storage_bin|default:"N/A" }}</td>
-                    <td>{{ material.stock_quantity|default:"0"|floatformat:2 }}</td>
-                    <td>{{ material.required_quantity|floatformat:2 }}</td>
-                    <td>{{ material.process_type.name|default:"N/A" }}</td>
-                    <td>{{ material.confirmed_quantity|default:"0"|floatformat:2 }}</td>
-                    {% if show_change_input %}
-                    <td>
-                        <input type="number" step="0.01" name="change_{{ material.pk }}" class="form-control form-control-sm no-spinners" {% if not material.is_active %}disabled{% endif %}>
-                    </td>
-                    {% endif %}
-                    <td class="dispatch-status-{{ material.pk }}">
+                    <td data-label="品名" class="text-truncate-cell">{{ material.item_name }}</td>
+                    <td data-label="儲格" class="responsive-group-item">{{ material.bin|default:"N/A" }}</td>
+                    <td data-label="投料點" class="responsive-group-item">{{ material.process_type.name|default:"N/A" }}</td>
+                    <td data-label="簽收狀態" class="responsive-group-item dispatch-status-{{ material.pk }}">
                         {% if material.confirmed_quantity == material.required_quantity and material.is_signed_off %}
                             <span class="badge bg-success">已撥料</span>
                         {% elif material.confirmed_quantity == 0 and not material.is_signed_off %}
@@ -49,8 +43,16 @@
                             <span class="badge bg-info">未簽收</span>
                         {% endif %}
                     </td>
+                    <td data-label="需求" class="responsive-group-item">{{ material.required_quantity|floatformat:2 }}</td>
+                    <td data-label="已撥料" class="responsive-group-item">{{ material.confirmed_quantity|default:"0"|floatformat:2 }}</td>
+                    <td data-label="庫存" class="responsive-group-item">{{ material.stock_quantity|default:"0"|floatformat:2 }}</td>
+                    {% if show_change_input %}
+                    <td data-label="本次變動">
+                        <input type="number" step="0.01" name="change_{{ material.pk }}" class="form-control form-control-sm no-spinners" {% if not material.is_active %}disabled{% endif %}>
+                    </td>
+                    {% endif %}
                     {% if show_actions %}
-                    <td>
+                    <td data-label="操作">
                         {% if material.confirmed_quantity == material.required_quantity and material.is_signed_off %}
                             {# Already handled as 'yes', no buttons #}
                         {% elif material.confirmed_quantity == 0 and not material.is_signed_off %}
@@ -64,7 +66,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="{% if show_change_input %}9{% else %}8{% endif %}" class="text-center">找不到物料。</td>
+                    <td colspan="10" class="text-center">找不到物料。</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -81,6 +83,87 @@
 
     .no-spinners[type=number] {
         -moz-appearance: textfield;
+    }
+
+    /* Custom CSS for mobile responsiveness */
+    @media (max-width: 767.98px) { /* For screens smaller than md breakpoint */
+        .responsive-table thead {
+            display: none; /* Hide table headers */
+        }
+
+        .responsive-table tr {
+            display: flex; /* Use flexbox for the row */
+            flex-wrap: wrap; /* Allow items to wrap */
+            margin-bottom: 1rem; /* Add some space between rows */
+            border: 1px solid #dee2e6; /* Add border for separation */
+            padding: 0.5rem;
+        }
+
+        .responsive-table td {
+            display: flex; /* Make table cells display as flex for internal alignment */
+            align-items: center; /* Vertically align content */
+            text-align: left; /* Align text to the left */
+            padding-left: 0.5rem; /* Adjust padding */
+            position: relative;
+            word-wrap: break-word; /* Ensure text does not overflow */
+            overflow-wrap: break-word; /* Ensure text does not overflow */
+            word-break: break-all; /* Force breaking of long words/strings */
+            min-height: 2.5rem; /* Ensure consistent height even if no data, adjust as needed */
+            white-space: normal; /* Ensure text wraps */
+            flex-shrink: 1; /* Allow content to shrink */
+            flex-basis: auto; /* Allow content to shrink */
+            width: 100%; /* Default to full width */
+            border-bottom: 1px solid #dee2e6; /* Add horizontal line */
+        }
+
+        .responsive-table td::before {
+            content: attr(data-label); /* Display data-label as content */
+            font-weight: bold;
+            margin-right: 0.5rem; /* Space between label and content */
+            flex-shrink: 0; /* Prevent label from shrinking */
+        }
+
+        /* Specific grouping for horizontal display */
+        /* Row 1: 物料 (Full Width) */
+        .responsive-table tr > td:nth-of-type(1) {
+            width: 100%;
+        }
+
+        /* Row 2: 品名 (Full Width) */
+        .responsive-table tr > td:nth-of-type(2) {
+            width: 100%;
+        }
+
+        /* Row 3: 儲格, 投料點, 簽收狀態 (33.33% each) */
+        .responsive-table tr > td:nth-of-type(3),
+        .responsive-table tr > td:nth-of-type(4),
+        .responsive-table tr > td:nth-of-type(5),
+        /* Row 4: 需求, 已撥料, 庫存 (33.33% each) */
+        .responsive-table tr > td:nth-of-type(6),
+        .responsive-table tr > td:nth-of-type(7),
+        .responsive-table tr > td:nth-of-type(8) {
+            width: 33.33%;
+            padding-left: 0.5rem;
+            text-align: center;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .responsive-table tr > td:nth-of-type(3)::before,
+        .responsive-table tr > td:nth-of-type(4)::before,
+        .responsive-table tr > td:nth-of-type(5)::before,
+        .responsive-table tr > td:nth-of-type(6)::before,
+        .responsive-table tr > td:nth-of-type(7)::before,
+        .responsive-table tr > td:nth-of-type(8)::before {
+            width: auto; /* Let label take natural width */
+            position: static; /* Remove absolute positioning */
+            margin-bottom: 0.2rem; /* Space between label and content */
+        }
+
+        /* Subsequent rows: 本次變動, 操作 (Full Width) */
+        .responsive-table tr > td:nth-of-type(9),
+        .responsive-table tr > td:nth-of-type(10) { 
+            width: 100%;
+        }
     }
 </style>
 

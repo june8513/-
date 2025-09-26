@@ -43,35 +43,41 @@
         </div>
     </div>
 
+    <h1 class="text-center mb-4">物料明細查詢</h1>
     <div class="row justify-content-center">
         <div class="col-md-8">
-            <form method="get">
-                <div class="input-group mb-4">
-                    <input type="text" name="q" class="form-control" placeholder="搜尋物料..." value="{{ request.GET.q }}">
+            <form method="get" id="searchForm">
+                <div class="mb-2"> <!-- Margin bottom for spacing -->
+                    <input type="text" name="q" id="searchInput" class="form-control" placeholder="搜尋物料..." value="{{ request.GET.q }}">
+                </div>
+                <div class="d-grid gap-2 d-md-block mb-4"> <!-- Bootstrap 5 utility classes for button layout -->
                     <button class="btn btn-primary" type="submit">搜尋</button>
+                    <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal">掃描條碼</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <table class="table table-striped">
+    <table class="table table-striped responsive-table">
         <thead>
             <tr>
                 <th>物料號碼</th>
                 <th>物料說明</th>
                 <th>大小</th>
                 <th>重量</th>
+                <th>詳細說明</th>
                 <th>圖片</th>
             </tr>
         </thead>
         <tbody>
             {% for material in materials %}
             <tr>
-                <td>{{ material.material_code }}</td>
-                <td>{{ material.material_description }}</td>
-                <td>{{ material.specification.size|default:"" }}</td>
-                <td>{{ material.specification.weight|default:"" }}</td>
-                <td>
+                <td data-label="物料號碼">{{ material.material_code }}</td>
+                <td data-label="物料說明">{{ material.material_description }}</td>
+                <td data-label="大小">{{ material.specification.size|default:"" }}</td>
+                <td data-label="重量">{{ material.specification.weight|default:"" }}</td>
+                <td data-label="詳細說明">{{ material.specification.detailed_description|default:"" }}</td>
+                <td data-label="圖片">
                     {% if material.specification.image %}
                         <a href="#" class="image-link" data-bs-toggle="modal" data-bs-target="#imageModal" data-image-url="{{ material.specification.image.url }}">
                             <img src="{{ material.specification.image.url }}" alt="Material Image" style="max-width: 50px; height: auto;">
@@ -100,16 +106,145 @@
         </div>
     </div>
 </div>
+
+<!-- Barcode Scanner Modal -->
+<div class="modal fade" id="barcodeScannerModal" tabindex="-1" aria-labelledby="barcodeScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="barcodeScannerModalLabel">掃描條碼</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="interactive" class="viewport"></div>
+                <div class="error"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Custom CSS for mobile responsiveness */
+    @media (max-width: 767.98px) { /* For screens smaller than md breakpoint */
+        #searchInput {
+            min-width: 12ch; /* Ensure enough width for 12 characters */
+            flex-grow: 1; /* Allow it to grow and take available space */
+        }
+        .input-group > .btn {
+            flex-shrink: 0; /* Prevent buttons from shrinking too much */
+        }
+        .input-group {
+            flex-wrap: nowrap; /* Prevent input group from wrapping on small screens */
+        }
+
+        /* Responsive Table CSS */
+        .responsive-table thead {
+            display: none; /* Hide table headers */
+        }
+
+        .responsive-table tr {
+            display: block; /* Make table rows display as blocks */
+            margin-bottom: 1rem; /* Add some space between rows */
+            border: 1px solid #dee2e6; /* Add border for separation */
+            padding: 0.5rem;
+        }
+
+        .responsive-table td {
+            display: block; /* Make table cells display as blocks */
+            text-align: left; /* Align text to the left - Changed from right */
+            padding-left: 50%; /* Make space for the label */
+            position: relative;
+            word-wrap: break-word; /* Ensure text does not overflow */
+            overflow-wrap: break-word; /* Ensure text does not overflow */
+            word-break: break-all; /* Force breaking of long words/strings */
+            min-height: 2.5rem; /* Ensure consistent height even if no data, adjust as needed */
+            display: flex; /* Use flexbox for better alignment of label and content */
+            align-items: center; /* Vertically align content */
+            white-space: normal; /* Ensure text wraps */
+            flex-shrink: 1; /* Allow content to shrink */
+            flex-basis: 0; /* Allow content to shrink */
+        }
+
+        .responsive-table td::before {
+            content: attr(data-label); /* Display data-label as content */
+            position: absolute;
+            left: 0.5rem;
+            width: calc(50% - 1rem); /* Adjust width for label */
+            padding-right: 0.5rem;
+            text-align: left; /* Align label text to the left */
+            font-weight: bold;
+            flex-shrink: 0; /* Prevent label from shrinking */
+        }
+    }
+</style>
 {% endblock %}
 {% block extra_js %}
+<!-- QuaggaJS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/quagga/dist/quagga.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Image Modal Logic
         var imageModal = document.getElementById('imageModal');
         imageModal.addEventListener('show.bs.modal', function (event) {
             var button = event.relatedTarget; // Button that triggered the modal
             var imageUrl = button.getAttribute('data-image-url'); // Extract info from data-image-url attribute
             var modalImage = imageModal.querySelector('#enlargedImage');
             modalImage.src = imageUrl;
+        });
+
+        // Barcode Scanner Modal Logic
+        var barcodeScannerModal = document.getElementById('barcodeScannerModal');
+        var searchInput = document.getElementById('searchInput');
+        var searchForm = document.getElementById('searchForm');
+
+        barcodeScannerModal.addEventListener('shown.bs.modal', function () {
+            Quagga.init({
+                inputStream : {
+                    name : "Live",
+                    type : "LiveStream",
+                    target: document.querySelector('#interactive'),    // Or '#yourElement' (optional)
+                    constraints: {
+                        facingMode: "environment" // Simpler for broader compatibility
+                    }
+                },
+                decoder : {
+                    readers : ["code_128_reader"]
+                },
+                locate: true, // Enable localization to help find the barcode
+                numOfWorkers: 2, // Use 2 web workers for parallel processing
+                halfSample: true, // Process half-sampled images for speed
+                patchSize: 'medium', // Revert to 'medium'
+                frequency: 10 // Revert to '10'
+            }, function(err) {
+                if (err) {
+                    console.log(err);
+                    alert('無法啟動條碼掃描器: ' + err.message);
+                    return
+                }
+                console.log("Initialization finished. Start to detect");
+                Quagga.start();
+            });
+
+            Quagga.onDetected(function(result) {
+                var code = result.codeResult.code;
+                var format = result.codeResult.format; // Get the format
+                console.log("Barcode detected and processed: " + code + " (Format: " + format + ")"); // Log format
+
+                searchInput.value = code; // Populate search input
+                Quagga.stop(); // Stop the scanner
+                var modalInstance = bootstrap.Modal.getInstance(barcodeScannerModal);
+                modalInstance.hide(); // Hide the modal
+                searchForm.submit(); // Submit the search form
+            });
+        });
+
+        barcodeScannerModal.addEventListener('hidden.bs.modal', function () {
+            if (Quagga.initialized) { // Check if Quagga was initialized before stopping
+                Quagga.stop();
+            }
         });
     });
 </script>

@@ -5,52 +5,47 @@
 {% block content %}
     <h2 class="mb-4">撥料申請歷史記錄</h2>
 
-    <form method="get" class="row g-3 align-items-end mb-4">
-        <div class="col-12 col-md-auto">
-            <label for="order_number" class="form-label">訂單單號:</label>
-            <input type="text" id="order_number" name="order_number" value="{{ request.GET.order_number }}" class="form-control">
+    <form method="get" class="mb-4">
+        <div class="row g-3 mb-3">
+            <div class="col-6">
+                <label for="order_number" class="form-label">訂單單號:</label>
+                <input type="text" id="order_number" name="order_number" value="{{ request.GET.order_number }}" class="form-control">
+            </div>
+            <div class="col-6">
+                <label for="applicant_username" class="form-label">申請人 (使用者名稱):</label>
+                <input type="text" id="applicant_username" name="applicant_username" value="{{ request.GET.applicant_username }}" class="form-control">
+            </div>
         </div>
-        <div class="col-12 col-md-auto">
-            <label for="applicant_username" class="form-label">申請人 (使用者名稱):</label>
-            <input type="text" id="applicant_username" name="applicant_username" value="{{ request.GET.applicant_username }}" class="form-control">
+        <div class="row g-3 mb-3">
+            <div class="col-6">
+                <label for="process_type" class="form-label">需求流程:</label>
+                <select id="process_type" name="process_type" class="form-select">
+                    <option value="">所有流程</option>
+                    {% for value, label in process_type_choices %}
+                        <option value="{{ value }}" {% if request.GET.process_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label">需求日期範圍:</label>
+                <div class="input-group">
+                    <input type="date" id="start_date" name="start_date" value="{{ request.GET.start_date }}" class="form-control" aria-label="起始日期">
+                    <span class="input-group-text">到</span>
+                    <input type="date" id="end_date" name="end_date" value="{{ request.GET.end_date }}" class="form-control" aria-label="結束日期">
+                </div>
+            </div>
         </div>
-        <div class="col-12 col-md-auto">
-            <label for="status" class="form-label">狀態:</label>
-            <select id="status" name="status" class="form-select">
-                <option value="">所有狀態</option>
-                {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-12 col-md-auto">
-            <label for="process_type" class="form-label">需求流程:</label>
-            <select id="process_type" name="process_type" class="form-select">
-                <option value="">所有流程</option>
-                {% for value, label in process_type_choices %}
-                    <option value="{{ value }}" {% if request.GET.process_type == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-12 col-md-auto">
-            <label for="start_date" class="form-label">起始日期:</label>
-            <input type="date" id="start_date" name="start_date" value="{{ request.GET.start_date }}" class="form-control">
-        </div>
-        <div class="col-12 col-md-auto">
-            <label for="end_date" class="form-label">結束日期:</label>
-            <input type="date" id="end_date" name="end_date" value="{{ request.GET.end_date }}" class="form-control">
-        </div>
-        
-        <div class="col-md-auto">
-            <button type="submit" class="btn btn-outline-primary">篩選</button>
-        </div>
-        <div class="col-md-auto">
-            <a href="{% url 'requisition_history' %}" class="btn btn-outline-secondary">清除篩選</a>
+        <div class="row g-3">
+            <div class="col-12">
+                <button type="submit" class="btn btn-outline-primary me-2">篩選</button>
+                <a href="{% url 'requisition_history' %}" class="btn btn-outline-secondary">清除篩選</a>
+            </div>
         </div>
     </form>
 
     {% if history_requisitions %}
-        <div class="table-responsive">
+        {# Desktop View: Standard Table (Visible on lg screens and up) #}
+        <div class="table-responsive d-none d-lg-block">
             <table class="table table-striped table-hover table-bordered">
                 <thead class="table-dark">
                     <tr>
@@ -82,6 +77,59 @@
                 </tbody>
             </table>
         </div>
+
+        {# Mobile View: Custom Cards (Visible on screens smaller than lg) #}
+        <div class="d-lg-none">
+            {% for req in history_requisitions %}
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <!-- Row 1 -->
+                    <div class="d-flex justify-content-between text-center mb-2">
+                        <div class="w-33">
+                            <h6 class="card-subtitle text-muted mb-1 small">訂單單號</h6>
+                            <p class="card-text">{{ req.order_number }}</p>
+                        </div>
+                        <div class="w-33">
+                            <h6 class="card-subtitle text-muted mb-1 small">需求流程</h6>
+                            <p class="card-text">{{ req.process_type }}</p>
+                        </div>
+                        <div class="w-33 px-1">
+                            <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary w-100">撥料</a>
+                        </div>
+                    </div>
+                    <!-- Row 2 -->
+                    <div class="d-flex justify-content-between text-center mb-2">
+                        <div class="w-33">
+                            <h6 class="card-subtitle text-muted mb-1 small">申請人</h6>
+                            <p class="card-text">{{ req.applicant.username }}</p>
+                        </div>
+                        <div class="w-33">
+                            <h6 class="card-subtitle text-muted mb-1 small">需求日期</h6>
+                            <p class="card-text">{{ req.request_date|date:"y/m/d" }}</p>
+                        </div>
+                        <div class="w-33 px-1">
+                            <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success w-100">撥料單</a>
+                        </div>
+                    </div>
+                    <!-- Row 3 -->
+                    <div class="d-flex justify-content-between align-items-center text-center">
+                        <div class="w-66">
+                            <h6 class="card-subtitle text-muted mb-1 small">機型</h6>
+                            <p class="card-text">{{ req.machine_models_display }}</p>
+                        </div>
+                        <div class="w-33 px-1">
+                            <a href="{% url 'generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning w-100">欠料單</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <style>
+            .w-33 { width: 33.33% !important; }
+            .w-66 { width: 66.66% !important; }
+        </style>
 
         <nav aria-label="Page navigation">
             <ul class="pagination justify-content-center">

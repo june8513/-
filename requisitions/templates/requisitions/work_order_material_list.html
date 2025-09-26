@@ -47,9 +47,33 @@
 
     {% if selected_order %}
         <h3 class="mb-3">訂單: {{ selected_order }} 的物料清單</h3>
-        {% if machine_models_for_display %}
-            <p class="mb-3"><strong>機型:</strong> {{ machine_models_for_display|join:", " }}</p>
-        {% endif %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            {% if machine_models_for_display %}
+                <p class="mb-0"><strong>機型:</strong> {{ machine_models_for_display|join:", " }}</p>
+            {% endif %}
+
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle btn-sm" type="button" id="sortMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                    排序方式
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="sortMenuButton">
+                    <li><a class="dropdown-item {% if sort_by == 'material_number' and order == 'asc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=material_number&order=asc">物料 (升序)</a></li>
+                    <li><a class="dropdown-item {% if sort_by == 'material_number' and order == 'desc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=material_number&order=desc">物料 (降序)</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item {% if sort_by == 'item_name' and order == 'asc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=item_name&order=asc">品名 (升序)</a></li>
+                    <li><a class="dropdown-item {% if sort_by == 'item_name' and order == 'desc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=item_name&order=desc">品名 (降序)</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item {% if sort_by == 'required_quantity' and order == 'asc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=required_quantity&order=asc">需求 (升序)</a></li>
+                    <li><a class="dropdown-item {% if sort_by == 'required_quantity' and order == 'desc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=required_quantity&order=desc">需求 (降序)</a></li>
+                     <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item {% if sort_by == 'bin' and order == 'asc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=bin&order=asc">儲格 (升序)</a></li>
+                    <li><a class="dropdown-item {% if sort_by == 'bin' and order == 'desc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=bin&order=desc">儲格 (降序)</a></li>
+                     <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item {% if sort_by == 'process_type' and order == 'asc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=process_type&order=asc">投料點 (升序)</a></li>
+                    <li><a class="dropdown-item {% if sort_by == 'process_type' and order == 'desc' %}active{% endif %}" href="?order_number={{ selected_order }}&process_type={{ selected_process_type|default:'' }}&show_inactive={{ show_inactive|yesno:'true,false' }}&sort_by=process_type&order=desc">投料點 (降序)</a></li>
+                </ul>
+            </div>
+        </div>
         
         <form method="post" action="{% url 'update_work_order_quantities' %}">
             {% csrf_token %}

@@ -45,6 +45,7 @@ class Requisition(models.Model):
     material_confirmed_date = models.DateTimeField(null=True, blank=True, verbose_name="物料確認日期")
     sign_off_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisitions_signed_off', verbose_name="最終簽收人員")
     sign_off_date = models.DateTimeField(null=True, blank=True, verbose_name="最終簽收日期")
+    current_material_list_version = models.ForeignKey('MaterialListVersion', on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="當前物料清單版本")
 
     remarks = models.TextField(blank=True, null=True, verbose_name="備註")
 
@@ -86,6 +87,7 @@ class WorkOrderMaterial(models.Model):
     confirmed_quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="已撥料數量")
     is_signed_off = models.BooleanField(default=False, verbose_name="已簽收")
     is_active = models.BooleanField(default=True, verbose_name="是否啟用") # New field
+    estimated_arrival_date = models.DateField(null=True, blank=True, verbose_name="預計入料日期")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

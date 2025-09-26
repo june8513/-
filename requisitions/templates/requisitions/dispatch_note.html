@@ -1,113 +1,79 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}撥料單 - {{ requisition.order_number }}{% endblock %}
+{% block title %}簽收單{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h2 class="mb-4">撥料單</h2>
+<div class="container mt-4">
+    <h1>簽收單</h1>
+    <p>訂單號碼: {{ requisition.order_number }}</p>
+    <p>申請人: {{ requisition.applicant.username }}</p>
+    <p>需求流程: {{ requisition.process_type }}</p>
+    <p>需求日期: {{ requisition.request_date }}</p>
 
-    <div class="card mb-4">
-        <div class="card-header">
-            撥料單資訊
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4"><strong>訂單單號:</strong> {{ requisition.order_number }}</div>
-                <div class="col-md-4"><strong>需求流程:</strong> {{ requisition.process_type }}</div>
-                <div class="col-md-4"><strong>申請人:</strong> {{ requisition.applicant.username }}</div>
-            </div>
-            <div class="row mt-2">
-                <div class="col-md-4"><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</div>
-                <div class="col-md-8"><strong>備註:</strong> {{ requisition.remarks|default:"無" }}</div>
-            </div>
-        </div>
-    </div>
-
-    <h3 class="mb-3">撥料物料</h3>
-    {% if materials %}
-        {% include 'requisitions/_material_table.html' with materials=materials show_change_input=False show_actions=True %}
-    {% else %}
-    <p>此撥料單沒有物料。</p>
-    {% endif %}
-
-
-
-    <div class="d-flex justify-content-between mt-4">
-        <div>
-            <a href="{% url 'upload_requisition_images_page' requisition.pk %}" class="btn btn-info">上傳圖片</a>
-            <a href="{% url 'view_requisition_images' requisition.pk %}" class="btn btn-secondary">查看圖片</a>
-        </div>
-        {% if requisition.status != 'completed' %}
-            <a href="{% url 'requisition_history' %}" class="btn btn-primary">回到已撥料申請</a>
-        {% endif %}
-    </div>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>物料號碼</th>
+                <th>品名</th>
+                <th>需求數量</th>
+                <th>已撥料數量</th>
+                <th>撥料人員</th>
+                <th>簽收</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in materials %}
+            <tr id="material-row-{{ material.id }}">
+                <td>{{ material.material_number }}</td>
+                <td>{{ material.item_name }}</td>
+                <td>{{ material.required_quantity }}</td>
+                <td>{{ material.confirmed_quantity|default_if_none:'' }}</td>
+                <td>{{ material.dispatcher_name|default_if_none:'' }}</td>
+                <td>
+                    {% if material.is_signed_off %}
+                        <span class="badge bg-success">已簽收</span>
+                    {% else %}
+                        <button class="btn btn-primary btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="yes">簽收</button>
+                        <button class="btn btn-danger btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="no">退回</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM Content Loaded. Initializing dispatch action buttons.');
-        const dispatchActionButtons = document.querySelectorAll('.dispatch-action-btn');
-        console.log('Found dispatch action buttons:', dispatchActionButtons.length);
-
-        dispatchActionButtons.forEach(button => {
+        const signOffButtons = document.querySelectorAll('.sign-off-btn');
+        signOffButtons.forEach(button => {
             button.addEventListener('click', function() {
-                console.log('Button clicked!');
                 const materialId = this.dataset.materialId;
-                const action = this.dataset.action; // 'yes' or 'no'
-                const requisitionPk = "{{ requisition.pk }}"; // Assuming requisition.pk is available in context
-                const url = `/requisitions/${requisitionPk}/update_material_dispatch_status/`;
-                console.log('Material ID:', materialId, 'Action:', action, 'Requisition PK:', requisitionPk, 'URL:', url);
+                const requisitionId = this.dataset.requisitionId;
+                const action = this.dataset.action;
+                const url = `/requisitions/${requisitionId}/update_material_dispatch_status/`;
 
                 fetch(url, {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': '{{ csrf_token }}', // Assuming csrf_token is available
+                        'X-CSRFToken': '{{ csrf_token }}',
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        material_id: materialId,
-                        action: action
-                    })
+                    body: JSON.stringify({ material_id: materialId, action: action })
                 })
-                .then(response => {
-                    console.log('Response received:', response);
-                    if (!response.ok) {
-                        // Log response text for more details on server error
-                        return response.text().then(text => { throw new Error(`HTTP error! status: ${response.status}, body: ${text}`); });
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log('Data received:', data);
                     if (data.success) {
-                        // Update the UI for the specific material
-                        const statusCell = document.querySelector(`.dispatch-status-${materialId}`);
-                        if (statusCell) {
-                            let newBadgeClass = '';
-                            let newBadgeText = '';
-                            if (action === 'yes') {
-                                newBadgeClass = 'bg-success';
-                                newBadgeText = '已撥料';
-                            } else { // action === 'no'
-                                newBadgeClass = 'bg-secondary';
-                                newBadgeText = '未撥料';
-                            }
-                            statusCell.innerHTML = `<span class="badge ${newBadgeClass}">${newBadgeText}</span>`;
-                        }
-                        // Optionally disable buttons for this row
-                        const rowButtons = button.closest('td').querySelectorAll('.dispatch-action-btn');
-                        rowButtons.forEach(btn => btn.disabled = true);
-
-                        // alert(data.message); // Removed alert
+                        location.reload();
                     } else {
-                        // alert('操作失敗: ' + data.message); // Removed alert
+                        alert('操作失敗: ' + data.message);
                     }
                 })
                 .catch(error => {
-                    console.error('Error during fetch:', error);
-                    // alert('發生錯誤，請重試。' + error.message); // Removed alert
+                    console.error('Error:', error);
+                    alert('操作時發生錯誤。');
                 });
             });
         });

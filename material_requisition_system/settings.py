@@ -34,7 +34,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-# CSRF_TRUSTED_ORIGINS = ['https://2e8a2e772dfc.ngrok-free.app']
+CSRF_TRUSTED_ORIGINS = ['https://973a749b995d.ngrok-free.app']
 
 # Log out user when browser is closed
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
