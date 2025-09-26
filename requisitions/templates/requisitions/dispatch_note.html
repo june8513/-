@@ -5,42 +5,87 @@
 {% block content %}
 <div class="container mt-4">
     <h1>簽收單</h1>
-    <p>訂單號碼: {{ requisition.order_number }}</p>
-    <p>申請人: {{ requisition.applicant.username }}</p>
-    <p>需求流程: {{ requisition.process_type }}</p>
-    <p>需求日期: {{ requisition.request_date }}</p>
+    <div class="row mb-2">
+        <div class="col-6"><strong>訂單號碼:</strong> {{ requisition.order_number }}</div>
+        <div class="col-6"><strong>需求流程:</strong> {{ requisition.process_type }}</div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-6"><strong>申請人:</strong> {{ requisition.applicant.username }}</div>
+        <div class="col-6"><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</div>
+    </div>
 
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>物料號碼</th>
-                <th>品名</th>
-                <th>需求數量</th>
-                <th>已撥料數量</th>
-                <th>撥料人員</th>
-                <th>簽收</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for material in materials %}
-            <tr id="material-row-{{ material.id }}">
-                <td>{{ material.material_number }}</td>
-                <td>{{ material.item_name }}</td>
-                <td>{{ material.required_quantity }}</td>
-                <td>{{ material.confirmed_quantity|default_if_none:'' }}</td>
-                <td>{{ material.dispatcher_name|default_if_none:'' }}</td>
-                <td>
-                    {% if material.is_signed_off %}
-                        <span class="badge bg-success">已簽收</span>
-                    {% else %}
-                        <button class="btn btn-primary btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="yes">簽收</button>
-                        <button class="btn btn-danger btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="no">退回</button>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {# Desktop View #}
+    <div class="d-none d-md-block">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>物料</th>
+                    <th>品名</th>
+                    <th>需求</th>
+                    <th>已撥料</th>
+                    <th>撥料人員</th>
+                    <th>簽收</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for material in materials %}
+                <tr id="material-row-{{ material.id }}">
+                    <td><a href="{% url 'material_spec_list' %}?q={{ material.material_number }}">{{ material.material_number }}</a></td>
+                    <td>{{ material.item_name }}</td>
+                    <td>{{ material.required_quantity|floatformat:"-2g" }}</td>
+                    <td>{{ material.confirmed_quantity|default_if_none:''|floatformat:"-2g" }}</td>
+                    <td>{{ material.dispatcher_name|default_if_none:'' }}</td>
+                    <td>
+                        {% if material.is_signed_off %}
+                            <span class="badge bg-success">已簽收</span>
+                        {% else %}
+                            <button class="btn btn-primary btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="yes">簽收</button>
+                            <button class="btn btn-danger btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="no">退回</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Mobile View #}
+    <div class="d-block d-md-none">
+        {% for material in materials %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-7">
+                        <h5 class="card-title"><a href="{% url 'material_spec_list' %}?q={{ material.material_number }}">{{ material.material_number }}</a></h5>
+                    </div>
+                    <div class="col-5 text-end">
+                        {% if material.is_signed_off %}
+                            <span class="badge bg-success">已簽收</span>
+                        {% else %}
+                            <button class="btn btn-primary btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="yes">簽收</button>
+                            <button class="btn btn-danger btn-sm sign-off-btn" data-material-id="{{ material.id }}" data-requisition-id="{{ requisition.pk }}" data-action="no">退回</button>
+                        {% endif %}
+                    </div>
+                </div>
+                <p class="card-text text-muted">{{ material.item_name }}</p>
+                <div class="row text-center mt-2">
+                    <div class="col">
+                        <strong>需求</strong>
+                        <p>{{ material.required_quantity|floatformat:"-2g" }}</p>
+                    </div>
+                    <div class="col">
+                        <strong>已撥料</strong>
+                        <p>{{ material.confirmed_quantity|default_if_none:''|floatformat:"-2g" }}</p>
+                    </div>
+                    <div class="col">
+                        <strong>撥料人員</strong>
+                        <p>{{ material.dispatcher_name|default_if_none:'--' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}
 

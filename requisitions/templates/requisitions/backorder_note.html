@@ -5,36 +5,67 @@
 {% block content %}
 <div class="container mt-4">
     <h1>欠料單</h1>
-    <p>訂單號碼: {{ requisition.order_number }}</p>
-    <p>申請人: {{ requisition.applicant.username }}</p>
-    <p>需求流程: {{ requisition.process_type }}</p>
-    <p>需求日期: {{ requisition.request_date }}</p>
+    <div class="row mb-2">
+        <div class="col-6"><strong>訂單號碼:</strong> {{ requisition.order_number }}</div>
+        <div class="col-6"><strong>需求流程:</strong> {{ requisition.process_type }}</div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-6"><strong>申請人:</strong> {{ requisition.applicant.username }}</div>
+        <div class="col-6"><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</div>
+    </div>
 
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>物料號碼</th>
-                <th>品名</th>
-                <th>需求數量</th>
-                <th>已撥料數量</th>
-                <th>欠料數量</th>
-                <th>儲格</th>
-                <th>庫存</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for material in shortage_materials %}
-            <tr>
-                <td>{{ material.material_number }}</td>
-                <td>{{ material.item_name }}</td>
-                <td>{{ material.required_quantity }}</td>
-                <td>{{ material.confirmed_quantity|default_if_none:0 }}</td>
-                <td>{{ material.shortage_quantity }}</td>
-                <td>{{ material.storage_bin|default_if_none:"" }}</td>
-                <td>{{ material.stock_quantity|default_if_none:"" }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {# Desktop View #}
+    <div class="d-none d-md-block">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>儲格</th>
+                    <th>物料號碼</th>
+                    <th>品名</th>
+                    <th>需求數量</th>
+                    <th>欠料數量</th>
+                    <th>預計入料</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for material in shortage_materials %}
+                <tr>
+                    <td>{{ material.storage_bin|default_if_none:"" }}</td>
+                    <td>{{ material.material_number }}</td>
+                    <td>{{ material.item_name }}</td>
+                    <td>{{ material.required_quantity|floatformat:"-2g" }}</td>
+                    <td>{{ material.shortage_quantity|floatformat:"-2g" }}</td>
+                    <td>{{ material.estimated_arrival_date|date:"Y-m-d"|default_if_none:"" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Mobile View #}
+    <div class="d-block d-md-none">
+        {% for material in shortage_materials %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ material.material_number }}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">{{ material.item_name }}</h6>
+                <div class="row text-center mt-2">
+                    <div class="col">
+                        <strong>需求</strong>
+                        <p>{{ material.required_quantity|floatformat:"-2g" }}</p>
+                    </div>
+                    <div class="col">
+                        <strong>欠料</strong>
+                        <p>{{ material.shortage_quantity|floatformat:"-2g" }}</p>
+                    </div>
+                    <div class="col">
+                        <strong>預計入料</strong>
+                        <p>{{ material.estimated_arrival_date|date:"Y-m-d"|default_if_none:"--" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}
