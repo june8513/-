@@ -69,7 +69,7 @@
                             <td><span class="badge bg-{% if req.status == 'pending' %}warning{% elif req.status == 'materials_confirmed' %}info{% elif req.status == 'completed' %}success{% else %}secondary{% endif %}">{{ req.get_status_display }}</span></td>
                             <td>
                                 <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary">撥料</a>
-                                <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success ms-1">撥料單</a>
+                                <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success ms-1">簽收單</a>
                                 <a href="{% url 'generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning ms-1">欠料單</a>
                             </td>
                         </tr>
@@ -108,7 +108,7 @@
                             <p class="card-text">{{ req.request_date|date:"y/m/d" }}</p>
                         </div>
                         <div class="w-33 px-1">
-                            <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success w-100">撥料單</a>
+                            <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success w-100">簽收單</a>
                         </div>
                     </div>
                     <!-- Row 3 -->
