@@ -13,7 +13,7 @@ urlpatterns = [
     # Feature 2: Stocktake by Location (Placeholders for now)
     path('stocktake/', views.stocktake_location_list, name='stocktake_location_list'),
     path('stocktake/<str:location_name>/', views.stocktake_detail_by_location, name='stocktake_detail_by_location'),
-    path('stocktake/update_count/', views.update_counted_quantity, name='update_counted_quantity'),
+    path('ajax/update_material_count/', views.update_counted_quantity, name='update_counted_quantity'),
 
     # Feature 3: Difference Report (Placeholders for now)
     path('differences/', views.difference_location_list, name='difference_location_list'),

@@ -374,8 +374,10 @@ def stocktake_detail_by_location(request, location_name):
     }
     return render(request, 'inventory/stocktake_detail.html', context)
 
-@login_required
 def update_counted_quantity(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': '用戶未登入或會話已過期，請重新登入。'}, status=401)
+
     if not request.user.is_superuser:
         return JsonResponse({'status': 'error', 'message': '權限不足'}, status=403)
 
