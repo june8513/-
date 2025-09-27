@@ -11,17 +11,54 @@
                     <h1 class="card-title text-center">庫存更新</h1>
                 </div>
                 <div class="card-body">
-                    <p class="card-text">請上傳包含以下欄位的 Excel 檔案來更新庫存：</p>
+                    <div class="alert alert-danger" role="alert">
+                        <h4 class="alert-heading">重要警告！</h4>
+                        <p>此操作為一個完整的資料同步。執行後，資料庫中存在、但您上傳的 Excel 檔案中不存在的物料將會被**永久刪除**。</p>
+                        <hr>
+                        <p class="mb-0">在繼續之前，請務必確認您上傳的是一份完整的物料主資料檔案。</p>
+                    </div>
+
+                    <p class="card-text mt-4">請上傳包含以下欄位的 Excel 檔案來更新庫存：</p>
                     <p><code>儲存地點</code>, <code>儲格</code>, <code>物料</code>, <code>物料說明</code>, <code>未限制</code> (此欄位將用於更新系統庫存與盤點數)</p>
                     <hr>
                     <form action="{% url 'run_inventory_update' %}" method="post" enctype="multipart/form-data">
                         {% csrf_token %}
-                        <div class="input-group mb-3">
-                            <input type="file" name="excel_file" class="form-control" id="excel_file_input" accept=".xlsx, .xls" required>
-                            <label class="input-group-text" for="excel_file_input">選擇檔案</label>
+                        
+                        <div class="mb-3">
+                            <label class="form-label"><strong>1. 選擇要同步的儲存地點</strong></label>
+                            <div class="border p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="select-all-locations">
+                                    <label class="form-check-label fw-bold" for="select-all-locations">
+                                        全選 / 全部取消
+                                    </label>
+                                </div>
+                                <hr>
+                                {% for location in locations %}
+                                <div class="form-check">
+                                    <input class="form-check-input location-checkbox" type="checkbox" name="selected_locations" value="{{ location }}" id="loc-{{ forloop.counter }}">
+                                    <label class="form-check-label" for="loc-{{ forloop.counter }}">
+                                        {{ location }}
+                                    </label>
+                                </div>
+                                {% empty %}
+                                <p class="text-muted">沒有可用的儲存地點。</p>
+                                {% endfor %}
+                            </div>
                         </div>
+
+                        <div class="mb-4">
+                            <label for="new-locations-input" class="form-label"><strong>或手動輸入新地點 (若有多個，請用逗號 , 分隔)</strong></label>
+                            <input type="text" name="new_locations" class="form-control" id="new-locations-input" placeholder="例如: 新地點一,新地點二">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="excel_file_input" class="form-label"><strong>2. 選擇要上傳的 Excel 檔案</strong></label>
+                            <input type="file" name="excel_file" class="form-control" id="excel_file_input" accept=".xlsx, .xls" required>
+                        </div>
+
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">開始匯入更新</button>
+                            <button type="submit" class="btn btn-primary">開始同步</button>
                         </div>
                     </form>
                 </div>
@@ -32,4 +69,22 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all-locations');
+    const locationCheckboxes = document.querySelectorAll('.location-checkbox');
+
+    if(selectAll) {
+        selectAll.addEventListener('change', function(event) {
+            const isChecked = event.target.checked;
+            locationCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+        });
+    }
+});
+</script>
 {% endblock %}

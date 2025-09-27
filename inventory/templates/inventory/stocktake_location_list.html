@@ -14,8 +14,8 @@
                     <p>請選擇要進行盤點的儲存地點。按鈕上的數字分別代表 (總筆數 / 未盤點筆數)。</p>
                     <div class="d-grid gap-2">
                         {% for loc in locations_stats %}
-                            <a href="{% url 'stocktake_detail_by_location' loc.location %}" class="btn btn-outline-primary btn-lg p-3 d-flex justify-content-between align-items-center">
-                                <span>{{ loc.location }}</span>
+                            <a href="{% url 'stocktake_detail_by_location' loc.name %}" class="btn btn-outline-primary btn-lg p-3 d-flex justify-content-between align-items-center">
+                                <span>{{ loc.name }}</span>
                                 <span class="badge bg-secondary rounded-pill">{{ loc.total_items }} / {{ loc.uncounted_items }}</span>
                             </a>
                         {% empty %}

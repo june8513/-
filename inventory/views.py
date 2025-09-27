@@ -1,59 +1,109 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .models import Material, Stocktake, StocktakeItem, MaterialTransaction
+from .models import Material, Stocktake, StocktakeItem, MaterialTransaction, StorageLocation
 import pandas as pd
 from django.db import transaction
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
-from django.db.models import Count, Q, F
+from django.db.models import Count, Q, F, ExpressionWrapper, fields
+from django.db import models
 import json
 
 # View for importing master material data from Excel
 @login_required
 def import_material_master(request):
-    if request.method == 'POST' and request.FILES.get('excel_file'):
-        excel_file = request.FILES['excel_file']
-        expected_columns = ['儲存地點', '儲格', '物料', '物料說明', '未限制']
-        try:
-            df = pd.read_excel(excel_file, dtype={'儲存地點': str, '儲格': str, '物料': str})
+    if request.method != 'POST' or not request.FILES.get('excel_file'):
+        return redirect('inventory_update')
 
-            if not all(col in df.columns for col in expected_columns):
-                missing_cols = ", ".join([col for col in expected_columns if col not in df.columns])
-                messages.error(request, f"Excel 檔案缺少必要的欄位，請檢查是否包含: {missing_cols}")
-                return redirect('inventory_update')
+    selected_location_names = request.POST.getlist('selected_locations')
+    new_locations_str = request.POST.get('new_locations', '')
 
-            with transaction.atomic():
-                for index, row in df.iterrows():
-                    material_code = row['物料']
-                    new_quantity = row['未限制']
+    if new_locations_str:
+        new_locations = [loc.strip() for loc in new_locations_str.split(',') if loc.strip()]
+        selected_location_names.extend(new_locations)
+    
+    sync_location_names = sorted(list(set(selected_location_names)))
+
+    if not sync_location_names:
+        messages.error(request, "請至少選擇或輸入一個要同步的儲存地點。")
+        return redirect('inventory_update')
+
+    excel_file = request.FILES['excel_file']
+    expected_columns = ['儲存地點', '儲格', '物料', '物料說明', '未限制']
+
+    try:
+        df = pd.read_excel(excel_file, dtype=str)
+        df.columns = [col.strip() for col in df.columns]
+
+        if not all(col in df.columns for col in expected_columns):
+            missing_cols = ", ".join([col for col in expected_columns if col not in df.columns])
+            messages.error(request, f"Excel 檔案缺少必要的欄位: {missing_cols}")
+            return redirect('inventory_update')
+
+        df_filtered = df[df['儲存地點'].isin(sync_location_names)].copy()
+        df_filtered.dropna(subset=['物料'], inplace=True)
+        df_filtered['未限制'] = pd.to_numeric(df_filtered['未限制'], errors='coerce').fillna(0).astype(int)
+
+        duplicates = df_filtered[df_filtered.duplicated(subset=['物料'], keep=False)]
+        if not duplicates.empty:
+            duplicate_codes = ", ".join(duplicates['物料'].unique())
+            messages.error(request, f"匯入失敗：在您選擇的儲存地點範圍內，Excel 檔案中包含重複的物料號碼: {duplicate_codes}")
+            return redirect('inventory_update')
+
+        with transaction.atomic():
+            for loc_name in sync_location_names:
+                StorageLocation.objects.get_or_create(name=loc_name)
+
+            all_db_materials = {mat.material_code: mat for mat in Material.objects.all()}
+            all_db_codes = set(all_db_materials.keys())
+            scoped_db_codes = set(Material.objects.filter(location__name__in=sync_location_names).values_list('material_code', flat=True))
+            excel_codes = set(df_filtered['物料'])
+
+            codes_to_delete = scoped_db_codes - excel_codes
+            codes_to_create = excel_codes - all_db_codes
+            codes_to_update = excel_codes.intersection(all_db_codes)
+
+            deleted_count = 0
+            if codes_to_delete:
+                materials_to_delete = Material.objects.filter(location__name__in=sync_location_names, material_code__in=codes_to_delete)
+                deleted_count = materials_to_delete.delete()[0]
+
+            created_count = 0
+            updated_count = 0
+            df_to_process = df_filtered.set_index('物料')
+
+            for code in codes_to_create:
+                row = df_to_process.loc[code]
+                loc_obj = StorageLocation.objects.get(name=row['儲存地點'])
+                Material.objects.create(
+                    material_code=code, location=loc_obj, bin=row['儲格'],
+                    material_description=row['物料說明'], system_quantity=int(row['未限制']),
+                    latest_counted_quantity=None
+                )
+                created_count += 1
+            
+            for code in codes_to_update:
+                row = df_to_process.loc[code]
+                mat_to_update = all_db_materials[code]
+                new_system_quantity = int(row['未限制'])
+                loc_obj = StorageLocation.objects.get(name=row['儲存地點'])
+                
+                if (mat_to_update.location != loc_obj or mat_to_update.bin != row['儲格'] or
+                    mat_to_update.material_description != row['物料說明'] or mat_to_update.system_quantity != new_system_quantity):
                     
-                    material, created = Material.objects.update_or_create(
-                        material_code=material_code,
-                        defaults={
-                            'location': row['儲存地點'],
-                            'bin': row['儲格'],
-                            'material_description': row['物料說明'],
-                            'system_quantity': new_quantity,
-                            'latest_counted_quantity': new_quantity, # Sync counted quantity
-                            'last_counted_by': request.user, # Attribute the change
-                            'last_counted_date': timezone.now(), # Update the date
-                        }
-                    )
-                    
-                    MaterialTransaction.objects.create(
-                        material=material,
-                        user=request.user,
-                        transaction_type='INITIAL_IMPORT' if created else 'MANUAL_UPDATE',
-                        quantity_change=new_quantity, # This might need better logic
-                        new_system_quantity=material.system_quantity,
-                        notes=f"透過 Excel 檔案更新: {excel_file.name}"
-                    )
-            messages.success(request, f"成功匯入/更新 {len(df)} 筆主物料資料。")
+                    mat_to_update.location = loc_obj
+                    mat_to_update.bin = row['儲格']
+                    mat_to_update.material_description = row['物料說明']
+                    mat_to_update.system_quantity = new_system_quantity
+                    mat_to_update.save()
+                    updated_count += 1
 
-        except Exception as e:
-            messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
-            print(f"Error importing Excel: {e}")
+            summary_message = f"在庫存地點 [{', '.join(sync_location_names)}] 中同步完成。新增 {created_count} 筆，更新 {updated_count} 筆，刪除 {deleted_count} 筆物料。"
+            messages.success(request, summary_message)
+
+    except Exception as e:
+        messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
 
     return redirect('inventory_home')
 
@@ -340,7 +390,14 @@ def inventory_update_view(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
-    return render(request, 'inventory/inventory_update.html')
+    
+    # Get all distinct locations to populate the form
+    locations = StorageLocation.objects.all().order_by('name')
+    
+    context = {
+        'locations': locations
+    }
+    return render(request, 'inventory/inventory_update.html', context)
 
 @login_required
 def stocktake_location_list(request):
@@ -348,12 +405,10 @@ def stocktake_location_list(request):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
-    locations_stats = Material.objects.exclude(
-        Q(location__isnull=True) | Q(location__exact='')
-    ).values('location').annotate(
-        total_items=Count('id'),
-        uncounted_items=Count('id', filter=Q(latest_counted_quantity__isnull=True))
-    ).order_by('location')
+    locations_stats = StorageLocation.objects.annotate(
+        total_items=Count('material'),
+        uncounted_items=Count('material', filter=Q(material__latest_counted_quantity__isnull=True))
+    ).order_by('name')
 
     context = {
         'locations_stats': locations_stats
@@ -366,11 +421,21 @@ def stocktake_detail_by_location(request, location_name):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
-    materials = Material.objects.filter(location=location_name).order_by('bin')
+    sort_by = request.GET.get('sort_by', 'bin') # Default sort by bin
+    order = request.GET.get('order', 'asc')
+
+    valid_sort_fields = ['bin', 'material_code', 'material_description', 'system_quantity', 'latest_counted_quantity', 'last_counted_by__username', 'last_counted_date']
+    if sort_by not in valid_sort_fields:
+        sort_by = 'bin'
+
+    order_prefix = '-' if order == 'desc' else ''
+    materials = Material.objects.filter(location__name=location_name).order_by(f'{order_prefix}{sort_by}')
     
     context = {
         'location_name': location_name,
         'materials': materials,
+        'sort_by': sort_by,
+        'order': order,
     }
     return render(request, 'inventory/stocktake_detail.html', context)
 
@@ -415,15 +480,12 @@ def difference_location_list(request):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
-    locations_stats = Material.objects.exclude(
-        Q(location__isnull=True) | Q(location__exact='')
-    ).exclude(
-        latest_counted_quantity__isnull=True
-    ).exclude(
-        system_quantity=F('latest_counted_quantity')
-    ).values('location').annotate(
-        difference_items=Count('id')
-    ).order_by('location')
+    locations_stats = StorageLocation.objects.annotate(
+        difference_items=Count('material', 
+            filter=~Q(material__system_quantity=F('material__latest_counted_quantity')) & 
+                   Q(material__latest_counted_quantity__isnull=False)
+        )
+    ).filter(difference_items__gt=0).order_by('name')
 
     context = {
         'locations_stats': locations_stats
@@ -436,21 +498,31 @@ def difference_detail_by_location(request, location_name):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
-    materials = Material.objects.filter(
-        location=location_name
+    sort_by = request.GET.get('sort_by', 'bin')
+    order = request.GET.get('order', 'asc')
+
+    queryset = Material.objects.filter(
+        location__name=location_name
     ).exclude(
         latest_counted_quantity__isnull=True
     ).exclude(
         system_quantity=F('latest_counted_quantity')
-    ).order_by('bin')
+    ).annotate(
+        difference=ExpressionWrapper(F('latest_counted_quantity') - F('system_quantity'), output_field=models.IntegerField())
+    )
 
-    # Calculate difference for each material
-    for mat in materials:
-        mat.difference = mat.latest_counted_quantity - mat.system_quantity
+    valid_sort_fields = ['bin', 'material_code', 'material_description', 'system_quantity', 'latest_counted_quantity', 'last_counted_by__username', 'last_counted_date', 'difference']
+    if sort_by not in valid_sort_fields:
+        sort_by = 'bin'
+
+    order_prefix = '-' if order == 'desc' else ''
+    materials = queryset.order_by(f'{order_prefix}{sort_by}')
 
     context = {
         'location_name': location_name,
         'materials': materials,
+        'sort_by': sort_by,
+        'order': order,
     }
     return render(request, 'inventory/difference_detail.html', context)
 
@@ -461,7 +533,7 @@ def export_differences_excel(request, location_name):
         return redirect('inventory_home')
 
     materials = Material.objects.filter(
-        location=location_name
+        location__name=location_name
     ).exclude(
         latest_counted_quantity__isnull=True
     ).exclude(
@@ -489,3 +561,35 @@ def export_differences_excel(request, location_name):
     df.to_excel(response, index=False, engine='openpyxl')
     
     return response
+
+@login_required
+def danger_zone(request):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+    return render(request, 'inventory/danger_zone.html')
+
+@login_required
+def clear_all_materials(request):
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限執行此操作。")
+        return redirect('danger_zone')
+
+    if request.method == 'POST':
+        confirmation = request.POST.get('confirmation')
+        if confirmation == 'DELETE':
+            try:
+                with transaction.atomic():
+                    # Delete all related data first to avoid PROTECT issues
+                    StocktakeItem.objects.all().delete()
+                    Stocktake.objects.all().delete()
+                    # Material deletion will cascade to transactions and images
+                    count, _ = Material.objects.all().delete()
+                messages.success(request, f"成功清除所有物料資料 (共 {count} 筆)。")
+                return redirect('inventory_home')
+            except Exception as e:
+                messages.error(request, f"清除資料時發生錯誤: {e}")
+        else:
+            messages.warning(request, "確認文字不符，操作已取消。")
+    
+    return redirect('danger_zone')

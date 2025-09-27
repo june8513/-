@@ -1,9 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+class StorageLocation(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="儲存地點")
+
+    def __str__(self):
+        return self.name
+
 # 1. Master Inventory List Model
 class Material(models.Model):
-    location = models.CharField(max_length=100, verbose_name="庫位")
+    location = models.ForeignKey(StorageLocation, on_delete=models.PROTECT, verbose_name="庫位")
     bin = models.CharField(max_length=100, verbose_name="儲格")
     material_code = models.CharField(max_length=100, unique=True, verbose_name="物料")
     material_description = models.CharField(max_length=200, verbose_name="物料說明")

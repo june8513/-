@@ -1,4 +1,5 @@
 {% extends 'requisitions/base.html' %}
+{% load inventory_extras %}
 
 {% block title %}盤點差異報告 - {{ location_name }}{% endblock %}
 
@@ -15,14 +16,14 @@
                 <table class="table table-striped table-bordered table-hover">
                     <thead class="table-dark sticky-top">
                         <tr>
-                            <th>儲格</th>
-                            <th>物料</th>
-                            <th>物料說明</th>
-                            <th>系統庫存</th>
-                            <th>實際盤點數量</th>
-                            <th>差異</th>
-                            <th>盤點人員</th>
-                            <th>盤點時間</th>
+                            <th>{% sortable_header 'bin' '儲格' %}</th>
+                            <th>{% sortable_header 'material_code' '物料' %}</th>
+                            <th>{% sortable_header 'material_description' '物料說明' %}</th>
+                            <th>{% sortable_header 'system_quantity' '系統庫存' %}</th>
+                            <th>{% sortable_header 'latest_counted_quantity' '實際盤點數量' %}</th>
+                            <th>{% sortable_header 'difference' '差異' %}</th>
+                            <th>{% sortable_header 'last_counted_by__username' '盤點人員' %}</th>
+                            <th>{% sortable_header 'last_counted_date' '盤點時間' %}</th>
                         </tr>
                     </thead>
                     <tbody>

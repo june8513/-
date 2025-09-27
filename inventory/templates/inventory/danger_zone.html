@@ -1,0 +1,55 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}危險區域{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="text-danger">危險區域</h1>
+            <p>此頁面上的操作將會永久性地修改或刪除大量資料，請謹慎操作。</p>
+            <hr>
+
+            <div class="card border-danger mb-3">
+                <div class="card-header bg-danger text-white">清空所有物料資料</div>
+                <div class="card-body">
+                    <p class="card-text">此操作將會**永久刪除**所有主物料、物料交易紀錄、物料圖片以及所有舊的盤點單資料。這是一個不可逆的操作，會將整個庫存系統恢復到初始空白狀態。</p>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal">
+                        清空所有物料資料
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                 <a href="{% url 'inventory_home' %}" class="btn btn-secondary">返回庫存管理主頁</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmationModalLabel">請確認操作</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'clear_all_materials' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>這是一個不可逆的操作。為確認您要繼續，請在下方的文字框中輸入 <strong class="text-danger">DELETE</strong>。</p>
+                    <div class="mb-3">
+                        <label for="confirmation-text" class="form-label">確認文字</label>
+                        <input type="text" class="form-control" id="confirmation-text" name="confirmation" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">我了解後果，確認刪除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

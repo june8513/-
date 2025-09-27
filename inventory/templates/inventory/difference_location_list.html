@@ -14,8 +14,8 @@
                     <p>請選擇要查看差異報告的儲存地點。按鈕上的數字代表該地點有差異的物料筆數。</p>
                     <div class="d-grid gap-2">
                         {% for loc in locations_stats %}
-                            <a href="{% url 'difference_detail_by_location' loc.location %}" class="btn btn-outline-info btn-lg p-3 d-flex justify-content-between align-items-center">
-                                <span>{{ loc.location }}</span>
+                            <a href="{% url 'difference_detail_by_location' loc.name %}" class="btn btn-outline-info btn-lg p-3 d-flex justify-content-between align-items-center">
+                                <span>{{ loc.name }}</span>
                                 <span class="badge bg-danger rounded-pill">{{ loc.difference_items }}</span>
                             </a>
                         {% empty %}
