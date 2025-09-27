@@ -11,40 +11,88 @@
             <a href="{% url 'stocktake_location_list' %}" class="btn btn-secondary btn-sm">返回地點選擇</a>
         </div>
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark sticky-top">
-                        <tr>
-                            <th>{% sortable_header 'bin' '儲格' %}</th>
-                            <th>{% sortable_header 'material_code' '物料' %}</th>
-                            <th>{% sortable_header 'material_description' '物料說明' %}</th>
-                            <th>{% sortable_header 'system_quantity' '系統庫存' %}</th>
-                            <th style="width: 15%;">{% sortable_header 'latest_counted_quantity' '實際盤點數量' %}</th>
-                            <th>{% sortable_header 'last_counted_by__username' '盤點人員' %}</th>
-                            <th>{% sortable_header 'last_counted_date' '盤點時間' %}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for material in materials %}
-                        <tr id="row-{{ material.id }}">
-                            <td>{{ material.bin }}</td>
-                            <td>{{ material.material_code }}</td>
-                            <td>{{ material.material_description }}</td>
-                            <td>{{ material.system_quantity }}</td>
-                            <td>
-                                <input type="number" class="form-control form-control-sm counted-quantity-input" data-id="{{ material.id }}" value="{{ material.latest_counted_quantity|default_if_none:'' }}">
-                            </td>
-                            <td id="counted-by-{{ material.id }}">{{ material.last_counted_by.username|default:"" }}</td>
-                            <td id="counted-date-{{ material.id }}">{{ material.last_counted_date|date:"Y-m-d H:i"|default:"" }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="text-center">此地點沒有物料。</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+
+            <!-- Desktop View -->
+            <div class="d-none d-md-block">
+                <div class="table-responsive">
+                    <table class="table table-striped table-bordered table-hover">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th>{% sortable_header 'bin' '儲格' %}</th>
+                                <th>{% sortable_header 'material_code' '物料' %}</th>
+                                <th>{% sortable_header 'material_description' '物料說明' %}</th>
+                                <th>{% sortable_header 'system_quantity' '系統庫存' %}</th>
+                                <th style="width: 15%;">{% sortable_header 'latest_counted_quantity' '實際盤點數量' %}</th>
+                                <th>{% sortable_header 'last_counted_by__username' '盤點人員' %}</th>
+                                <th>{% sortable_header 'last_counted_date' '盤點時間' %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for material in materials %}
+                            <tr id="row-{{ material.id }}">
+                                <td>{{ material.bin }}</td>
+                                <td>{{ material.material_code }}</td>
+                                <td>{{ material.material_description }}</td>
+                                <td>{{ material.system_quantity }}</td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm counted-quantity-input" data-id="{{ material.id }}" value="{{ material.latest_counted_quantity|default_if_none:'' }}">
+                                </td>
+                                <td id="counted-by-{{ material.id }}">{{ material.last_counted_by.username|default:"" }}</td>
+                                <td id="counted-date-{{ material.id }}">{{ material.last_counted_date|date:"Y-m-d H:i"|default:"" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center">此地點沒有物料。</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
+
+            <!-- Mobile View -->
+            <div class="d-block d-md-none">
+                {% for material in materials %}
+                <div class="card mb-3" id="mobile-row-{{ material.id }}">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>儲格:</strong> {{ material.bin }}
+                            </div>
+                            <div class="col-6">
+                                <strong>物料:</strong> {{ material.material_code }}
+                            </div>
+                        </div>
+                        <hr class="my-1">
+                        <p class="mb-1"><strong>物料說明:</strong> {{ material.material_description }}</p>
+                        <hr class="my-1">
+                        <div class="row align-items-center">
+                            <div class="col-6">
+                                <strong>庫存:</strong> {{ material.system_quantity }}
+                            </div>
+                            <div class="col-6">
+                                <div class="input-group">
+                                    <span class="input-group-text" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">實盤數</span>
+                                    <input type="number" class="form-control form-control-sm counted-quantity-input" data-id="{{ material.id }}" value="{{ material.latest_counted_quantity|default_if_none:'' }}">
+                                </div>
+                            </div>
+                        </div>
+                        <hr class="my-1">
+                        <div class="row">
+                            <div class="col-6">
+                                <small><strong>盤點人員:</strong> <span id="mobile-counted-by-{{ material.id }}">{{ material.last_counted_by.username|default:"" }}</span></small>
+                            </div>
+                            <div class="col-6">
+                                <small><strong>盤點時間:</strong> <span id="mobile-counted-date-{{ material.id }}">{{ material.last_counted_date|date:"Y-m-d H:i"|default:"" }}</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="alert alert-info">此地點沒有物料。</div>
+                {% endfor %}
+            </div>
+
         </div>
     </div>
 </div>
@@ -70,20 +118,17 @@ const csrfToken = getCookie('csrftoken');
 
 document.addEventListener('DOMContentLoaded', function() {
     const inputs = document.querySelectorAll('.counted-quantity-input');
-    
-    console.log(`Found ${inputs.length} quantity inputs.`); // Debugging
 
     inputs.forEach(input => {
         input.addEventListener('change', function(event) {
             const materialId = event.target.dataset.id;
             const quantity = event.target.value;
-            const row = document.getElementById('row-' + materialId);
+            const desktopRow = document.getElementById('row-' + materialId);
+            const mobileRow = document.getElementById('mobile-row-' + materialId);
 
-            console.log(`Change detected for material ID: ${materialId}, new quantity: ${quantity}`); // Debugging
-
-            // Show saving indicator
-            const originalColor = row.style.backgroundColor;
-            row.style.backgroundColor = '#fff3cd'; // Bootstrap 'warning' yellow
+            // Show saving indicator on both
+            if (desktopRow) desktopRow.style.backgroundColor = '#fff3cd';
+            if (mobileRow) mobileRow.style.backgroundColor = '#fff3cd';
 
             fetch(`{% url 'update_counted_quantity' %}`,
             {
@@ -97,37 +142,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     'quantity': quantity
                 })
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok: ' + response.statusText);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('Save successful:', data); // Debugging
                 if (data.status === 'success') {
-                    row.style.backgroundColor = '#d1e7dd'; // Bootstrap 'success' green
-                    // Update the user and date fields
-                    document.getElementById('counted-by-' + materialId).textContent = data.last_counted_by;
+                    if (desktopRow) desktopRow.style.backgroundColor = '#d1e7dd';
+                    if (mobileRow) mobileRow.style.backgroundColor = '#d1e7dd';
                     
+                    // Update fields in both views
                     const date = new Date(data.last_counted_date);
                     const formattedDate = date.getFullYear() + '-' +
                                       ('0' + (date.getMonth() + 1)).slice(-2) + '-' +
                                       ('0' + date.getDate()).slice(-2) + ' ' +
                                       ('0' + date.getHours()).slice(-2) + ':' +
                                       ('0' + date.getMinutes()).slice(-2);
+
+                    document.getElementById('counted-by-' + materialId).textContent = data.last_counted_by;
                     document.getElementById('counted-date-' + materialId).textContent = formattedDate;
+                    document.getElementById('mobile-counted-by-' + materialId).textContent = data.last_counted_by;
+                    document.getElementById('mobile-counted-date-' + materialId).textContent = formattedDate;
 
                     setTimeout(() => {
-                        row.style.backgroundColor = originalColor;
+                        if (desktopRow) desktopRow.style.backgroundColor = '';
+                        if (mobileRow) mobileRow.style.backgroundColor = '';
                     }, 2000);
                 } else {
-                    row.style.backgroundColor = '#f8d7da'; // Bootstrap 'danger' red
+                    if (desktopRow) desktopRow.style.backgroundColor = '#f8d7da';
+                    if (mobileRow) mobileRow.style.backgroundColor = '#f8d7da';
                     alert('儲存失敗: ' + data.message);
                 }
             })
             .catch(error => {
-                row.style.backgroundColor = '#f8d7da';
+                if (desktopRow) desktopRow.style.backgroundColor = '#f8d7da';
+                if (mobileRow) mobileRow.style.backgroundColor = '#f8d7da';
                 console.error('Error:', error);
                 alert('發生網路或伺服器錯誤，請稍後再試。');
             });
