@@ -4,15 +4,67 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1>簽收單</h1>
-    <div class="row mb-2">
-        <div class="col-6"><strong>訂單號碼:</strong> {{ requisition.order_number }}</div>
-        <div class="col-6"><strong>需求流程:</strong> {{ requisition.process_type }}</div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>簽收單</h1>
+        <a href="{% url 'requisition_history' %}" class="btn btn-secondary">返回歷史記錄</a>
     </div>
-    <div class="row mb-4">
-        <div class="col-6"><strong>申請人:</strong> {{ requisition.applicant.username }}</div>
-        <div class="col-6"><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-6"><strong>訂單號碼:</strong> {{ requisition.order_number }}</div>
+                <div class="col-md-6"><strong>需求流程:</strong> {{ requisition.process_type }}</div>
+            </div>
+            <div class="row">
+                <div class="col-md-6"><strong>申請人:</strong> {{ requisition.applicant.username }}</div>
+                <div class="col-md-6"><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</div>
+            </div>
+        </div>
     </div>
+
+    <!-- Image Upload Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">上傳簽收單圖片</h5>
+        </div>
+        <div class="card-body">
+            <form action="{% url 'upload_dispatch_note_image' requisition.pk %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="input-group">
+                    <input type="file" name="image" class="form-control" accept="image/*" required>
+                    <button type="submit" class="btn btn-primary">上傳</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Display Uploaded Images -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">已上傳圖片</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for img in dispatch_note_images %}
+                <div class="col-lg-3 col-md-4 col-6 mb-4">
+                    <div class="card h-100">
+                        <a href="{{ img.image.url }}" target="_blank">
+                            <img src="{{ img.image.url }}" class="card-img-top" alt="簽收單圖片" style="height: 200px; object-fit: cover;">
+                        </a>
+                        <div class="card-footer text-muted small">
+                            上傳於: {{ img.uploaded_at|date:"Y-m-d H:i" }}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col">
+                    <p class="text-center text-muted">尚未上傳任何圖片。</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
 
     {# Desktop View #}
     <div class="d-none d-md-block">

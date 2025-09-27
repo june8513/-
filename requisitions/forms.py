@@ -102,15 +102,9 @@ class RequisitionImageUploadForm(forms.Form):
 class StagedBulkUploadMaterialsForm(forms.Form):
     file = forms.FileField(label='選擇分階段批量物料 Excel 檔案')
 
-class WorkOrderMaterialImageUploadForm(forms.Form):
-    process_type = forms.ModelChoiceField(
-        queryset=ProcessType.objects.all(),
-        label="投料點",
-        required=False,
-        empty_label="所有投料點"
-    )
-    images = forms.FileField(
-        label='選擇圖片',
-        required=False,
-        widget=forms.ClearableFileInput() # Remove multiple=True
-    )
+from .models import Requisition, RequisitionItem, ProcessType, MachineModel, WorkOrderMaterialImage
+
+class WorkOrderMaterialImageUploadForm(forms.ModelForm):
+    class Meta:
+        model = WorkOrderMaterialImage
+        fields = ['image']

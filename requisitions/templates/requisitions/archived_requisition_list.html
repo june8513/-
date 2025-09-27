@@ -82,7 +82,9 @@
                             <td>
                                 <div class="d-flex gap-1">
                                     <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}&show_inactive=True" class="btn btn-primary btn-sm">查看物料</a>
-                                    <a href="{% url 'view_requisition_images' pk=req.pk %}" class="btn btn-info btn-sm"><i class="fas fa-image"></i> 查看圖片</a>
+                                    <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#viewRequisitionImagesModal" data-requisition-pk="{{ req.pk }}">
+                                        <i class="fas fa-image"></i> 查看圖片
+                                    </button>
                                 </div>
                             </td>
                             </tr>
@@ -119,6 +121,65 @@
             <p>目前沒有已歸檔的撥料申請單。</p>
         {% endif %}
     
+    <!-- View Requisition Images Modal -->
+    <div class="modal fade" id="viewRequisitionImagesModal" tabindex="-1" aria-labelledby="viewRequisitionImagesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewRequisitionImagesModalLabel">已上傳圖片</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="requisition-images-gallery" class="row">
+                        <!-- Images will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
+{% endblock %}
 
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const viewImagesModal = document.getElementById('viewRequisitionImagesModal');
+        if (viewImagesModal) {
+            viewImagesModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const requisitionPk = button.getAttribute('data-requisition-pk');
+                const galleryDiv = document.getElementById('requisition-images-gallery');
+                const imagesUrl = `/requisitions/${requisitionPk}/images_json/`;
+
+                galleryDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+                fetch(imagesUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        galleryDiv.innerHTML = '';
+                        if (data.images && data.images.length > 0) {
+                            data.images.forEach(image => {
+                                const colDiv = document.createElement('div');
+                                colDiv.className = 'col-md-4 mb-4';
+                                const img = document.createElement('img');
+                                img.src = image.url;
+                                img.className = 'img-fluid rounded shadow-sm';
+                                colDiv.appendChild(img);
+                                galleryDiv.appendChild(colDiv);
+                            });
+                        } else {
+                            galleryDiv.innerHTML = '<p class="text-center text-muted">沒有找到圖片。</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading images:', error);
+                        galleryDiv.innerHTML = '<p class="text-danger text-center">無法載入圖片。請稍後再試。</p>';
+                    });
+            });
+        }
+    });
+</script>
 {% endblock %}

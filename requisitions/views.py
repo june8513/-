@@ -53,7 +53,8 @@ def view_process_type_database(request):
     data = []
     headers = []
     try:
-        excel_sheets = pd.read_excel(db_path, engine='openpyxl', sheet_name=None)
+        excel_sheets = pd.read_excel(db_path, engine='openpyxl',
+sheet_name=None)
         df_db = pd.concat(excel_sheets.values(), ignore_index=True)
         headers = df_db.columns.tolist()
         data = df_db.to_dict(orient='records')
@@ -1742,7 +1743,6 @@ def upload_inventory_data(request): # This will now be for stock quantity only
 
 
 
-
 @login_required
 def view_inventory_database(request):
     if not request.user.is_superuser:
@@ -2102,10 +2102,13 @@ def generate_dispatch_note(request, pk):
     )
 
     # Fetch images related to this requisition and its process type
-    dispatch_note_images = WorkOrderMaterialImage.objects.filter(
-        requisition=requisition,
-        process_type__name=requisition.process_type
-    ).order_by('-uploaded_at')
+    if requisition.is_archived:
+        dispatch_note_images = WorkOrderMaterialImage.objects.none()
+    else:
+        dispatch_note_images = WorkOrderMaterialImage.objects.filter(
+            requisition=requisition,
+            process_type__name=requisition.process_type
+        ).order_by('-uploaded_at')
 
     context = {
         'requisition': requisition,
@@ -2165,9 +2168,6 @@ def update_material_dispatch_status(request, pk):
 
             # Update Requisition status if all materials are dispatched/undispatched
             # This logic might need refinement based on exact business rules
-            # For now, let's assume if all materials in the current dispatch note are handled,
-            # we can update the requisition status.
-            
             # For now, let's just return success and let the user refresh or handle UI updates
             return JsonResponse({'success': True, 'message': message, 'new_confirmed_quantity': str(material.confirmed_quantity), 'new_is_signed_off': material.is_signed_off})
 
@@ -2179,8 +2179,7 @@ def update_material_dispatch_status(request, pk):
             return JsonResponse({'success': False, 'message': '無效的 JSON 請求。'}, status=400)
         except Exception as e:
             import traceback
-            return JsonResponse({'success': False, 'message': f'處理請求時發生錯誤: {e}\
-{traceback.format_exc()}'}, status=500)
+            return JsonResponse({'success': False, 'message': f'處理請求時發生錯誤: {e}\n{traceback.format_exc()}'}, status=500)
     return JsonResponse({'success': False, 'message': '無效的請求方法。'}, status=405)
 
 @login_required
@@ -2285,3 +2284,28 @@ def upload_work_order_material_images(request, pk):
 def view_work_order_material_images(request, material_code):
     # Placeholder function
     return HttpResponse("This is a placeholder for view_work_order_material_images.")
+
+@login_required
+def upload_dispatch_note_image(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+    if request.method == 'POST':
+        form = WorkOrderMaterialImageUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            image_instance = form.save(commit=False)
+            image_instance.requisition = requisition
+            image_instance.uploaded_by = request.user
+            
+            # Try to get the process type object
+            try:
+                process_type_obj = ProcessType.objects.get(name=requisition.process_type)
+                image_instance.process_type = process_type_obj
+            except ProcessType.DoesNotExist:
+                # Handle case where process type name doesn't match any object
+                # You might want to log this or handle it differently
+                pass
+
+            image_instance.save()
+            messages.success(request, "圖片上傳成功。")
+        else:
+            messages.error(request, "上傳失敗，請確認已選擇檔案。")
+    return redirect('generate_dispatch_note', pk=requisition.pk)

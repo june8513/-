@@ -148,6 +148,13 @@ def process_material_details_excel(excel_file_path, required_qty_col):
 
         df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
 
+        # --- START of FIX: Aggregate data before processing ---
+        df_aggregated = df_upload.groupby([order_col, '物料']).agg({
+            required_qty_col: 'sum',
+            '物料說明': 'first'  # Keep the first item name found
+        }).reset_index()
+        # --- END of FIX ---
+
         updated_count = 0
         created_count = 0
         deleted_count = 0
@@ -166,7 +173,7 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                 key = (str(material.order_number).strip(), str(material.material_number).strip(), str(material.machine_model.name).strip())
                 existing_materials_lookup[key] = material
 
-            for _, row in df_upload.iterrows():
+            for _, row in df_aggregated.iterrows():
                 order_number_clean = str(row.get(order_col)).strip()
                 material_number_clean = str(row.get('物料')).strip()
 
