@@ -1991,16 +1991,14 @@ def update_shortage_arrival_dates(request):
                     required_quantity__gt=F('confirmed_quantity')
                 ).exclude(material_number='PARENT_SCOPE')
 
-                # We only perform an update if the value is not empty, to avoid overwriting a valid date with an empty one from the hidden input
-                if value: 
-                    if not shortage_materials_to_update.exists():
-                        continue
+                    # We now allow clearing the date, so the check for `if value:` is removed.
+                if not shortage_materials_to_update.exists():
+                    continue
 
-                    updated_count = shortage_materials_to_update.update(estimated_arrival_date=arrival_date)
-
-                    if updated_count > 0:
-                        total_updated_count += updated_count
-                        updated_materials_count += 1
+                updated_count = shortage_materials_to_update.update(estimated_arrival_date=arrival_date)
+                if updated_count > 0:
+                    total_updated_count += updated_count
+                    updated_materials_count += 1
 
             except Exception as e:
                 messages.error(request, f"更新物料 {material_number} 時發生錯誤: {e}")

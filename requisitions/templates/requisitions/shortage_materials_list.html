@@ -29,7 +29,7 @@
                             <td>{{ material.total_shortage|floatformat:"-2g" }}</td>
                             <td>{{ material.orders_str }}</td>
                             <td>
-                                <input type="date" name="arrival_date_desktop_{{ material.material_number }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
+                                <input type="date" name="arrival_date_desktop_{{ material.material_number }}" class="form-control form-control-sm auto-hide-placeholder" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}" placeholder=" ">
                             </td>
                         </tr>
                     {% empty %}
@@ -52,7 +52,7 @@
                     <p class="card-text"><strong>相關訂單:</strong> {{ material.orders_str }}</p>
                     <div class="form-group">
                         <label for="arrival_date_{{ material.material_number }}"><strong>預計入料:</strong></label>
-                        <input type="date" name="arrival_date_mobile_{{ material.material_number }}" id="arrival_date_{{ material.material_number }}" class="form-control form-control-sm" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}">
+                        <input type="date" name="arrival_date_mobile_{{ material.material_number }}" id="arrival_date_{{ material.material_number }}" class="form-control form-control-sm auto-hide-placeholder" value="{{ material.estimated_arrival_date|date:'Y-m-d' }}" placeholder=" ">
                     </div>
                 </div>
             </div>
@@ -72,18 +72,87 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
-    // Target both desktop and mobile inputs
-    const inputs = form.querySelectorAll('input[name^="arrival_date_desktop_"], input[name^="arrival_date_mobile_"]');
+    const desktopView = document.querySelector('.d-none.d-md-block');
+    const mobileView = document.querySelector('.d-block.d-md-none');
 
+    // --- Logic for Enter key submission (FIXED) ---
+    const inputs = form.querySelectorAll('input[name^="arrival_date_desktop_"], input[name^="arrival_date_mobile_"]');
     inputs.forEach(function(input) {
         input.addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
-                // Prevent the default Enter key action (like adding a newline or submitting the form in a different way)
                 event.preventDefault();
-                // Explicitly submit the form
                 form.submit();
             }
         });
+    });
+
+    // --- Logic for date placeholder (FIXED) ---
+    const dateInputs = document.querySelectorAll('.auto-hide-placeholder');
+    dateInputs.forEach(function(input) {
+        function updateInputType() {
+            if (input.value === '') {
+                input.type = 'text';
+            } else {
+                input.type = 'date';
+            }
+        }
+        updateInputType();
+        input.addEventListener('focus', function() { this.type = 'date'; });
+        input.addEventListener('blur', function() { updateInputType(); });
+    });
+
+    // --- Logic to disable hidden inputs on submit ---
+    form.addEventListener('submit', function(event) {
+        if (window.getComputedStyle(desktopView).display === 'none') {
+            const desktopInputs = desktopView.querySelectorAll('input');
+            desktopInputs.forEach(input => input.disabled = true);
+        } else {
+            const mobileInputs = mobileView.querySelectorAll('input');
+            mobileInputs.forEach(input => input.disabled = true);
+        }
+    });
+
+    // --- NEW: Logic to highlight expired or empty date rows ---
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Function to check and highlight
+    function checkAndHighlight() {
+        // Desktop View
+        const desktopRows = desktopView.querySelectorAll('tbody tr');
+        desktopRows.forEach(function(row) {
+            const dateInput = row.querySelector('input[name^="arrival_date_desktop_"]');
+            if (dateInput) {
+                const dateValue = dateInput.value;
+                row.classList.remove('table-danger');
+                if (!dateValue || (dateInput.type === 'date' && new Date(dateValue) < today)) {
+                    row.classList.add('table-danger');
+                }
+            }
+        });
+
+        // Mobile View
+        const mobileCards = mobileView.querySelectorAll('.card');
+        mobileCards.forEach(function(card) {
+            const dateInput = card.querySelector('input[name^="arrival_date_mobile_"]');
+            if (dateInput) {
+                const dateValue = dateInput.value;
+                card.classList.remove('border-danger');
+                card.style.backgroundColor = '';
+                if (!dateValue || (dateInput.type === 'date' && new Date(dateValue) < today)) {
+                    card.classList.add('border-danger');
+                    card.style.backgroundColor = '#f8d7da';
+                }
+            }
+        });
+    }
+
+    // Initial check on page load
+    checkAndHighlight();
+
+    // Also check when a date is changed
+    form.querySelectorAll('.auto-hide-placeholder').forEach(input => {
+        input.addEventListener('change', checkAndHighlight);
     });
 });
 </script>
