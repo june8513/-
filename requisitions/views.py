@@ -2099,6 +2099,29 @@ def generate_dispatch_note(request, pk):
         dispatcher_name=Subquery(dispatcher_subquery)
     )
 
+    # Excel Export Logic
+    if 'excel' in request.path:
+        data = {
+            "物料": [m.material_number for m in materials],
+            "品名": [m.item_name for m in materials],
+            "需求數量": [m.required_quantity for m in materials],
+            "已撥料數量": [m.confirmed_quantity for m in materials],
+            "撥料人員": [m.dispatcher_name for m in materials],
+        }
+        df = pd.DataFrame(data)
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='DispatchNote')
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="dispatch_note_{requisition.order_number}_{requisition.process_type}.xlsx"'
+        return response
+
     # Fetch images related to this requisition and its process type
     if requisition.is_archived:
         dispatch_note_images = WorkOrderMaterialImage.objects.none()
