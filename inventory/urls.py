@@ -15,6 +15,10 @@ urlpatterns = [
     path('stocktake/<str:location_name>/', views.stocktake_detail_by_location, name='stocktake_detail_by_location'),
     path('ajax/update_material_count/', views.update_counted_quantity, name='update_counted_quantity'),
 
+    # Quick Stocktake
+    path('quick_stocktake/', views.quick_stocktake_view, name='quick_stocktake'),
+    path('ajax/search_material_for_stocktake/', views.search_material_for_stocktake, name='search_material_for_stocktake'),
+
     # Feature 3: Difference Report
     path('differences/', views.difference_location_list, name='difference_location_list'),
     path('differences/<str:location_name>/', views.difference_detail_by_location, name='difference_detail_by_location'),

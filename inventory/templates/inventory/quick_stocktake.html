@@ -1,0 +1,219 @@
+{% extends 'requisitions/base.html' %}
+{% load static %}
+
+{% block title %}快速盤點{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title mb-0">快速盤點 (掃碼/搜尋)</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Left Column: Search & Scan -->
+                <div class="col-md-6 border-end">
+                    <h4 class="mb-3">1. 搜尋物料</h4>
+                    <div class="form-group mb-3">
+                        <label for="material-search" class="form-label">掃描或輸入物料號碼</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="material-search" placeholder="請輸入物料號碼..." autofocus>
+                            <button class="btn btn-outline-secondary" type="button" id="scan-barcode-btn">掃描條碼</button>
+                        </div>
+                    </div>
+                    <div id="reader" style="width: 100%; display: none;"></div>
+                    <div id="error-message" class="alert alert-danger mt-2" style="display: none;"></div>
+                </div>
+
+                <!-- Right Column: Details & Counting -->
+                <div class="col-md-6">
+                    <div id="material-details" style="display: none;">
+                        <h4 class="mb-3">2. 確認與盤點</h4>
+                        <div id="material-info" class="mb-3">
+                            <p class="mb-1"><strong>物料號碼:</strong> <span id="material-code"></span></p>
+                            <p class="mb-1"><strong>物料說明:</strong> <span id="material-description"></span></p>
+                            <p class="mb-1"><strong>庫位:</strong> <span id="material-location"></span> - <strong>儲格:</strong> <span id="material-bin"></span></p>
+                            <hr>
+                            <div class="row">
+                                <div class="col-6"><strong>系統庫存:</strong> <span id="system-quantity"></span></div>
+                                <div class="col-6"><strong>上次盤點:</strong> <span id="latest-counted-quantity"></span></div>
+                            </div>
+                            <p class="small text-muted mt-2 mb-0"><strong>上次盤點時間:</strong> <span id="last-counted-date"></span> by <span id="last-counted-by"></span></p>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <label for="counted-quantity" class="form-label"><strong>輸入實際盤點數量</strong></label>
+                            <input type="number" class="form-control form-control-lg" id="counted-quantity" placeholder="請輸入實際數量">
+                        </div>
+                        <div class="d-grid gap-2 mt-3">
+                            <button class="btn btn-primary btn-lg" id="save-quantity">儲存數量</button>
+                        </div>
+                        <div id="save-status" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+$(document).ready(function() {
+    let searchTimeout;
+    let currentMaterialId = null;
+    let html5QrcodeScanner = null;
+    let isScanning = false;
+
+    // --- Scanning Logic ---
+    $('#scan-barcode-btn').on('click', function() {
+        if (isScanning) {
+            stopScanner();
+        } else {
+            startScanner();
+        }
+    });
+
+    function startScanner() {
+        $('#reader').show();
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 150} });
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        isScanning = true;
+        $('#scan-barcode-btn').text('停止掃描');
+    }
+
+    function stopScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear().then(_ => {
+                console.log("Scanner cleared by user.");
+                isScanning = false;
+                $('#reader').hide();
+                $('#scan-barcode-btn').text('掃描條碼');
+            }).catch(err => {
+                console.error("Failed to clear scanner", err);
+                // Force UI change even if clear fails
+                isScanning = false;
+                $('#reader').hide();
+                $('#scan-barcode-btn').text('掃描條碼');
+            });
+        }
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        console.log(`Code matched = ${decodedText}`, decodedResult);
+        $('#material-search').val(decodedText);
+        searchMaterial(decodedText); // Trigger search with the scanned code
+        stopScanner(); // Stop scanner on success
+    }
+
+    function onScanFailure(error) {
+        // Ignore scan failure
+    }
+
+    // --- Original Search Logic ---
+    $('#material-search').on('input', function() {
+        clearTimeout(searchTimeout);
+        const materialCode = $(this).val().trim();
+
+        if (materialCode.length > 2) { // Start searching after 3 characters
+            searchTimeout = setTimeout(function() {
+                searchMaterial(materialCode);
+            }, 500); // 500ms delay
+        } else {
+            hideAllSections();
+        }
+    });
+
+    function searchMaterial(materialCode) {
+        $.ajax({
+            url: "{% url 'search_material_for_stocktake' %}",
+            data: {
+                'material_code': materialCode
+            },
+            dataType: 'json',
+            success: function(data) {
+                if (data.status === 'success') {
+                    const material = data.material;
+                    currentMaterialId = material.id;
+
+                    $('#material-code').text(material.material_code);
+                    $('#material-description').text(material.material_description);
+                    $('#material-location').text(material.location);
+                    $('#material-bin').text(material.bin);
+                    $('#system-quantity').text(material.system_quantity);
+                    $('#latest-counted-quantity').text(material.latest_counted_quantity !== null ? material.latest_counted_quantity : '尚未盤點');
+                    $('#last-counted-date').text(material.last_counted_date ? new Date(material.last_counted_date).toLocaleString() : 'N/A');
+                    $('#last-counted-by').text(material.last_counted_by ? material.last_counted_by : 'N/A');
+
+                    $('#material-details').show();
+                    $('#error-message').hide();
+                    $('#counted-quantity').val('').focus();
+                } else {
+                    showError(data.message);
+                }
+            },
+            error: function(xhr, errmsg, err) {
+                showError('搜尋時發生錯誤: ' + xhr.responseJSON.message);
+            }
+        });
+    }
+
+    $('#save-quantity').on('click', function() {
+        const quantity = $('#counted-quantity').val();
+        if (currentMaterialId === null || quantity === '') {
+            $('#save-status').html('<span class="text-danger">請先搜尋物料並輸入數量。</span>');
+            return;
+        }
+
+        $.ajax({
+            url: "{% url 'update_counted_quantity' %}",
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                'material_id': currentMaterialId,
+                'quantity': quantity
+            }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token }}");
+            },
+            success: function(data) {
+                if (data.status === 'success') {
+                    $('#save-status').html('<span class="text-success">儲存成功！</span>');
+                    // Clear search and refresh details after a short delay
+                    setTimeout(function() {
+                        $('#material-search').val('').focus();
+                        hideAllSections();
+                    }, 1500);
+                } else {
+                    $('#save-status').html('<span class="text-danger">儲存失敗: ' + data.message + '</span>');
+                }
+            },
+            error: function(xhr, errmsg, err) {
+                $('#save-status').html('<span class="text-danger">儲存時發生錯誤: ' + xhr.responseJSON.message + '</span>');
+            }
+        });
+    });
+    
+    // Allow submitting quantity with Enter key
+    $('#counted-quantity').on('keypress', function(e) {
+        if (e.which === 13) { // Enter key
+            $('#save-quantity').click();
+        }
+    });
+
+    function showError(message) {
+        $('#error-message').text(message).show();
+        $('#material-details').hide();
+    }
+
+    function hideAllSections() {
+        $('#material-details').hide();
+        $('#error-message').hide();
+        $('#save-status').empty();
+        currentMaterialId = null;
+    }
+});
+</script>
+{% endblock %}

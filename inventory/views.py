@@ -570,6 +570,58 @@ def danger_zone(request):
     return render(request, 'inventory/danger_zone.html')
 
 @login_required
+def quick_stocktake_view(request):
+    """
+    Renders the quick stocktake page.
+    """
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('inventory_home')
+    return render(request, 'inventory/quick_stocktake.html')
+
+@login_required
+def search_material_for_stocktake(request):
+    """
+    Searches for a material by its code and returns its details as JSON.
+    This is used by the quick stocktake page's AJAX functionality.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': '權限不足'}, status=403)
+
+    material_code = request.GET.get('material_code', '').strip()
+    print(f"[DEBUG] Received material_code: {material_code}")  # Logging
+
+    if not material_code:
+        print("[DEBUG] material_code is empty.") # Logging
+        return JsonResponse({'status': 'error', 'message': '請提供物料號碼'}, status=400)
+
+    try:
+        material = Material.objects.get(material_code=material_code)
+        print(f"[DEBUG] Found material: {material.material_code}") # Logging
+        data = {
+            'status': 'success',
+            'material': {
+                'id': material.id,
+                'material_code': material.material_code,
+                'material_description': material.material_description,
+                'location': material.location.name,
+                'bin': material.bin,
+                'system_quantity': material.system_quantity,
+                'latest_counted_quantity': material.latest_counted_quantity,
+                'last_counted_date': material.last_counted_date.isoformat() if material.last_counted_date else None,
+                'last_counted_by': material.last_counted_by.username if material.last_counted_by else None,
+            }
+        }
+        return JsonResponse(data)
+    except Material.DoesNotExist:
+        print(f"[DEBUG] Material with code '{material_code}' not found.") # Logging
+        return JsonResponse({'status': 'error', 'message': '找不到該物料號碼'}, status=404)
+    except Exception as e:
+        print(f"[DEBUG] An exception occurred: {e}") # Logging
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
 def clear_all_materials(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
