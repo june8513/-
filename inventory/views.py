@@ -13,6 +13,10 @@ import json
 # View for importing master material data from Excel
 @login_required
 def import_material_master(request):
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
+        messages.error(request, "您沒有權限執行此操作。")
+        return redirect('inventory_home')
+
     if request.method != 'POST' or not request.FILES.get('excel_file'):
         return redirect('inventory_update')
 
@@ -141,6 +145,10 @@ def material_list(request):
 @login_required
 @transaction.atomic
 def update_material_quantities(request):
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
+        messages.error(request, "您沒有權限執行此操作。")
+        return redirect('material_list')
+
     if request.method == 'POST':
         updated_materials = []
         for key, value in request.POST.items():
@@ -379,7 +387,7 @@ def export_master_material_differences(request):
 
 @login_required
 def inventory_dashboard(request):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('homepage')
     
@@ -387,7 +395,7 @@ def inventory_dashboard(request):
 
 @login_required
 def inventory_update_view(request):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
     
@@ -401,7 +409,7 @@ def inventory_update_view(request):
 
 @login_required
 def stocktake_location_list(request):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
@@ -417,7 +425,7 @@ def stocktake_location_list(request):
 
 @login_required
 def stocktake_detail_by_location(request, location_name):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
@@ -443,7 +451,7 @@ def update_counted_quantity(request):
     if not request.user.is_authenticated:
         return JsonResponse({'status': 'error', 'message': '用戶未登入或會話已過期，請重新登入。'}, status=401)
 
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         return JsonResponse({'status': 'error', 'message': '權限不足'}, status=403)
 
     if request.method == 'POST':
@@ -476,7 +484,7 @@ def update_counted_quantity(request):
 
 @login_required
 def difference_location_list(request):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
@@ -494,7 +502,7 @@ def difference_location_list(request):
 
 @login_required
 def difference_detail_by_location(request, location_name):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
 
@@ -528,7 +536,7 @@ def difference_detail_by_location(request, location_name):
 
 @login_required
 def export_differences_excel(request, location_name):
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限執行此操作。")
         return redirect('inventory_home')
 
@@ -574,7 +582,7 @@ def quick_stocktake_view(request):
     """
     Renders the quick stocktake page.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('inventory_home')
     return render(request, 'inventory/quick_stocktake.html')
@@ -585,7 +593,7 @@ def search_material_for_stocktake(request):
     Searches for a material by its code and returns its details as JSON.
     This is used by the quick stocktake page's AJAX functionality.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         return JsonResponse({'status': 'error', 'message': '權限不足'}, status=403)
 
     material_code = request.GET.get('material_code', '').strip()

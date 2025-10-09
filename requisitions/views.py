@@ -34,12 +34,30 @@ def finished_goods_dispatch(request):
 @login_required
 def view_requisition_images(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
     images = requisition.images.all()
     return render(request, 'requisitions/view_requisition_images.html', {'requisition': requisition, 'images': images})
 
 @login_required
 def upload_requisition_images_page(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
     form = RequisitionImageUploadForm()
     return render(request, 'requisitions/upload_requisition_images.html', {'requisition': requisition, 'form': form})
 
@@ -2086,6 +2104,14 @@ def update_work_order_quantities(request):
 def generate_dispatch_note(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
 
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
     dispatcher_subquery = WorkOrderMaterialTransaction.objects.filter(
         work_order_material=OuterRef('pk'),
         transaction_type='ALLOCATION'
@@ -2141,6 +2167,14 @@ def generate_dispatch_note(request, pk):
 @login_required
 def update_dispatch_note(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
     if request.method == 'POST':
         confirm_value = request.POST.get('confirm')
         if confirm_value:
@@ -2165,6 +2199,15 @@ def update_dispatch_note(request, pk):
 @login_required
 @transaction.atomic
 def update_material_dispatch_status(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        return JsonResponse({'success': False, 'message': '權限不足'}, status=403)
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -2207,6 +2250,14 @@ def update_material_dispatch_status(request, pk):
 def generate_backorder_note(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
 
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(
         Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
@@ -2239,6 +2290,14 @@ def generate_backorder_note(request, pk):
 @login_required
 def export_backorder_note_excel(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
 
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(
@@ -2293,11 +2352,31 @@ def supplement_material(request, pk):
 
 @login_required
 def upload_requisition_images(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
     # Placeholder function
     return HttpResponse("This is a placeholder for upload_requisition_images.")
 
 @login_required
 def upload_work_order_material_images(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
     # Placeholder function
     return HttpResponse("This is a placeholder for upload_work_order_material_images.")
 
