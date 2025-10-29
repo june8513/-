@@ -13,6 +13,7 @@ from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User, Group
 from django.db.models import Q, F, Value, DecimalField, OuterRef, Subquery, Exists, ExpressionWrapper, Sum
+from django.db import models
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger # Import Paginator
 from django.urls import reverse
@@ -1324,6 +1325,30 @@ def export_all_pending_materials_excel(request):
 
 
 @login_required
+def update_estimated_arrival_date(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            print(data)
+            pk = data.get('pk')
+            estimated_arrival_date = data.get('estimated_arrival_date')
+            if estimated_arrival_date == '':
+                estimated_arrival_date = None
+
+            if not pk:
+                return JsonResponse({'success': False, 'message': '未提供物料 ID'}, status=400)
+
+            updated_rows = WorkOrderMaterial.objects.filter(pk=pk).update(estimated_arrival_date=estimated_arrival_date)
+            print(f"Updated {updated_rows} rows.")
+            
+            return JsonResponse({'success': True, 'message': '預計入料日期已更新'})
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'message': '無效的請求'}, status=400)
+
+@login_required
 def estimated_material_demand(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
@@ -1362,12 +1387,16 @@ def estimated_material_demand(request):
             ).annotate(
                 coalesced_stock=Coalesce(F('stock_quantity'), Decimal('0.00'))
             ).values('coalesced_stock')[:1],
-            output_field=DecimalField()
-        )
-    ).filter(
-        remaining_required_quantity__gt=0
-    )
-
+                    output_field=DecimalField()
+                ),                purchaser_username=Subquery(
+                    Material.objects.filter(
+                        material_code=OuterRef('material_number')
+                    ).values('purchaser__username')[:1],
+                    output_field=models.CharField()
+                )
+            ).filter(
+                remaining_required_quantity__gt=0
+            )
     # Apply material number filter
     if material_number_filter:
         demand_qs = demand_qs.filter(material_number__icontains=material_number_filter)
@@ -1375,12 +1404,13 @@ def estimated_material_demand(request):
     # Aggregation
     final_aggregated_data = {}
     for item in demand_qs.order_by('demand_date', 'material_number', 'machine_model__name').values(
-        'demand_date', 'material_number', 'item_name', 'machine_model__name',
-        'process_type__name', 'remaining_required_quantity', 'order_number', 'current_stock'
+        'pk', 'demand_date', 'material_number', 'item_name', 'machine_model__name',
+        'process_type__name', 'remaining_required_quantity', 'order_number', 'current_stock', 'estimated_arrival_date', 'purchaser_username'
     ):
         material_key = (item['material_number'], item['item_name'])
         if material_key not in final_aggregated_data:
             final_aggregated_data[material_key] = {
+                'pk': item['pk'],
                 'material_number': item['material_number'],
                 'item_name': item['item_name'],
                 'current_stock': item['current_stock'] or Decimal('0.00'),
@@ -1388,6 +1418,8 @@ def estimated_material_demand(request):
                 'demanding_orders': set(),
                 'total_required_quantity': Decimal('0.00'),
                 'detail_orders': [],
+                'estimated_arrival_date': item['estimated_arrival_date'],
+                'purchaser': {'username': item['purchaser_username']},
             }
         
         if item['demand_date'] and (final_aggregated_data[material_key]['first_demand_date'] is None or item['demand_date'] < final_aggregated_data[material_key]['first_demand_date']):
@@ -1442,8 +1474,8 @@ def estimated_material_demand(request):
             item['current_stock'] = str(item['current_stock'])
         if isinstance(item.get('first_demand_date'), datetime.date):
             item['first_demand_date'] = str(item['first_demand_date'])
-        if isinstance(item.get('shortage_date'), datetime.date):
-            item['shortage_date'] = str(item['shortage_date'])
+        if isinstance(item.get('estimated_arrival_date'), datetime.date):
+            item['estimated_arrival_date'] = item['estimated_arrival_date'].strftime('%Y-%m-%d')
 
         item['detail_orders_json'] = json.dumps(item['detail_orders'])
 

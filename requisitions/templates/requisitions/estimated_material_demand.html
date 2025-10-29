@@ -3,6 +3,7 @@
 {% block title %}預計物料需求{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="container mt-4">
     <h2 class="mb-4">預計物料需求</h2>
 
@@ -18,14 +19,17 @@
                 <label for="shortage_date" class="col-form-label">缺料日期</label>
             </div>
             <div class="col-auto">
-                <input type="text" id="shortage_date" name="shortage_date" class="form-control" placeholder="YYYY/MM/DD" value="{{ shortage_date_filter|default:'' }}">
+                <input type="date" id="shortage_date" name="shortage_date" class="form-control" value="{{ shortage_date_filter|default:'' }}">
 
             </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-primary">篩選</button>
+                
             </div>
         </div>
     </form>
+
+
 
     {% if demand_list %}
     <div class="table-responsive">
@@ -34,16 +38,18 @@
                 <tr>
                     <th>物料編號</th>
                     <th>品名</th>
+                    <th>採購員</th>
                     <th>庫存</th>
                     <th>缺料日期</th>
                     <th>需求訂單數</th>
                     <th>總需求數量</th>
                     <th>總短缺量</th>
+                    <th>預計入料</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in demand_list %}
-                <tr>
+                <tr data-pk="{{ item.pk }}">
                     <td>
                         <a href="#" class="material-detail-link"
                            data-bs-toggle="modal"
@@ -56,11 +62,13 @@
                         </a>
                     </td>
                     <td>{{ item.item_name }}</td>
+                    <td>{{ item.purchaser.username|default:"N/A" }}</td>
                     <td>{{ item.current_stock|floatformat:2 }}</td>
                     <td>{{ item.shortage_date|default_if_none:"" }}</td>
                     <td>{{ item.demanding_orders_count }}</td>
                     <td>{{ item.total_required_quantity|floatformat:2 }}</td>
                     <td class="{% if item.final_shortage > 0 %}text-danger{% else %}text-success{% endif %}">{{ item.final_shortage|floatformat:2 }}</td>
+                    <td><input type="date" class="form-control estimated-arrival-date" value="{{ item.estimated_arrival_date|default_if_none:"" }}"></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -152,8 +160,49 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    flatpickr("#shortage_date", {
-        dateFormat: "Y/m/d",
+    document.querySelectorAll('.estimated-arrival-date').forEach(function(input) {
+        var row = input.closest('tr');
+        var shortageDateStr = row.querySelector('td:nth-child(5)').textContent.trim();
+        var estimatedArrivalDateStr = input.value;
+
+        if (shortageDateStr && estimatedArrivalDateStr) {
+            if (shortageDateStr > estimatedArrivalDateStr) {
+                input.value = '';
+            }
+        }
+
+        input.addEventListener('change', function() {
+            var shortageDateStr = row.querySelector('td:nth-child(5)').textContent.trim();
+            var estimatedArrivalDateStr = this.value;
+
+            if (shortageDateStr && estimatedArrivalDateStr) {
+                if (estimatedArrivalDateStr < shortageDateStr) {
+                    alert('預計入料日期不能早於缺料日期。');
+                    this.value = '';
+                }
+            }
+
+            // Save the date
+            var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch("{% url 'update_estimated_arrival_date' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    pk: row.dataset.pk,
+                    estimated_arrival_date: this.value
+                })
+            }).then(response => response.json()).then(data => {
+                if (!data.success) {
+                    alert('儲存失敗: ' + data.message);
+                }
+            }).catch(error => {
+                console.error('Error saving estimated arrival date:', error);
+                alert('儲存時發生錯誤，請查看控制台以獲取更多資訊。');
+            });
+        });
     });
 
     var orderDetailModal = document.getElementById('orderDetailModal');
@@ -219,5 +268,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-
 {% endblock %}

@@ -70,6 +70,7 @@
             <tr>
                 <th>物料號碼</th>
                 <th>物料說明</th>
+                <th>採購員</th>
                 <th>大小</th>
                 <th>重量</th>
                 <th>詳細說明</th>
@@ -81,6 +82,7 @@
             <tr>
                 <td data-label="物料號碼"><a href="{% url 'material_spec_edit' material.id %}">{{ material.material_code }}</a></td>
                 <td data-label="物料說明">{{ material.material_description }}</td>
+                <td data-label="採購員">{{ material.purchaser.username|default:"N/A" }}</td>
                 <td data-label="大小">{{ material.specification.size|default:"" }}</td>
                 <td data-label="重量">{{ material.specification.weight|default:"" }}</td>
                 <td data-label="詳細說明">{{ material.specification.detailed_description|default:"" }}</td>

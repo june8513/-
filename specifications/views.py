@@ -15,7 +15,7 @@ def material_spec_list(request):
     is_admin = request.user.is_superuser
 
     # Start with a base queryset
-    queryset = Material.objects.all().select_related('specification').order_by('material_code')
+    queryset = Material.objects.all().select_related('specification', 'purchaser').order_by('material_code')
 
     if query:
         # If there is a search query, filter based on it (for all users)
@@ -41,6 +41,8 @@ def material_spec_list(request):
         'query': query,
     })
 
+from inventory.forms import MaterialForm
+
 @login_required
 def material_spec_edit(request, material_id):
     material = get_object_or_404(Material, pk=material_id)
@@ -48,14 +50,17 @@ def material_spec_edit(request, material_id):
 
     if request.method == 'POST':
         form = MaterialSpecificationForm(request.POST, request.FILES, instance=spec)
-        if form.is_valid():
+        material_form = MaterialForm(request.POST, instance=material)
+        if form.is_valid() and material_form.is_valid():
             form.save()
+            material_form.save()
             messages.success(request, '物料規格已成功儲存。')
             return redirect('material_spec_list')
     else:
         form = MaterialSpecificationForm(instance=spec)
+        material_form = MaterialForm(instance=material)
 
-    return render(request, 'specifications/material_spec_edit.html', {'form': form, 'material': material})
+    return render(request, 'specifications/material_spec_edit.html', {'form': form, 'material_form': material_form, 'material': material})
 
 @login_required
 def import_material_specs(request):
