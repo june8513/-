@@ -12,7 +12,7 @@ import os
 from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User, Group
-from django.db.models import Q, F, Value, DecimalField, OuterRef, Subquery, Exists, ExpressionWrapper
+from django.db.models import Q, F, Value, DecimalField, OuterRef, Subquery, Exists, ExpressionWrapper, Sum
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger # Import Paginator
 from django.urls import reverse
@@ -25,6 +25,7 @@ import json
 from decimal import Decimal, InvalidOperation
 import tempfile # Import tempfile
 from requisitions.utils import process_order_model_excel, process_material_details_excel # Import the utility functions
+import datetime # Import datetime
 
 
 @login_required
@@ -105,9 +106,15 @@ def view_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
         return redirect('homepage')
-    materials = WorkOrderMaterial.objects.all().select_related('process_type', 'machine_model').select_related('process_type', 'machine_model').select_related('process_type', 'machine_model').select_related('process_type', 'machine_model').select_related('process_type', 'machine_model')
+    
+    materials = WorkOrderMaterial.objects.all().select_related('process_type', 'machine_model').order_by('order_number', 'material_number')
+
+    paginator = Paginator(materials, 20) # Show 20 materials per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        'materials': materials,
+        'materials': page_obj,
     }
     return render(request, 'requisitions/view_database.html', context)
 
@@ -746,6 +753,7 @@ def upload_material_details_excel(request):
           if form.is_valid():
               excel_file = request.FILES['file']
               required_qty_col = form.cleaned_data['required_quantity_col']
+              demand_date_col = form.cleaned_data['demand_date_col'] # Get demand_date_col from form
 
               try:
                   # Step 1: Read the process type mapping from the local DB file
@@ -785,13 +793,17 @@ def upload_material_details_excel(request):
                       raise ValueError("上傳的 Excel 檔案中找不到 '物料' 欄位。")
                   if required_qty_col not in df_upload.columns:
                       raise ValueError(f"在 Excel 中找不到您指定的 '需求數量'欄位：'{required_qty_col}'。")
+                  # New validation for demand_date_col
+                  if demand_date_col and demand_date_col not in df_upload.columns:
+                      raise ValueError(f"在 Excel 中找不到您指定的 '需求日期'欄位：'{demand_date_col}'。")
 
                   df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
 
                   # Group by order and material, summing the required quantity
                   df_aggregated = df_upload.groupby([order_col, '物料']).agg({
                       required_qty_col: 'sum',
-                      '物料說明': 'first'  # Keep the first item name found
+                      '物料說明': 'first',  # Keep the first item name found
+                      demand_date_col: 'first', # Include demand_date_col in aggregation
                   }).reset_index()
 
                   created_count = 0
@@ -834,6 +846,19 @@ def upload_material_details_excel(request):
                           item_name_clean = str(row.get('物料說明', '')).strip()
                           required_quantity_clean = row.get(required_qty_col, 0)
 
+                          # Parse demand_date
+                          demand_date_clean = None
+                          if demand_date_col:
+                              demand_date_str = row.get(demand_date_col)
+                              if demand_date_str:
+                                  try:
+                                      # Attempt to parse various date formats
+                                      demand_date_clean = pd.to_datetime(demand_date_str).date()
+                                  except ValueError:
+                                      messages.warning(request, f"訂單 {order_number_clean}, 物料 {material_number_clean}: 無效的需求日期格式 '{demand_date_str}'，將跳過此日期。")
+                                  except Exception as e:
+                                      messages.warning(request, f"訂單 {order_number_clean}, 物料 {material_number_clean}: 解析需求日期時發生錯誤 '{demand_date_str}': {e}，將跳過此日期。")
+
                           # Custom logic to handle potential duplicates and merge them
                           existing_materials = WorkOrderMaterial.objects.filter(
                               order_number=order_number_clean,
@@ -851,12 +876,13 @@ def upload_material_details_excel(request):
                               for record in other_records:
                                   total_confirmed += record.confirmed_quantity or 0
                                   record.transactions.update(work_order_material=master_record)
-                              
+
                               # Update the master record
                               master_record.item_name = item_name_clean
                               master_record.required_quantity = required_quantity_clean
                               master_record.confirmed_quantity = total_confirmed
                               master_record.is_active = True
+                              master_record.demand_date = demand_date_clean # Assign demand_date
                               master_record.save()
 
                               # Delete the now-redundant records
@@ -871,7 +897,8 @@ def upload_material_details_excel(request):
                                   process_type=process_type_obj,
                                   item_name=item_name_clean,
                                   required_quantity=required_quantity_clean,
-                                  is_active=True
+                                  is_active=True,
+                                  demand_date=demand_date_clean # Assign demand_date
                               )
                               created_count += 1
 
@@ -1294,6 +1321,155 @@ def export_all_pending_materials_excel(request):
     )
     response['Content-Disposition'] = 'attachment; filename="all_pending_materials.xlsx"'
     return response
+
+
+@login_required
+def estimated_material_demand(request):
+    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('homepage')
+
+    material_number_filter = request.GET.get('material_number')
+    shortage_date_filter = request.GET.get('shortage_date')
+
+    # Subquery to identify WorkOrderMaterial objects linked to dispatched or archived Requisitions
+    dispatched_or_archived_wom_pks = WorkOrderMaterial.objects.filter(
+        requisition_items__material_list_version__requisition__dispatch_performed=True
+    ).values_list('pk', flat=True).distinct()
+    
+    archived_wom_pks = WorkOrderMaterial.objects.filter(
+        requisition_items__material_list_version__requisition__is_archived=True
+    ).values_list('pk', flat=True).distinct()
+
+    # Combine the PKs to exclude
+    pks_to_exclude = list(dispatched_or_archived_wom_pks) + list(archived_wom_pks)
+
+    # Base queryset for WorkOrderMaterial
+    demand_qs = WorkOrderMaterial.objects.filter(
+        is_active=True
+    ).exclude(
+        material_number='PARENT_SCOPE'
+    ).exclude(
+        pk__in=pks_to_exclude # Exclude materials linked to dispatched/archived requisitions
+    ).annotate(
+        remaining_required_quantity=ExpressionWrapper(
+            F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0.00')),
+            output_field=DecimalField()
+        ),
+        current_stock=Subquery(
+            Inventory.objects.filter(
+                material_number=OuterRef('material_number')
+            ).annotate(
+                coalesced_stock=Coalesce(F('stock_quantity'), Decimal('0.00'))
+            ).values('coalesced_stock')[:1],
+            output_field=DecimalField()
+        )
+    ).filter(
+        remaining_required_quantity__gt=0
+    )
+
+    # Apply material number filter
+    if material_number_filter:
+        demand_qs = demand_qs.filter(material_number__icontains=material_number_filter)
+
+    # Aggregation
+    final_aggregated_data = {}
+    for item in demand_qs.order_by('demand_date', 'material_number', 'machine_model__name').values(
+        'demand_date', 'material_number', 'item_name', 'machine_model__name',
+        'process_type__name', 'remaining_required_quantity', 'order_number', 'current_stock'
+    ):
+        material_key = (item['material_number'], item['item_name'])
+        if material_key not in final_aggregated_data:
+            final_aggregated_data[material_key] = {
+                'material_number': item['material_number'],
+                'item_name': item['item_name'],
+                'current_stock': item['current_stock'] or Decimal('0.00'),
+                'first_demand_date': item['demand_date'],
+                'demanding_orders': set(),
+                'total_required_quantity': Decimal('0.00'),
+                'detail_orders': [],
+            }
+        
+        if item['demand_date'] and (final_aggregated_data[material_key]['first_demand_date'] is None or item['demand_date'] < final_aggregated_data[material_key]['first_demand_date']):
+            final_aggregated_data[material_key]['first_demand_date'] = item['demand_date']
+        
+        final_aggregated_data[material_key]['demanding_orders'].add(item['order_number'])
+        final_aggregated_data[material_key]['total_required_quantity'] += item['remaining_required_quantity']
+
+        final_aggregated_data[material_key]['detail_orders'].append({
+            'order_number': item['order_number'],
+            'demand_date': str(item['demand_date']),
+            'required_quantity': str(item['remaining_required_quantity']),
+            'machine_model_name': item['machine_model__name'],
+            'process_type_name': item['process_type__name'],
+        })
+
+    # Calculate final_shortage after aggregation
+    for material_key, data in final_aggregated_data.items():
+        data['final_shortage'] = data['total_required_quantity'] - data['current_stock']
+        if data['final_shortage'] < 0:
+            data['final_shortage'] = Decimal('0.00')
+
+    # Convert to list, sort, and add demanding_orders_count
+    demand_list_sorted = sorted(
+        final_aggregated_data.values(),
+        key=lambda x: (x['first_demand_date'] if x['first_demand_date'] else datetime.date.max, x['material_number'])
+    )
+    for item in demand_list_sorted:
+        item['demanding_orders_count'] = len(item['demanding_orders'])
+        del item['demanding_orders']
+
+        # Calculate running stock and shortage for detail_orders
+        running_stock = item['current_stock']
+        item['shortage_date'] = None
+        # Sort detail_orders by demand_date before calculating running stock
+        item['detail_orders'].sort(key=lambda x: (datetime.datetime.strptime(x['demand_date'], '%Y-%m-%d').date() if x['demand_date'] != 'None' else datetime.date.max))
+        for detail_order in item['detail_orders']:
+            required_qty = Decimal(detail_order['required_quantity'])
+            running_stock -= required_qty
+            detail_order['running_stock'] = str(running_stock)
+            detail_order['is_running_shortage'] = running_stock < 0
+
+            if item['shortage_date'] is None and running_stock < 0:
+                item['shortage_date'] = detail_order['demand_date']
+
+        # Explicitly convert non-JSON-serializable types to strings for detail_orders
+        for detail_order in item['detail_orders']:
+            if isinstance(detail_order.get('demand_date'), datetime.date):
+                detail_order['demand_date'] = str(detail_order['demand_date'])
+        
+        if isinstance(item.get('current_stock'), Decimal):
+            item['current_stock'] = str(item['current_stock'])
+        if isinstance(item.get('first_demand_date'), datetime.date):
+            item['first_demand_date'] = str(item['first_demand_date'])
+        if isinstance(item.get('shortage_date'), datetime.date):
+            item['shortage_date'] = str(item['shortage_date'])
+
+        item['detail_orders_json'] = json.dumps(item['detail_orders'])
+
+    # Apply shortage date filter
+    if shortage_date_filter:
+        try:
+            shortage_date = datetime.datetime.strptime(shortage_date_filter, '%Y-%m-%d').date()
+            demand_list_sorted = [
+                item for item in demand_list_sorted
+                if item.get('shortage_date') and datetime.datetime.strptime(item['shortage_date'], '%Y-%m-%d').date() <= shortage_date
+            ]
+        except (ValueError, TypeError):
+            messages.error(request, "無效的日期格式，請使用 YYYY-MM-DD。")
+
+
+    # Pagination
+    paginator = Paginator(demand_list_sorted, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'demand_list': page_obj,
+        'material_number_filter': material_number_filter,
+        'shortage_date_filter': shortage_date_filter,
+    }
+    return render(request, 'requisitions/estimated_material_demand.html', context)
 
 
 @login_required

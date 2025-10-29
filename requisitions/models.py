@@ -88,6 +88,7 @@ class WorkOrderMaterial(models.Model):
     is_signed_off = models.BooleanField(default=False, verbose_name="已簽收")
     is_active = models.BooleanField(default=True, verbose_name="是否啟用") # New field
     estimated_arrival_date = models.DateField(null=True, blank=True, verbose_name="預計入料日期")
+    demand_date = models.DateField(null=True, blank=True, verbose_name="需求日期") # New field
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

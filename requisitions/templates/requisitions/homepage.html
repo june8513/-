@@ -12,41 +12,47 @@
     </div>
 
     <div class="row">
-        <div class="col-md-6 mb-4">
+        <div class="col-lg-3 col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
+                <div class="card-body text-center d-flex flex-column">
                     <h5 class="card-title">成品撥料</h5>
                     <p class="card-text">管理撥料申請，包括建立、處理和查看歷史記錄。</p>
-                    <a href="{% url 'finished_goods_dispatch' %}" class="btn btn-primary">前往</a>
+                    <div class="mt-auto">
+                        <a href="{% url 'finished_goods_dispatch' %}" class="btn btn-primary">前往</a>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 mb-4">
+        <div class="col-lg-3 col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
+                <div class="card-body text-center d-flex flex-column">
                     <h5 class="card-title">庫存盤點</h5>
                     <p class="card-text">建立和管理庫存盤點單。</p>
-                    <a href="{% url 'inventory_home' %}" class="btn btn-primary">前往</a>
+                    <div class="mt-auto">
+                        <a href="{% url 'inventory_home' %}" class="btn btn-primary">前往</a>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="row">
-        <div class="col-md-6 mb-4">
+        <div class="col-lg-3 col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
-                    <h5 class="card-title">ZROM物料</h5>
-                    <p class="card-text">（功能開發中）</p>
-                    <a href="#" class="btn btn-secondary disabled">前往</a>
+                <div class="card-body text-center d-flex flex-column">
+                    <h5 class="card-title">預計物料需求</h5>
+                    <p class="card-text">查看未撥料需求與庫存計算出的物料短缺。</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'estimated_material_demand' %}" class="btn btn-primary">查看</a>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 mb-4">
+        <div class="col-lg-3 col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
+                <div class="card-body text-center d-flex flex-column">
                     <h5 class="card-title">物料明細查詢</h5>
                     <p class="card-text">查詢工單的主物料清單。</p>
-                    <a href="{% url 'material_spec_list' %}" class="btn btn-primary">前往</a>
+                    <div class="mt-auto">
+                        <a href="{% url 'material_spec_list' %}" class="btn btn-primary">前往</a>
+                    </div>
                 </div>
             </div>
         </div>

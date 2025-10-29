@@ -57,5 +57,6 @@ urlpatterns = [
     path('work_order_material/<str:material_code>/images/', views.view_work_order_material_images, name='view_work_order_material_images'),
     path('shortage_materials/', views.shortage_materials_list, name='shortage_materials_list'),
     path('shortage_materials/update_dates/', views.update_shortage_arrival_dates, name='update_shortage_arrival_dates'),
+    path('estimated_material_demand/', views.estimated_material_demand, name='estimated_material_demand'),
     path('dispatch_note/<int:pk>/upload_image/', views.upload_dispatch_note_image, name='upload_dispatch_note_image'),
 ]

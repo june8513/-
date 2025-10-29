@@ -52,6 +52,7 @@ class OrderModelUploadForm(forms.Form):
 class MaterialDetailsUploadForm(forms.Form):
     file = forms.FileField(label='選擇物料明細 Excel 檔案')
     required_quantity_col = forms.CharField(label='需求數量欄位名稱', initial='需求數量')
+    demand_date_col = forms.CharField(label='需求日期欄位名稱', initial='需求日期', required=False)
 
 class UpdateProcessTypeDBForm(forms.Form):
     file = forms.FileField(label='選擇新的投料點資料庫 Excel 檔案 (output.xlsx)')

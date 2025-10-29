@@ -7,6 +7,9 @@ db.sqlite3
 
 # Generated files
 output.xlsx
+permission_analysis.xlsx
+generate_permission_excel.py
+~$*.xlsx
 
 # Media files
 media/
