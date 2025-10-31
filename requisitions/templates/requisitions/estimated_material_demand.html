@@ -20,7 +20,17 @@
             </div>
             <div class="col-auto">
                 <input type="date" id="shortage_date" name="shortage_date" class="form-control" value="{{ shortage_date_filter|default:'' }}">
-
+            </div>
+            <div class="col-auto">
+                <label for="purchaser" class="col-form-label">採購員</label>
+            </div>
+            <div class="col-auto">
+                <select id="purchaser" name="purchaser" class="form-select">
+                    <option value="">所有採購員</option>
+                    {% for purchaser_username, purchaser_display_name in purchaser_choices %}
+                        <option value="{{ purchaser_username }}" {% if purchaser_username == purchaser_filter %}selected{% endif %}>{{ purchaser_display_name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-primary">篩選</button>
@@ -36,7 +46,12 @@
         <table class="table table-striped table-hover">
             <thead class="thead-dark">
                 <tr>
-                    <th>物料編號</th>
+                    <th>
+                        <a class="text-white" href="?material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by=material_number&order={% if sort_by == 'material_number' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                            物料編號
+                            {% if sort_by == 'material_number' %}{% if order == 'asc' %} &#9650;{% else %} &#9660;{% endif %}{% endif %}
+                        </a>
+                    </th>
                     <th>品名</th>
                     <th>採購員</th>
                     <th>庫存</th>
@@ -44,7 +59,12 @@
                     <th>需求訂單數</th>
                     <th>總需求數量</th>
                     <th>總短缺量</th>
-                    <th>預計入料</th>
+                    <th>
+                        <a class="text-white" href="?material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by=estimated_arrival_date&order={% if sort_by == 'estimated_arrival_date' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                            預計入料
+                            {% if sort_by == 'estimated_arrival_date' %}{% if order == 'asc' %} &#9650;{% else %} &#9660;{% endif %}{% endif %}
+                        </a>
+                    </th>
                 </tr>
             </thead>
             <tbody>
@@ -79,12 +99,12 @@
         <ul class="pagination justify-content-center">
             {% if demand_list.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}" aria-label="First">
+                    <a class="page-link" href="?page=1&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="First">
                         <span aria-hidden="true">&laquo;&laquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ demand_list.previous_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}" aria-label="Previous">
+                    <a class="page-link" href="?page={{ demand_list.previous_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="Previous">
                         <span aria-hidden="true">&laquo;</span>
                     </a>
                 </li>
@@ -98,12 +118,12 @@
 
             {% if demand_list.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ demand_list.next_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}" aria-label="Next">
+                    <a class="page-link" href="?page={{ demand_list.next_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="Next">
                         <span aria-hidden="true">&raquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ demand_list.paginator.num_pages }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}" aria-label="Last">
+                    <a class="page-link" href="?page={{ demand_list.paginator.num_pages }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="Last">
                         <span aria-hidden="true">&raquo;&raquo;</span>
                     </a>
                 </li>

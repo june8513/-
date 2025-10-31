@@ -1356,6 +1356,9 @@ def estimated_material_demand(request):
 
     material_number_filter = request.GET.get('material_number')
     shortage_date_filter = request.GET.get('shortage_date')
+    purchaser_filter = request.GET.get('purchaser')
+    sort_by = request.GET.get('sort_by', 'first_demand_date') # Default sort by first_demand_date
+    order = request.GET.get('order', 'asc') # Default order ascending
 
     # Subquery to identify WorkOrderMaterial objects linked to dispatched or archived Requisitions
     dispatched_or_archived_wom_pks = WorkOrderMaterial.objects.filter(
@@ -1387,16 +1390,22 @@ def estimated_material_demand(request):
             ).annotate(
                 coalesced_stock=Coalesce(F('stock_quantity'), Decimal('0.00'))
             ).values('coalesced_stock')[:1],
-                    output_field=DecimalField()
-                ),                purchaser_username=Subquery(
-                    Material.objects.filter(
-                        material_code=OuterRef('material_number')
-                    ).values('purchaser__username')[:1],
-                    output_field=models.CharField()
-                )
+            output_field=DecimalField()
+        ),
+        purchaser_username=Subquery(
+            Material.objects.filter(
+                material_code=OuterRef('material_number')
+            ).values('purchaser__username')[:1],
+            output_field=models.CharField()
+        )
             ).filter(
                 remaining_required_quantity__gt=0
             )
+
+    # Apply purchaser filter
+    if purchaser_filter:
+        demand_qs = demand_qs.filter(purchaser_username=purchaser_filter)
+
     # Apply material number filter
     if material_number_filter:
         demand_qs = demand_qs.filter(material_number__icontains=material_number_filter)
@@ -1443,10 +1452,25 @@ def estimated_material_demand(request):
             data['final_shortage'] = Decimal('0.00')
 
     # Convert to list, sort, and add demanding_orders_count
-    demand_list_sorted = sorted(
-        final_aggregated_data.values(),
-        key=lambda x: (x['first_demand_date'] if x['first_demand_date'] else datetime.date.max, x['material_number'])
-    )
+    if sort_by == 'estimated_arrival_date':
+        demand_list_sorted = sorted(
+            final_aggregated_data.values(),
+            key=lambda x: (x['estimated_arrival_date'] if x['estimated_arrival_date'] else datetime.date.max),
+            reverse=(order == 'desc')
+        )
+    elif sort_by == 'material_number':
+        demand_list_sorted = sorted(
+            final_aggregated_data.values(),
+            key=lambda x: x['material_number'],
+            reverse=(order == 'desc')
+        )
+    # Add other sorting options here if needed
+    else: # Default sort by first_demand_date
+        demand_list_sorted = sorted(
+            final_aggregated_data.values(),
+            key=lambda x: (x['first_demand_date'] if x['first_demand_date'] else datetime.date.max, x['material_number']),
+            reverse=(order == 'desc')
+        )
     for item in demand_list_sorted:
         item['demanding_orders_count'] = len(item['demanding_orders'])
         del item['demanding_orders']
@@ -1496,10 +1520,20 @@ def estimated_material_demand(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    # Get all unique purchasers for the filter dropdown
+    all_purchasers = User.objects.filter(
+        id__in=Material.objects.values_list('purchaser__id', flat=True).distinct()
+    ).order_by('username')
+    purchaser_choices = [(p.username, p.username) for p in all_purchasers if p.username]
+
     context = {
         'demand_list': page_obj,
         'material_number_filter': material_number_filter,
         'shortage_date_filter': shortage_date_filter,
+        'purchaser_filter': purchaser_filter,
+        'purchaser_choices': purchaser_choices,
+        'sort_by': sort_by,
+        'order': order,
     }
     return render(request, 'requisitions/estimated_material_demand.html', context)
 
