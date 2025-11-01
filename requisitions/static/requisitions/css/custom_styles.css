@@ -143,3 +143,33 @@ a, .btn-link {
 a:hover, .btn-link:hover {
     color: #006666;
 }
+
+/* Custom CSS for nested dropdowns */
+.dropdown-menu .dropend > .dropdown-toggle {
+    /* Ensure the toggle is styled correctly */
+    white-space: nowrap;
+}
+
+.dropdown-menu .dropend > .dropdown-menu {
+    /* Position the nested dropdown to the right */
+    position: absolute;
+    left: 100%;
+    top: 0;
+    margin-top: -1px; /* Adjust as needed */
+    display: none; /* Hidden by default */
+}
+
+.dropdown-menu .dropend:hover > .dropdown-menu,
+.dropdown-menu .dropend.show > .dropdown-menu {
+    /* Show on hover or when 'show' class is added by JS */
+    display: block;
+}
+
+/* Adjustments for dropdown items within nested menus */
+.dropdown-menu .dropend > .dropdown-toggle::after {
+    /* Adjust arrow for nested dropdowns */
+    vertical-align: middle;
+    border-left: .3em solid;
+    border-bottom: .3em solid transparent;
+    border-top: .3em solid transparent;
+}

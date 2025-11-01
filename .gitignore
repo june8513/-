@@ -16,3 +16,9 @@ media/
 
 # Secrets
 API key.txt
+
+# Auto-generated files
+auto_upload/material_details/last_processed_timestamps.json
+auto_upload/order_models/last_processed_timestamps.json
+使用說明書.md
+操作手冊.md

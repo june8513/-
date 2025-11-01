@@ -29,19 +29,46 @@
                         <ul class="dropdown-menu" aria-labelledby="dropdownMenuLink">
                             <li><a class="dropdown-item" href="{% url 'homepage' %}">儀表板</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header">撥料申請管理</h6></li>
-                            {% if is_admin or is_material_handler %}
-                                <li><a class="dropdown-item" href="{% url 'requisition_list' %}">待撥料申請</a></li>
-                            {% endif %}
-                            {% if is_admin or is_applicant %}
-                                <li><a class="dropdown-item" href="{% url 'requisition_create' %}">建立申請單</a></li>
-                            {% endif %}
-                            <li><a class="dropdown-item" href="{% url 'requisition_history' %}">已撥料申請</a></li>
-                            <li><a class="dropdown-item" href="{% url 'work_order_material_list' %}">工單主物料清單</a></li>
+                            
+                            <li class="dropend">
+                                <a class="dropdown-item dropdown-toggle" href="#" id="finishedGoodsDispatchDropdown" role="button">
+                                    成品撥料
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="finishedGoodsDispatchDropdown">
+                                    {% if is_admin or is_material_handler %}
+                                        <li><a class="dropdown-item" href="{% url 'requisition_list' %}">待撥料申請</a></li>
+                                    {% endif %}
+                                    {% if is_admin or is_applicant %}
+                                        <li><a class="dropdown-item" href="{% url 'requisition_create' %}">建立申請單</a></li>
+                                    {% endif %}
+                                    <li><a class="dropdown-item" href="{% url 'requisition_history' %}">已撥料申請單</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'work_order_material_list' %}">工單主物料清單</a></li>
+                                    {% if is_admin or is_material_handler %}
+                                        <li><a class="dropdown-item" href="{% url 'shortage_materials_list' %}">欠料單彙總</a></li>
+                                    {% endif %}
+                                </ul>
+                            </li>
+
+                            <li class="dropend">
+                                <a class="dropdown-item dropdown-toggle" href="#" id="inventoryStocktakeDropdown" role="button">
+                                    庫存盤點
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="inventoryStocktakeDropdown">
+                                    {% if is_admin or is_material_handler %}
+                                        <li><a class="dropdown-item" href="{% url 'inventory_update' %}">庫存更新</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'stocktake_location_list' %}">庫存盤點</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'quick_stocktake' %}">快速盤點</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'difference_location_list' %}">盤點差異</a></li>
+                                    {% endif %}
+                                </ul>
+                            </li>
+
                             <li><hr class="dropdown-divider"></li>
+
                             {% if is_admin or is_material_handler %}
-                                <li><a class="dropdown-item" href="{% url 'work_order_material_list' %}">庫存盤點</a></li>
+                            <li><a class="dropdown-item" href="{% url 'estimated_material_demand' %}">預計物料需求</a></li>
                             {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'material_spec_list' %}">物料明細查詢</a></li>
                         </ul>
                     </div>
 
@@ -96,6 +123,38 @@
     <!-- Bootstrap Bundle with Popper from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     {% block extra_js %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll(".dropdown-menu .dropend > a.dropdown-toggle").forEach(function(element) {
+                element.addEventListener("click", function(e) {
+                    e.stopPropagation(); // Prevent the click from closing the parent dropdown
+                    e.preventDefault(); // Prevent default link behavior (e.g., navigating to #)
+
+                    let nextEl = this.nextElementSibling; // The nested dropdown-menu
+
+                    // Close other open nested menus at the same level
+                    // Find all 'show' dropdown-menus within the same parent dropdown-menu
+                    this.closest(".dropdown-menu").querySelectorAll(".dropdown-menu.show").forEach(function(el) {
+                        if (el !== nextEl) { // If it's not the one we're about to open/close
+                            el.classList.remove("show");
+                        }
+                    });
+
+                    // Toggle the 'show' class for the clicked nested menu
+                    if (nextEl) {
+                        nextEl.classList.toggle("show");
+                    }
+                });
+            });
+
+            // Close all dropdowns (main and nested) when clicking outside any dropdown
+            document.addEventListener("click", function(e) {
+                if (!e.target.closest(".dropdown")) { // If click is outside the main dropdown container
+                    document.querySelectorAll(".dropdown-menu.show").forEach(function(elem) {
+                        elem.classList.remove("show");
+                    });
+                }
+            });
+        });
+    </script>
     {% endblock %}
-</body>
-</html>
