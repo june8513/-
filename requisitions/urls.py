@@ -60,4 +60,5 @@ urlpatterns = [
     path('update_estimated_arrival_date/', views.update_estimated_arrival_date, name='update_estimated_arrival_date'),
     path('estimated_material_demand/', views.estimated_material_demand, name='estimated_material_demand'),
     path('dispatch_note/<int:pk>/upload_image/', views.upload_dispatch_note_image, name='upload_dispatch_note_image'),
+    path('material_completeness/', views.material_completeness, name='material_completeness'),
 ]

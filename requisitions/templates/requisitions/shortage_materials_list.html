@@ -5,6 +5,11 @@
 {% block content %}
 <div class="container mt-4">
     <h1>欠料單物料彙總</h1>
+    {% if global_final_arrival_date %}
+    <p class="lead"><strong>所有欠料物料的最終預計入料日期:</strong> {{ global_final_arrival_date|date:"Y-m-d" }}</p>
+    {% else %}
+    <p class="lead"><strong>所有欠料物料的最終預計入料日期:</strong> 尚無預計入料日期</p>
+    {% endif %}
 
     <form method="post" action="{% url 'update_shortage_arrival_dates' %}">
         {% csrf_token %}

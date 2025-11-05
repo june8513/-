@@ -84,11 +84,11 @@
                     <td>{{ item.item_name }}</td>
                     <td>{{ item.purchaser.username|default:"N/A" }}</td>
                     <td>{{ item.current_stock|floatformat:2 }}</td>
-                    <td>{{ item.shortage_date|default_if_none:"" }}</td>
+                    <td>{{ item.shortage_date|date:'Y-m-d'|default_if_none:"" }}</td>
                     <td>{{ item.demanding_orders_count }}</td>
                     <td>{{ item.total_required_quantity|floatformat:2 }}</td>
                     <td class="{% if item.final_shortage > 0 %}text-danger{% else %}text-success{% endif %}">{{ item.final_shortage|floatformat:2 }}</td>
-                    <td><input type="date" class="form-control estimated-arrival-date" value="{{ item.estimated_arrival_date|default_if_none:"" }}"></td>
+                    <td><input type="date" class="form-control estimated-arrival-date" value="{% if item.estimated_arrival_date %}{{ item.estimated_arrival_date|date:'Y-m-d' }}{% endif %}"></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -99,12 +99,12 @@
         <ul class="pagination justify-content-center">
             {% if demand_list.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="First">
+                    <a class="page-link" href="?page=1&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by={{ sort_by }}&order={{ order }}" aria-label="First">
                         <span aria-hidden="true">&laquo;&laquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ demand_list.previous_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="Previous">
+                    <a class="page-link" href="?page={{ demand_list.previous_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by={{ sort_by }}&order={{ order }}" aria-label="Previous">
                         <span aria-hidden="true">&laquo;</span>
                     </a>
                 </li>
@@ -118,12 +118,12 @@
 
             {% if demand_list.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ demand_list.next_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="Next">
+                    <a class="page-link" href="?page={{ demand_list.next_page_number }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by={{ sort_by }}&order={{ order }}" aria-label="Next">
                         <span aria-hidden="true">&raquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ demand_list.paginator.num_pages }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}" aria-label="Last">
+                    <a class="page-link" href="?page={{ demand_list.paginator.num_pages }}&material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by={{ sort_by }}&order={{ order }}" aria-label="Last">
                         <span aria-hidden="true">&raquo;&raquo;</span>
                     </a>
                 </li>
@@ -181,29 +181,18 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.estimated-arrival-date').forEach(function(input) {
-        var row = input.closest('tr');
-        var shortageDateStr = row.querySelector('td:nth-child(5)').textContent.trim();
-        var estimatedArrivalDateStr = input.value;
-
-        if (shortageDateStr && estimatedArrivalDateStr) {
-            if (shortageDateStr > estimatedArrivalDateStr) {
-                input.value = '';
-            }
-        }
-
         input.addEventListener('change', function() {
-            var shortageDateStr = row.querySelector('td:nth-child(5)').textContent.trim();
-            var estimatedArrivalDateStr = this.value;
-
-            if (shortageDateStr && estimatedArrivalDateStr) {
-                if (estimatedArrivalDateStr < shortageDateStr) {
-                    alert('預計入料日期不能早於缺料日期。');
-                    this.value = '';
-                }
-            }
+            var row = input.closest('tr');
 
             // Save the date
             var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            var materialNumber = row.querySelector('td:nth-child(1) a').textContent.trim(); // Get material number from the link inside the first column
+
+            if (!materialNumber) {
+                alert('錯誤：無法獲取物料編號，請重新整理頁面。');
+                return;
+            }
+
             fetch("{% url 'update_estimated_arrival_date' %}", {
                 method: 'POST',
                 headers: {
@@ -211,12 +200,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': csrftoken
                 },
                 body: JSON.stringify({
-                    pk: row.dataset.pk,
+                    material_number: materialNumber,
                     estimated_arrival_date: this.value
                 })
             }).then(response => response.json()).then(data => {
                 if (!data.success) {
                     alert('儲存失敗: ' + data.message);
+                } else {
+                    location.reload(); // Reload the page on successful update
                 }
             }).catch(error => {
                 console.error('Error saving estimated arrival date:', error);
