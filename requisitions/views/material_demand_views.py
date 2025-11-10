@@ -18,16 +18,50 @@ def update_estimated_arrival_date(request):
         try:
             data = json.loads(request.body)
             material_number = data.get('material_number')
-            estimated_arrival_date = data.get('estimated_arrival_date')
-            if estimated_arrival_date == '':
-                estimated_arrival_date = None
+            estimated_arrival_date_str = data.get('estimated_arrival_date')
+            
             if not material_number:
                 return JsonResponse({'success': False, 'message': '未提供物料編號'}, status=400)
 
+            estimated_arrival_date = None
+            if estimated_arrival_date_str:
+                try:
+                    estimated_arrival_date = datetime.datetime.strptime(estimated_arrival_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({'success': False, 'message': '無效的預計入料日期格式'}, status=400)
+
+            print(f"DEBUG: material_number: {material_number}")
+            print(f"DEBUG: estimated_arrival_date_str: {estimated_arrival_date_str}")
+            print(f"DEBUG: Parsed estimated_arrival_date: {estimated_arrival_date}")
+
+            # Retrieve shortage_date for the material
+            analysis_data = get_material_demand_analysis()
+            material_analysis = analysis_data.get(material_number)
+            
+            shortage_date = None
+            if material_analysis and material_analysis.get('shortage_date'):
+                # Ensure shortage_date is a date object for comparison
+                if isinstance(material_analysis['shortage_date'], str):
+                    shortage_date = datetime.datetime.strptime(material_analysis['shortage_date'], '%Y-%m-%d').date()
+                else:
+                    shortage_date = material_analysis['shortage_date']
+            
+            print(f"DEBUG: Retrieved shortage_date: {shortage_date}")
+
+            # Apply business rule: if estimated_arrival_date is earlier than shortage_date, clear it
+            if estimated_arrival_date and shortage_date and estimated_arrival_date < shortage_date:
+                estimated_arrival_date = None
+                message = '預計入料日期早於缺料日期，已自動清除。'
+                print(f"DEBUG: Condition met: estimated_arrival_date < shortage_date. estimated_arrival_date set to None.")
+            else:
+                message = '預計入料日期已更新'
+                print(f"DEBUG: Condition not met or dates valid. estimated_arrival_date: {estimated_arrival_date}")
+
             # Update all WorkOrderMaterial instances with this material_number
             updated_count = WorkOrderMaterial.objects.filter(material_number=material_number, is_active=True).update(estimated_arrival_date=estimated_arrival_date)
+            print(f"DEBUG: Updated {updated_count} WorkOrderMaterial instances.")
             
-            return JsonResponse({'success': True, 'message': '預計入料日期已更新'})
+            return JsonResponse({'success': True, 'message': message})
 
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=500)

@@ -105,7 +105,7 @@ def generate_backorder_note(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('requisitions:homepage')
 
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(
@@ -140,3 +140,47 @@ def generate_backorder_note(request, pk):
 def supplement_material(request):
     # Placeholder function
     return HttpResponse("This is a placeholder for supplement_material.")
+
+@login_required
+def dispatch_preparation_list(request):
+    is_admin = request.user.is_superuser
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    if not (is_admin or is_material_handler):
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('core:homepage')
+
+    # Filter requisitions that are awaiting dispatch and not archived
+    requisitions_qs = Requisition.objects.filter(
+        status='awaiting_dispatch',
+        is_archived=False
+    ).order_by('-created_at').select_related('applicant')
+
+    # Add search/filter options if needed (e.g., by order_number, process_type)
+    order_number_search = request.GET.get('order_number_search')
+    if order_number_search:
+        requisitions_qs = requisitions_qs.filter(order_number__icontains=order_number_search)
+
+    process_type_filter = request.GET.get('process_type')
+    if process_type_filter:
+        requisitions_qs = requisitions_qs.filter(process_type=process_type_filter)
+
+    # Pagination
+    paginator = Paginator(requisitions_qs, 10) # Show 10 requisitions per page
+    page_number = request.GET.get('page')
+    requisitions_page = paginator.get_page(page_number)
+
+    # Get unique process types for filter dropdown
+    process_types = Requisition.objects.filter(
+        status='awaiting_dispatch',
+        is_archived=False
+    ).values_list('process_type', flat=True).distinct().order_by('process_type')
+    process_type_choices = [(pt, pt) for pt in process_types if pt]
+
+    context = {
+        'requisitions': requisitions_page,
+        'process_type_choices': process_type_choices,
+        'selected_process_type': process_type_filter,
+        'order_number_search': order_number_search,
+    }
+    return render(request, 'requisitions/dispatch_preparation_list.html', context)

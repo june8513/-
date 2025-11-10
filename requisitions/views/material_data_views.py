@@ -322,7 +322,7 @@ def archived_work_order_material_list(request):
 @transaction.atomic
 def update_work_order_quantities(request):
       if request.method != 'POST':
-          return redirect('work_order_material_list')
+          return redirect('requisitions:work_order_material_list')
 
       order_number = request.POST.get('order_number')
       process_type_filter = request.POST.get('process_type_filter', '')
@@ -330,7 +330,7 @@ def update_work_order_quantities(request):
 
       print(f"Received POST data: {request.POST}") # DEBUG
 
-      redirect_url = request.META.get('HTTP_REFERER', reverse('work_order_material_list'))
+      redirect_url = request.META.get('HTTP_REFERER', reverse('requisitions:work_order_material_list'))
       query_string = ''
       if '?' in redirect_url:
           query_string = '?' + redirect_url.split('?', 1)[1]

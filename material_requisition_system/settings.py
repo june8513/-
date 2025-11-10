@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'sslserver',
     'inventory',
     'specifications',
+    'core',
 ]
 
 MIDDLEWARE = [
@@ -80,7 +81,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'requisitions.context_processors.role_context', # Add our custom context processor
+                'core.context_processors.role_context',
             ],
         },
     },

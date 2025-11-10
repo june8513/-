@@ -20,7 +20,7 @@ import json
 from decimal import Decimal, InvalidOperation
 import datetime
 
-def _filter_requisitions(request, sort_by='created_at', order='desc', material_status_filter=None, order_number_search=None):
+def _filter_requisitions(request, sort_by='created_at', order='desc', material_status_filter=None, order_number_search=None, status_filter_list=None):
     """
     Helper function to filter requisitions based on user role and query parameters.
     NOW FILTERS FOR UNDISPATCHED REQUISITIONS ONLY.
@@ -35,6 +35,8 @@ def _filter_requisitions(request, sort_by='created_at', order='desc', material_s
 
     # CORE CHANGE: Only show requisitions that have NOT been dispatched.
     base_queryset = Requisition.objects.filter(dispatch_performed=False, is_archived=False).order_by(order_field).select_related('applicant')
+    if status_filter_list:
+        base_queryset = base_queryset.filter(status__in=status_filter_list)
 
     # Add search by order number
     if order_number_search:
@@ -113,7 +115,8 @@ def requisition_list(request):
                                                 sort_by=model_sort_by, 
                                                 order=order, 
                                                 material_status_filter=material_status_selected,
-                                                order_number_search=order_number_search)
+                                                order_number_search=order_number_search,
+                                                status_filter_list=['pending', 'awaiting_dispatch'])
 
     paginator = Paginator(unique_requisitions, 10)
     page = request.GET.get('page')
@@ -233,7 +236,7 @@ def archived_requisition_list(request):
 def requisition_create(request):
     if not request.user.groups.filter(name='申請人員').exists() and not request.user.is_superuser:
         messages.error(request, "您沒有權限建立撥料申請單。")
-        return redirect('requisition_list')
+        return redirect('requisitions:requisition_list')
 
     if request.method == 'POST':
         order_number = request.POST.get('order_number') # Get order_number from POST data
@@ -280,9 +283,10 @@ def requisition_create(request):
                 requisition.applicant = request.user
                 requisition.order_number = order_number
                 requisition.process_type = selected_process_type_obj.name # Assign the name to the CharField
+                requisition.status = 'awaiting_dispatch' # Set the new status
                 requisition.save()
-                messages.success(request, "撥料申請單建立成功！")
-                return redirect('requisition_list')
+                messages.success(request, "撥料申請單建立成功，等待撥料人員處理！")
+                return redirect('requisitions:requisition_list')
             except IntegrityError:
                 messages.error(request, "此訂單單號在該需求流程中已存在，請使用不同的訂單單號或需求流程。")
             except Exception as e:
@@ -322,7 +326,7 @@ def requisition_history(request):
 
     if not is_admin and not is_applicant and not is_material_handler:
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('homepage')
+        return redirect('requisitions:homepage')
 
     history_requisitions_qs = Requisition.objects.filter(dispatch_performed=True, is_archived=False).select_related('applicant').order_by('-updated_at')
 
@@ -391,9 +395,9 @@ def material_confirmation(request, pk):
         messages.error(request, "您沒有權限執行物料確認操作。")
         return redirect('requisition_list')
 
-    if requisition.status != 'pending':
+    if requisition.status not in ['pending', 'awaiting_dispatch']: # Allow both pending and awaiting_dispatch
         messages.warning(request, f"此申請單狀態為 '{requisition.get_status_display()}'，無法進行物料確認。")
-        return redirect('requisition_list')
+        return redirect('requisitions:requisition_list') # Redirect to requisition_list (which now shows pending)
 
     # Sorting logic
     sort_by = request.GET.get('sort_by', 'material_number')

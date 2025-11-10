@@ -20,7 +20,7 @@
                 </div>
                 <div class="modal-body">
                     <!-- Import Form -->
-                    <form action="{% url 'import_material_specs' %}" method="post" enctype="multipart/form-data" class="mb-4">
+                    <form action="{% url 'specifications:import_material_specs' %}" method="post" enctype="multipart/form-data" class="mb-4">
                         {% csrf_token %}
                         <div class="input-group">
                             <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
@@ -31,7 +31,7 @@
                     <hr> <!-- Separator -->
 
                     <!-- Edit Material Form -->
-                    <form action="{% url 'redirect_to_material_edit' %}" method="post">
+                    <form action="{% url 'specifications:redirect_to_material_edit' %}" method="post">
                         {% csrf_token %}
                         <div class="input-group">
                             <input type="text" name="material_code" class="form-control" placeholder="輸入物料號碼編輯" required>
@@ -80,7 +80,7 @@
         <tbody>
             {% for material in materials %}
             <tr>
-                <td data-label="物料號碼"><a href="{% url 'material_spec_edit' material.id %}">{{ material.material_code }}</a></td>
+                <td data-label="物料號碼"><a href="{% url 'specifications:material_spec_edit' material.id %}">{{ material.material_code }}</a></td>
                 <td data-label="物料說明">{{ material.material_description }}</td>
                 <td data-label="採購員">{{ material.purchaser.username|default:"N/A" }}</td>
                 <td data-label="大小">{{ material.specification.size|default:"" }}</td>

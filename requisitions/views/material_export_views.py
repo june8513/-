@@ -207,7 +207,7 @@ def generate_dispatch_note(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('requisitions:homepage')
 
     dispatcher_subquery = WorkOrderMaterialTransaction.objects.filter(
         work_order_material=OuterRef('pk'),
@@ -271,7 +271,7 @@ def export_backorder_note_excel(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('requisitions:homepage')
 
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(

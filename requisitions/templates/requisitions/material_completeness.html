@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container mt-4">
     <h2>機型物料完整性查詢</h2>
-    <form method="GET" action="{% url 'material_completeness' %}" class="form-inline mb-4">
+    <form method="get" action="{% url 'requisitions:material_completeness' %}" class="mb-4">
         <div class="form-group mr-2">
             <label for="order_number" class="mr-2">訂單號碼:</label>
             <input type="text" name="order_number" id="order_number" class="form-control" value="{{ order_number }}">

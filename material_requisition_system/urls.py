@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
 import os
-from requisitions.views import homepage # Import the homepage view
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -11,7 +10,7 @@ urlpatterns = [
     path('requisitions/', include('requisitions.urls')),
     path('inventory/', include('inventory.urls')),
     path('specifications/', include('specifications.urls')),
-    path('', homepage, name='homepage'), # Map root URL to homepage view
+    path('', include('core.urls')),
 ]
 
 if settings.DEBUG:

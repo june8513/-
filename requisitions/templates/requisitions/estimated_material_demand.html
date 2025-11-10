@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            fetch("{% url 'update_estimated_arrival_date' %}", {
+            fetch("{% url 'requisitions:update_estimated_arrival_date' %}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

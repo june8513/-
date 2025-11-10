@@ -8,6 +8,7 @@
         <div class="col">
             <h1 class="display-6">儀表板</h1>
             <p class="text-muted">歡迎回來, {{ user.username }}！請選擇您要執行的功能。</p>
+
         </div>
     </div>
 
@@ -18,7 +19,7 @@
                     <h5 class="card-title">成品撥料</h5>
                     <p class="card-text">管理撥料申請，包括建立、處理和查看歷史記錄。</p>
                     <div class="mt-auto">
-                        <a href="{% url 'finished_goods_dispatch' %}" class="btn btn-primary">前往</a>
+                        <a href="{% url 'requisitions:finished_goods_dispatch' %}" class="btn btn-primary">前往</a>
                     </div>
                 </div>
             </div>
@@ -40,7 +41,7 @@
                     <h5 class="card-title">預計物料需求</h5>
                     <p class="card-text">查看未撥料需求與庫存計算出的物料短缺。</p>
                     <div class="mt-auto">
-                        <a href="{% url 'estimated_material_demand' %}" class="btn btn-primary">查看</a>
+                        <a href="{% url 'requisitions:estimated_material_demand' %}" class="btn btn-primary">查看</a>
                     </div>
                 </div>
             </div>
@@ -51,7 +52,7 @@
                     <h5 class="card-title">機型物料完整性</h5>
                     <p class="card-text">查詢訂單的物料分配狀態。</p>
                     <div class="mt-auto">
-                        <a href="{% url 'material_completeness' %}" class="btn btn-primary">前往</a>
+                        <a href="{% url 'requisitions:material_completeness' %}" class="btn btn-primary">前往</a>
                     </div>
                 </div>
             </div>
@@ -76,4 +77,5 @@
     </div>
 
 </div>
+
 {% endblock %}

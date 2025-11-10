@@ -1,0 +1,149 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}智慧助理 - 撥料系統{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-6">智慧助理</h1>
+            <p class="text-muted">請在下方輸入您的自然語言查詢，例如：「今年我撥出的螺絲件數報表」或「今日預計入料的項目」。</p>
+
+            <div class="row mb-4">
+                <div class="col-md-10 offset-md-1">
+                    <div class="input-group">
+                        <input type="text" id="aiQueryInput" class="form-control form-control-lg" placeholder="輸入您的查詢..." aria-label="AI Query Input">
+                        <button class="btn btn-primary btn-lg" type="button" id="aiQueryButton">查詢</button>
+                    </div>
+                    <div id="aiQueryFeedback" class="mt-2 text-info"></div>
+                </div>
+            </div>
+
+            <div class="row mb-4" id="aiResultsArea" style="display:none;">
+                <div class="col-md-10 offset-md-1">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            查詢結果
+                            <button type="button" class="btn-close btn-close-white float-end" aria-label="Close" id="aiResultsCloseButton"></button>
+                        </div>
+                        <div class="card-body">
+                            <div id="aiResultsContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const aiQueryInput = document.getElementById('aiQueryInput');
+        const aiQueryButton = document.getElementById('aiQueryButton');
+        const aiQueryFeedback = document.getElementById('aiQueryFeedback');
+        const aiResultsArea = document.getElementById('aiResultsArea');
+        const aiResultsContent = document.getElementById('aiResultsContent');
+        const aiResultsCloseButton = document.getElementById('aiResultsCloseButton');
+
+        aiQueryButton.addEventListener('click', function() {
+            const query = aiQueryInput.value.trim();
+            if (!query) {
+                aiQueryFeedback.textContent = '請輸入您的查詢內容。';
+                aiQueryFeedback.className = 'mt-2 text-warning';
+                return;
+            }
+
+            aiQueryFeedback.textContent = '正在處理您的查詢...';
+            aiQueryFeedback.className = 'mt-2 text-info';
+            aiResultsArea.style.display = 'none';
+
+            fetch(`/requisitions/api/natural_action/?q=${encodeURIComponent(query)}`, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                const contentType = response.headers.get('Content-Type');
+                if (contentType && contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
+                    return response.blob().then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = 'report.xlsx';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        aiQueryFeedback.textContent = 'Excel 檔案已開始下載。';
+                        aiQueryFeedback.className = 'mt-2 text-success';
+                    });
+                } else {
+                    return response.json();
+                }
+            })
+            .then(data => {
+                if (data) {
+                    if (data.error) {
+                        aiQueryFeedback.textContent = `錯誤：${data.error}`;
+                        aiQueryFeedback.className = 'mt-2 text-danger';
+                    } else if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+                        aiQueryFeedback.textContent = data.response_to_user || '查詢完成。';
+                        aiQueryFeedback.className = 'mt-2 text-success';
+                        const displayNames = {
+                            'order_number': '訂單單號',
+                            'applicant__username': '申請人',
+                            'request_date': '需求日期',
+                            'status': '狀態',
+                            'created_at': '建立時間',
+                            'material__material_code': '物料編號',
+                            'user__username': '操作人員',
+                            'transaction_type': '交易類型',
+                            'quantity_change': '變動數量',
+                            'timestamp': '操作時間',
+                            'material_number': '物料編號',
+                            'item_name': '品名',
+                            'required_quantity': '需求數量',
+                            'estimated_arrival_date': '預計入料日'
+                        };
+                        let tableHtml = '<table class="table table-striped table-hover"><thead><tr>';
+                        Object.keys(data.results[0]).forEach(key => {
+                            tableHtml += `<th>${displayNames[key] || key}</th>`;
+                        });
+                        tableHtml += '</tr></thead><tbody>';
+                        data.results.forEach(item => {
+                            tableHtml += '<tr>';
+                            Object.values(item).forEach(value => {
+                                tableHtml += `<td>${value}</td>`;
+                            });
+                            tableHtml += '</tr>';
+                        });
+                        tableHtml += '</tbody></table>';
+                        aiResultsContent.innerHTML = tableHtml;
+                        aiResultsArea.style.display = 'block';
+                    } else if (data.intent === 'EXPORT') {
+                        // Handled by file download
+                    } else {
+                        aiQueryFeedback.textContent = data.response_to_user || '查詢完成，但沒有找到符合條件的資料。';
+                        aiQueryFeedback.className = 'mt-2 text-info';
+                        aiResultsContent.innerHTML = '<p class="text-center p-3">沒有找到資料。</p>';
+                        aiResultsArea.style.display = 'block';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                aiQueryFeedback.textContent = '查詢失敗，請檢查網路或稍後再試。';
+                aiQueryFeedback.className = 'mt-2 text-danger';
+            });
+        });
+
+        aiResultsCloseButton.addEventListener('click', function() {
+            aiResultsArea.style.display = 'none';
+        });
+    });
+</script>
+{% endblock %}

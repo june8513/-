@@ -128,7 +128,7 @@ $(document).ready(function() {
 
     function searchMaterial(materialCode) {
         $.ajax({
-            url: "{% url 'search_material_for_stocktake' %}",
+            url: "{% url 'inventory:search_material_for_stocktake' %}",
             data: {
                 'material_code': materialCode
             },
@@ -168,7 +168,7 @@ $(document).ready(function() {
         }
 
         $.ajax({
-            url: "{% url 'update_counted_quantity' %}",
+            url: "{% url 'inventory:update_counted_quantity' %}",
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({

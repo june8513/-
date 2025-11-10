@@ -29,6 +29,7 @@ class ProcessType(models.Model):
 class Requisition(models.Model):
     STATUS_CHOICES = [
         ('pending', '待處理'),
+        ('awaiting_dispatch', '待撥料人員處理'),
         ('materials_confirmed', '物料已確認'),
         ('completed', '已處理'),
     ]

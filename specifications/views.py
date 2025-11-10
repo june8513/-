@@ -111,7 +111,7 @@ def redirect_to_material_edit(request):
         if material_code:
             try:
                 material = Material.objects.get(material_code=material_code)
-                return redirect('material_spec_edit', material_id=material.id)
+                return redirect('specifications:material_spec_edit', material_id=material.id)
             except Material.DoesNotExist:
                 messages.error(request, f"物料號碼 '{material_code}' 不存在。")
         else:

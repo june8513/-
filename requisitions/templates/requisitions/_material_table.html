@@ -22,7 +22,7 @@
             {% for material in materials %}
                 <tr data-process-type="{{ material.process_type.id }}" class="{% if not material.is_active %}table-secondary{% endif %}">
                     <td data-label="物料">
-                        <a href="{% url 'material_spec_list' %}?q={{ material.material_number }}" class="text-decoration-none text-dark">
+                        <a href="{% url 'specifications:material_spec_list' %}?q={{ material.material_number }}" class="text-decoration-none text-dark">
                             {{ material.material_number }}
                         </a>
                         {% if not material.is_active %}

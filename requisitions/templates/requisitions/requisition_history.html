@@ -38,7 +38,7 @@
         <div class="row g-3">
             <div class="col-12">
                 <button type="submit" class="btn btn-outline-primary me-2">篩選</button>
-                <a href="{% url 'requisition_history' %}" class="btn btn-outline-secondary">清除篩選</a>
+                <a href="{% url 'requisitions:requisition_history' %}" class="btn btn-outline-secondary">清除篩選</a>
             </div>
         </div>
     </form>
@@ -68,9 +68,9 @@
                             <td>{{ req.machine_models_display }}</td>
                             <td><span class="badge bg-{% if req.status == 'pending' %}warning{% elif req.status == 'materials_confirmed' %}info{% elif req.status == 'completed' %}success{% else %}secondary{% endif %}">{{ req.get_status_display }}</span></td>
                             <td>
-                                <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary">撥料</a>
-                                <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success ms-1">簽收單</a>
-                                <a href="{% url 'generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning ms-1">欠料單</a>
+                                <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary">撥料</a>
+                                <a href="{% url 'requisitions:generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success ms-1">簽收單</a>
+                                <a href="{% url 'requisitions:generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning ms-1">欠料單</a>
                             </td>
                         </tr>
                     {% endfor %}
@@ -94,7 +94,7 @@
                             <p class="card-text">{{ req.process_type }}</p>
                         </div>
                         <div class="w-33 px-1">
-                            <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary w-100">撥料</a>
+                            <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-sm btn-primary w-100">撥料</a>
                         </div>
                     </div>
                     <!-- Row 2 -->
@@ -108,7 +108,7 @@
                             <p class="card-text">{{ req.request_date|date:"y/m/d" }}</p>
                         </div>
                         <div class="w-33 px-1">
-                            <a href="{% url 'generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success w-100">簽收單</a>
+                            <a href="{% url 'requisitions:generate_dispatch_note' req.pk %}" class="btn btn-sm btn-success w-100">簽收單</a>
                         </div>
                     </div>
                     <!-- Row 3 -->
@@ -118,7 +118,7 @@
                             <p class="card-text">{{ req.machine_models_display }}</p>
                         </div>
                         <div class="w-33 px-1">
-                            <a href="{% url 'generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning w-100">欠料單</a>
+                            <a href="{% url 'requisitions:generate_backorder_note' req.pk %}" class="btn btn-sm btn-warning w-100">欠料單</a>
                         </div>
                     </div>
                 </div>

@@ -1,82 +1,128 @@
-{% extends 'requisitions/base.html' %}
+{% extends "requisitions/base.html" %}
 
-{% block title %}成品撥料 - 撥料系統{% endblock %}
+{% block title %}成品撥料{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <div class="row mb-4">
-        <div class="col">
-            <h1 class="display-6">成品撥料</h1>
-            <p class="text-muted">歡迎回來, {{ user.username }}！從這裡開始您的工作。</p>
+    <h2 class="mb-4">成品撥料</h2>
+    <p>此頁面用於管理成品撥料相關功能。</p>
+
+    {% if user.is_authenticated %}
+        {% if is_admin or is_material_handler %}
+        <div class="d-flex justify-content-end mb-3">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadFunctionsModal">
+                上傳資料功能
+            </button>
         </div>
-    </div>
+        {% endif %}
+    {% endif %}
 
     <div class="row">
-        <!-- REQUISITION MANAGEMENT -->
-        {% if user.is_superuser or is_applicant or is_material_handler %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title"><i class="fas fa-file-alt me-2"></i>撥料申請管理</h5>
-                    <p class="card-text flex-grow-1">管理撥料申請，包括建立、處理和查看歷史記錄。</p>
-                    <div class="btn-group w-100" role="group">
+        <div class="col-md-4">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">待撥料申請</h5>
+                    <p class="card-text">查看所有待處理的撥料申請。</p>
+                    <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-primary">前往</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">建立申請單</h5>
+                    <p class="card-text">建立新的撥料申請單。</p>
+                    <a href="{% url 'requisitions:requisition_create' %}" class="btn btn-primary">前往</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">已撥料申請單</h5>
+                    <p class="card-text">查看所有已完成撥料的申請單。</p>
+                    <a href="{% url 'requisitions:requisition_history' %}" class="btn btn-primary">前往</a>
+                </div>
+            </div>
+        </div>
+        {% if user.is_authenticated %}
+            {% if is_admin or is_material_handler %}
+            <div class="col-md-4">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">工單主物料清單</h5>
+                        <p class="card-text">查看所有工單的物料清單。</p>
+                        <a href="{% url 'requisitions:work_order_material_list' %}" class="btn btn-primary">前往</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">欠料單彙總</h5>
+                        <p class="card-text">查看所有欠料的物料彙總。</p>
+                        <a href="{% url 'requisitions:shortage_materials_list' %}" class="btn btn-primary">前往</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Upload Functions Modal -->
+<div class="modal fade" id="uploadFunctionsModal" tabindex="-1" aria-labelledby="uploadFunctionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadFunctionsModalLabel">上傳資料功能</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    {% if user.is_authenticated %}
                         {% if is_admin or is_material_handler %}
-                            <a href="{% url 'requisition_list' %}" class="btn btn-primary"><i class="fas fa-list-ul me-1"></i> 待撥料申請</a>
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">匯入訂單模型</h5>
+                                    <p class="card-text">上傳 Excel 檔案以匯入訂單模型資料。</p>
+                                    <a href="{% url 'requisitions:upload_order_model_excel' %}" class="btn btn-primary">前往上傳頁面</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">匯入物料明細</h5>
+                                    <p class="card-text">上傳 Excel 檔案以匯入物料明細資料。</p>
+                                    <a href="{% url 'requisitions:upload_material_details_excel' %}" class="btn btn-primary">前往上傳頁面</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">匯入庫存資料</h5>
+                                    <p class="card-text">上傳 Excel 檔案以匯入庫存資料。</p>
+                                    <a href="{% url 'requisitions:upload_inventory_data' %}" class="btn btn-primary">前往上傳頁面</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">更新投料點資料庫</h5>
+                                    <p class="card-text">上傳 Excel 檔案以更新投料點資料庫。</p>
+                                    <a href="{% url 'requisitions:update_process_type_db' %}" class="btn btn-primary">前往上傳頁面</a>
+                                </div>
+                            </div>
+                        </div>
                         {% endif %}
-                        {% if is_admin or is_applicant %}
-                            <a href="{% url 'requisition_create' %}" class="btn btn-primary"><i class="fas fa-plus me-1"></i> 建立申請單</a>
-                        {% endif %}
-                        <a href="{% url 'requisition_history' %}" class="btn btn-primary"><i class="fas fa-history me-1"></i> 已撥料申請</a>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
-        </div>
-        {% endif %}
-
-        <!-- GENERAL ACTIONS -->
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title"><i class="fas fa-history me-2"></i>查詢與清單</h5>
-                    <p class="card-text flex-grow-1">檢視工單主物料清單。</p>
-                    <div class="btn-group w-100" role="group">
-                        <a href="{% url 'work_order_material_list' %}" class="btn btn-primary"><i class="fas fa-clipboard-list me-1"></i> 主物料清單</a>
-                        <a href="{% url 'shortage_materials_list' %}" class="btn btn-warning"><i class="fas fa-exclamation-triangle me-1"></i> 欠料單物料彙總</a>
-                        <a href="{% url 'archived_requisition_list' %}" class="btn btn-info"><i class="fas fa-archive me-1"></i> 已歸檔撥料單</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ADMIN ACTIONS -->
-        {% if user.is_superuser %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 shadow-sm border-danger">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title text-danger"><i class="fas fa-shield-alt me-2"></i>系統管理</h5>
-                    <p class="card-text flex-grow-1">管理系統設定與核心資料。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'upload_order_model_excel' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-file-excel me-1"></i> 上傳訂單與機型</a>
-                        <a href="{% url 'upload_material_details_excel' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-file-excel me-1"></i> 上傳物料明細</a>
-                        <a href="{% url 'upload_inventory_data' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-upload me-1"></i> 上傳庫存數量</a>
-
-                        <a href="{% url 'update_process_type_db' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-database me-1"></i> 更新投料點資料庫</a>
-                        <a href="{% url 'view_database' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-table me-1"></i> 訂單主物料清單檢視</a>
-                        <a href="{% url 'inventory_database' %}" class="btn btn-outline-danger me-2 mb-2"><i class="fas fa-boxes me-1"></i> 庫存資料庫檢視</a>
-                        <a href="{% url 'view_process_type_database' %}" class="btn btn-outline-danger"><i class="fas fa-file-excel me-1"></i> 投料點資料庫檢視</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- LOGOUT ACTION -->
-    <div class="row mt-3">
-        <div class="col text-center">
-            <a href="{% url 'logout' %}" class="btn btn-outline-danger"><i class="fas fa-sign-out-alt me-1"></i> 登出</a>
         </div>
     </div>
-
 </div>
 {% endblock %}

@@ -83,6 +83,7 @@ def get_material_demand_analysis():
     for material_key, data in final_aggregated_data.items():
         data['final_shortage'] = data['total_required_quantity'] - data['current_stock']
         data['is_shortage'] = data['final_shortage'] > 0
+        data['shortage_date'] = None # Initialize shortage_date
 
         # Calculate running stock and is_running_shortage
         running_stock = data['current_stock']
@@ -92,5 +93,9 @@ def get_material_demand_analysis():
             running_stock -= required_qty
             detail['running_stock'] = str(running_stock)
             detail['is_running_shortage'] = running_stock < 0
+
+            # Find the first shortage date
+            if data['shortage_date'] is None and detail['is_running_shortage']:
+                data['shortage_date'] = detail['demand_date']
 
     return final_aggregated_data

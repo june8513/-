@@ -7,8 +7,8 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1>簽收單</h1>
         <div>
-            <a href="{% url 'generate_dispatch_note_excel' requisition.pk %}" class="btn btn-success">下載 Excel</a>
-            <a href="{% url 'requisition_history' %}" class="btn btn-secondary">返回歷史記錄</a>
+            <a href="{% url 'requisitions:generate_dispatch_note_excel' requisition.pk %}" class="btn btn-success">下載 Excel</a>
+            <a href="{% url 'requisitions:requisition_history' %}" class="btn btn-secondary">返回歷史記錄</a>
         </div>
     </div>
     
@@ -31,7 +31,7 @@
             <h5 class="mb-0">上傳簽收單圖片</h5>
         </div>
         <div class="card-body">
-            <form action="{% url 'upload_dispatch_note_image' requisition.pk %}" method="post" enctype="multipart/form-data">
+            <form action="{% url 'requisitions:upload_dispatch_note_image' requisition.pk %}" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="input-group">
                     <input type="file" name="image" class="form-control" accept="image/*" required>
@@ -85,7 +85,7 @@
             <tbody>
                 {% for material in materials %}
                 <tr id="material-row-{{ material.id }}">
-                    <td><a href="{% url 'material_spec_list' %}?q={{ material.material_number }}">{{ material.material_number }}</a></td>
+                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ material.material_number }}">{{ material.material_number }}</a></td>
                     <td>{{ material.item_name }}</td>
                     <td>{{ material.required_quantity|floatformat:"-2g" }}</td>
                     <td>{{ material.confirmed_quantity|default_if_none:''|floatformat:"-2g" }}</td>
@@ -111,7 +111,7 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-7">
-                        <h5 class="card-title"><a href="{% url 'material_spec_list' %}?q={{ material.material_number }}">{{ material.material_number }}</a></h5>
+                        <h5 class="card-title"><a href="{% url 'specifications:material_spec_list' %}?q={{ material.material_number }}">{{ material.material_number }}</a></h5>
                     </div>
                     <div class="col-5 text-end">
                         {% if material.is_signed_off %}

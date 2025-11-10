@@ -1,11 +1,16 @@
 from django.urls import path
 from . import views
+from .views import api_views, assistant_views # Import assistant_views
+
+app_name = 'requisitions'
 
 urlpatterns = [
-    path('', views.homepage, name='homepage'), # New homepage
+    path('assistant/', assistant_views.assistant_view, name='assistant'),
+    path('api/natural_action/', api_views.natural_action_view, name='natural_action'),
     path('finished_goods_dispatch/', views.finished_goods_dispatch, name='finished_goods_dispatch'),
     path('<int:pk>/images/', views.view_requisition_images, name='view_requisition_images'),
     path('<int:pk>/upload_page/', views.upload_requisition_images_page, name='upload_requisition_images_page'),
+    path('dispatch_preparation_list/', views.dispatch_preparation_list, name='dispatch_preparation_list'),
     path('list/', views.requisition_list, name='requisition_list'),
     path('archived_list/', views.archived_requisition_list, name='archived_requisition_list'), # Renamed from ''
     path('list/export/excel/', views.export_requisitions_excel, name='export_requisitions_excel'),

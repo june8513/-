@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
 
+app_name = 'inventory'
+
 # URL patterns for the redesigned inventory management system
 urlpatterns = [
     # Main dashboard

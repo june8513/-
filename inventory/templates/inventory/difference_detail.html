@@ -8,8 +8,8 @@
     <div class="card">
         <div class="card-header">
             <h1 class="card-title">盤點差異報告 - {{ location_name }}</h1>
-            <a href="{% url 'difference_location_list' %}" class="btn btn-secondary btn-sm">返回地點選擇</a>
-            <a href="{% url 'export_differences_excel' location_name %}" class="btn btn-success btn-sm">匯出 Excel</a>
+            <a href="{% url 'inventory:difference_location_list' %}" class="btn btn-secondary btn-sm">返回地點選擇</a>
+            <a href="{% url 'inventory:export_differences_excel' location_name %}" class="btn btn-success btn-sm">匯出 Excel</a>
         </div>
         <div class="card-body">
 

@@ -8,7 +8,7 @@
     <div class="card">
         <div class="card-header">
             <h1 class="card-title">盤點作業 - {{ location_name }}</h1>
-            <a href="{% url 'stocktake_location_list' %}" class="btn btn-secondary btn-sm">返回地點選擇</a>
+            <a href="{% url 'inventory:stocktake_location_list' %}" class="btn btn-secondary btn-sm">返回地點選擇</a>
         </div>
         <div class="card-body">
 
@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (desktopRow) desktopRow.style.backgroundColor = '#fff3cd';
             if (mobileRow) mobileRow.style.backgroundColor = '#fff3cd';
 
-            fetch(`{% url 'update_counted_quantity' %}`,
+            fetch(`{% url 'inventory:update_counted_quantity' %}`,
             {
                 method: 'POST',
                 headers: {

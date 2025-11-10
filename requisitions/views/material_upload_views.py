@@ -167,7 +167,7 @@ def upload_materials(request, pk):
 def upload_order_model_excel(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     if request.method == 'POST':
         form = OrderModelUploadForm(request.POST, request.FILES)
@@ -183,7 +183,7 @@ def upload_order_model_excel(request):
             try:
                 created_count, updated_count = process_order_model_excel(temp_file_path)
                 messages.success(request, f"訂單與機型資料同步成功！新增 {created_count} 筆，更新 {updated_count} 筆。")
-                return redirect('homepage')
+                return redirect('core:homepage')
 
             except Exception as e:
                 messages.error(request, f"上傳檔案時發生錯誤: {e}")
@@ -193,17 +193,15 @@ def upload_order_model_excel(request):
                 # Clean up the temporary file
                 os.unlink(temp_file_path)
 
-    else:
-        form = OrderModelUploadForm()
-    
-    return render(request, 'requisitions/upload_order_model_excel.html', {'form': form})
-
+    # For GET request, render the upload form page
+    form = OrderModelUploadForm()
+    return render(request, 'requisitions/upload_order_model.html', {'form': form})
 
 @login_required
 def upload_material_details_excel(request):
       if not request.user.is_superuser:
           messages.error(request, "您沒有權限執行此操作。")
-          return redirect('homepage')
+          return redirect('core:homepage')
 
       if request.method == 'POST':
           form = MaterialDetailsUploadForm(request.POST, request.FILES)
@@ -236,7 +234,7 @@ def upload_material_details_excel(request):
 
                   except Exception as e:
                       messages.error(request, f"讀取投料點資料庫 (output.xlsx) 時發生錯誤:{e}")
-                      return redirect('upload_material_details_excel')
+                      return redirect('requisitions:upload_material_details_excel') # Redirect to the specific view
 
                   # Step 2: Read the uploaded Excel file
                   df_upload = pd.read_excel(excel_file, dtype=str, engine='openpyxl')
@@ -360,25 +358,24 @@ def upload_material_details_excel(request):
                               created_count += 1
 
                   messages.success(request, f"物料明細同步成功！新增 {created_count} 筆，更新 {updated_count} 筆物料。")
-                  return redirect('homepage')
+                  return redirect('core:homepage')
 
               except Exception as e:
                   messages.error(request, f"上傳檔案時發生錯誤: {e}")
                   import traceback
                   print(traceback.format_exc())
 
-      else:
-          form = MaterialDetailsUploadForm()
-
+      # For GET request, render the upload form page
+      form = MaterialDetailsUploadForm()
       context = {'form': form}
-      return render(request, 'requisitions/upload_material_details_excel.html', context)
+      return render(request, 'requisitions/upload_material_details.html', context)
 
 
 @login_required
 def upload_inventory_data(request): # This will now be for stock quantity only
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     if request.method == 'POST':
         form = UploadInventoryFileForm(request.POST, request.FILES)
@@ -425,23 +422,23 @@ def upload_inventory_data(request): # This will now be for stock quantity only
                             updated_count += 1
                 
                 messages.success(request, f"庫存資料上傳成功！新增 {created_count} 筆，更新 {updated_count} 筆。")
-                return redirect('homepage')
+                return redirect('core:homepage')
 
             except Exception as e:
                 messages.error(request, f"上傳檔案時發生錯誤: {e}")
                 import traceback
                 print(traceback.format_exc())
-    else:
-        form = UploadInventoryFileForm()
-    
+        else: # Add this else block for invalid form
+            messages.error(request, "上傳失敗：請檢查檔案格式或欄位是否正確。")
+    # For GET request, render the upload form page
+    form = UploadInventoryFileForm()
     return render(request, 'requisitions/upload_inventory_data.html', {'form': form})
-
 
 @login_required
 def update_process_type_db(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     if request.method == 'POST':
         form = UpdateProcessTypeDBForm(request.POST, request.FILES)
@@ -458,10 +455,11 @@ def update_process_type_db(request):
                         destination.write(chunk)
                 
                 messages.success(request, "投料點資料庫 (output.xlsx) 已成功更新！")
-                return redirect('homepage')
+                return redirect('core:homepage')
             except Exception as e:
                 messages.error(request, f"更新資料庫時發生錯誤: {e}")
-    else:
-        form = UpdateProcessTypeDBForm()
-    
+        else: # Add this else block for invalid form
+            messages.error(request, "上傳失敗：請檢查檔案格式是否正確。")
+    # For GET request, render the upload form page
+    form = UpdateProcessTypeDBForm()
     return render(request, 'requisitions/update_process_type_db.html', {'form': form})

@@ -22,7 +22,7 @@
 
         <div class="col-md-auto">
             <button type="submit" class="btn btn-outline-primary me-2">篩選</button>
-            <a href="{% url 'requisition_list' %}" class="btn btn-outline-secondary">清除篩選</a>
+            <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-outline-secondary">清除篩選</a>
         </div>
         
     </form>
@@ -79,12 +79,12 @@
 
                             {# Row 5 #}
                             <td data-label="操作">
-                                <a href="{% url 'work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-primary btn-sm">撥料</a>
+                                <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-primary btn-sm">撥料</a>
                                 {% if req.dispatch_performed %}
                                 <div class="mt-2">
                                     <strong>物料清點:</strong><br>
-                                    <a href="{% url 'generate_dispatch_note' pk=req.pk %}" class="btn btn-success btn-sm mt-1">撥料單</a>
-                                    <a href="{% url 'generate_backorder_note' pk=req.pk %}" class="btn btn-warning btn-sm mt-1">欠料單</a>
+                                    <a href="{% url 'requisitions:generate_dispatch_note' pk=req.pk %}" class="btn btn-success btn-sm mt-1">撥料單</a>
+                                    <a href="{% url 'requisitions:generate_backorder_note' pk=req.pk %}" class="btn btn-warning btn-sm mt-1">欠料單</a>
                                 </div>
                                 {% endif %}
                             </td>
