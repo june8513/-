@@ -55,15 +55,15 @@
                         </th>
                         <th>機型</th>
                         <th>備註</th>
+                        <th>狀態</th> {# Make status column visible #}
                         <th>操作</th>
-                        <th style="display: none;">狀態</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for req in requisitions %}
                         <tr>
                             {# Row 1 #}
-                            <td data-label="訂單單號"><a href="#" class="requisition-link" data-bs-toggle="modal" data-bs-target="#requisitionModal" data-requisition-pk="{{ req.pk }}">{{ req.order_number }}</a></td>
+                            <td data-label="訂單單號"><a href="{% url 'requisitions:requisition_detail' pk=req.pk %}" class="requisition-link">{{ req.order_number }}</a></td> {# Link to detail page #}
                             <td data-label="需求流程">{{ req.process_type }}</td>
                             <td data-label="申請人">{{ req.applicant.username }}</td>
                             
@@ -77,20 +77,20 @@
                             {# Row 4 #}
                             <td data-label="備註">{{ req.remarks|default:"" }}</td>
 
-                            {# Row 5 #}
-                            <td data-label="操作">
-                                <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-primary btn-sm">撥料</a>
-                                {% if req.dispatch_performed %}
-                                <div class="mt-2">
-                                    <strong>物料清點:</strong><br>
-                                    <a href="{% url 'requisitions:generate_dispatch_note' pk=req.pk %}" class="btn btn-success btn-sm mt-1">撥料單</a>
-                                    <a href="{% url 'requisitions:generate_backorder_note' pk=req.pk %}" class="btn btn-warning btn-sm mt-1">欠料單</a>
-                                </div>
-                                {% endif %}
+                            {# Status Column #}
+                            <td data-label="狀態">
+                                <span class="badge bg-{% if req.status == 'demand_submitted' %}secondary{% elif req.status == 'dispatch_in_progress' %}info{% elif req.status == 'dispatch_completed' %}success{% elif req.status == 'signed_off' %}primary{% elif req.status == 'archived' %}dark{% else %}warning{% endif %}">
+                                    {{ req.get_status_display }}
+                                </span>
                             </td>
 
-                            {# Hidden Field #}
-                            <td data-label="狀態" style="display: none;"><span class="badge bg-{% if req.status == 'pending' %}warning{% elif req.status == 'materials_confirmed' %}info{% elif req.status == 'completed' %}success{% else %}secondary{% endif %}">{{ req.get_status_display }}</span></td>
+                            {# Operation Column #}
+                            <td data-label="操作">
+                                {% if is_admin or is_material_handler %}
+                                    <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-primary btn-sm">撥料</a>
+                                {% endif %}
+                                <a href="{% url 'requisitions:requisition_detail' pk=req.pk %}" class="btn btn-info btn-sm mt-1">查看詳情</a>
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>

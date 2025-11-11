@@ -11,7 +11,7 @@
     <p class="lead"><strong>所有欠料物料的最終預計入料日期:</strong> 尚無預計入料日期</p>
     {% endif %}
 
-    <form method="post" action="{% url 'update_shortage_arrival_dates' %}">
+    <form method="post" action="{% url 'requisitions:update_shortage_arrival_dates' %}">
         {% csrf_token %}
 
         {# Desktop View #}

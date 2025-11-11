@@ -9,7 +9,8 @@ from django.http import JsonResponse
 import json
 from decimal import Decimal
 import datetime
-from django.db.models import Q, F
+from django.db.models import Q, F, Sum, Max, Value, DecimalField, OuterRef, Subquery, ExpressionWrapper
+from django.db.models.functions import Coalesce
 from ..analysis import get_material_demand_analysis
 
 @login_required
@@ -162,24 +163,26 @@ def shortage_materials_list(request):
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-    # Get order_number and process_type pairs from dispatched requisitions
-    dispatched_requisition_pairs = Requisition.objects.filter(
-        dispatch_performed=True
+    # Get order_number and process_type pairs from all active (non-archived) requisitions
+    active_requisition_pairs = Requisition.objects.filter(
+        is_archived=False
     ).values_list('order_number', 'process_type')
 
     # Build a Q object to filter WorkOrderMaterial based on these pairs
     q_objects = Q()
-    if not dispatched_requisition_pairs:
+    if not active_requisition_pairs:
         shortage_materials_qs = WorkOrderMaterial.objects.none()
     else:
-        for order_num, proc_type in dispatched_requisition_pairs:
-            q_objects |= Q(order_number=order_num, process_type__name=proc_type)
+        for order_num, proc_type in active_requisition_pairs:
+            # Ensure proc_type is not null or empty before adding to the query
+            if order_num and proc_type:
+                q_objects |= Q(order_number=order_num, process_type__name=proc_type)
 
-        # Filter for active, backordered materials associated with dispatched requisitions
+        # Filter for active, backordered materials associated with active requisitions
         shortage_materials_qs = WorkOrderMaterial.objects.filter(
             q_objects,
             is_active=True,
-            required_quantity__gt=F('confirmed_quantity')
+            required_quantity__gt=Coalesce('confirmed_quantity', Decimal('0.00'))
         ).exclude(material_number='PARENT_SCOPE').order_by('material_number', 'pk')
 
     # Aggregate in Python
@@ -187,12 +190,17 @@ def shortage_materials_list(request):
     for material in shortage_materials_qs:
         key = material.material_number
         if key not in aggregated_shortages:
+            # Subquery to get the latest estimated_arrival_date for this material number
+            latest_date = WorkOrderMaterial.objects.filter(
+                material_number=key
+            ).aggregate(latest_date=Max('estimated_arrival_date'))['latest_date']
+
             aggregated_shortages[key] = {
                 'material_number': material.material_number,
                 'item_name': material.item_name,
                 'total_shortage': Decimal('0.00'),
                 'orders': set(),
-                'estimated_arrival_date': material.estimated_arrival_date
+                'estimated_arrival_date': latest_date
             }
         shortage = material.required_quantity - (material.confirmed_quantity or 0)
         if shortage > 0:
@@ -204,22 +212,11 @@ def shortage_materials_list(request):
     for summary in summarized_shortages:
         summary['orders_str'] = ", ".join(sorted(list(summary['orders'])))
 
-    # Get global material analysis data for estimated arrival dates
-    all_materials_analysis = get_material_demand_analysis()
-
-    # Update estimated_arrival_date for each summarized shortage material
-    for summary in summarized_shortages:
-        material_analysis = all_materials_analysis.get(summary['material_number'])
-        if material_analysis and material_analysis['estimated_arrival_date']:
-            summary['estimated_arrival_date'] = material_analysis['estimated_arrival_date']
-
-    # Get the global final arrival date from all shortage materials (from analysis)
+    # Get the global final arrival date from all shortage materials
     global_final_arrival_date = None
-    all_shortage_arrival_dates = []
-    for mat_data in all_materials_analysis.values():
-        if mat_data['is_shortage'] and mat_data['estimated_arrival_date']:
-            all_shortage_arrival_dates.append(mat_data['estimated_arrival_date'])
-    
+    all_shortage_arrival_dates = [
+        s['estimated_arrival_date'] for s in summarized_shortages if s['estimated_arrival_date']
+    ]
     if all_shortage_arrival_dates:
         global_final_arrival_date = max(all_shortage_arrival_dates)
 

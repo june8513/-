@@ -1,26 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
-from .models import Requisition, MaterialListVersion, RequisitionItem
+from .models import Requisition, RequisitionItem
 
 class RequisitionItemInline(admin.TabularInline):
     model = RequisitionItem
-    fields = ('material_name', 'quantity', 'material_number', 'confirmed_quantity', 'is_signed_off')
+    fields = ('item_name', 'required_quantity', 'material_number', 'confirmed_quantity', 'is_signed_off', 'dispatch_status')
     readonly_fields = ('is_signed_off',) # confirmed_quantity is editable via material_confirmation view
     extra = 0
-
-@admin.register(MaterialListVersion)
-class MaterialListVersionAdmin(admin.ModelAdmin):
-    list_display = ('requisition', 'uploaded_at', 'uploaded_by', 'is_active_version')
-    list_filter = ('uploaded_at', 'uploaded_by')
-    search_fields = ('requisition__order_number', 'uploaded_by__username')
-    inlines = [RequisitionItemInline]
-    raw_id_fields = ('requisition', 'uploaded_by')
-
-    def is_active_version(self, obj):
-        return obj == obj.requisition.current_material_list_version
-    is_active_version.boolean = True
-    is_active_version.short_description = '當前版本'
 
 @admin.register(Requisition)
 class RequisitionAdmin(admin.ModelAdmin):
@@ -28,6 +15,7 @@ class RequisitionAdmin(admin.ModelAdmin):
     list_filter = ('status', 'request_date', 'process_type', 'created_at')
     search_fields = ('order_number', 'applicant__username', 'remarks')
     raw_id_fields = ('applicant',)
+    inlines = [RequisitionItemInline]
 
     fieldsets = (
         (None, {

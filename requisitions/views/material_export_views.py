@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageUploadForm, WorkOrderMaterialImageUploadForm
-from ..models import Requisition, RequisitionItem, MaterialListVersion, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -29,36 +29,21 @@ from .requisition_management_views import _filter_requisitions
 
 @login_required
 def export_archived_requisitions_excel(request):
-    requisitions = Requisition.objects.filter(is_archived=True)
-    
-    # Prepare data for Requisitions sheet
-    requisition_data = {
-        "訂單": [r.order_number for r in requisitions],
-        "需求流程": [r.get_process_type_display() for r in requisitions],
-        "申請人": [r.applicant.username for r in requisitions],
-        "需求日期": [r.request_date.strftime('%Y-%m-%d') if r.request_date else '' for r in requisitions],
-        "狀態": [r.get_status_display() for r in requisitions],
-        "建立時間": [r.created_at.strftime('%Y-%m-%d %H:%M') for r in requisitions],
-        "是否已歸檔": ["是" if r.is_archived else "否" for r in requisitions],
-    }
-    df_requisitions = pd.DataFrame(requisition_data)
-
     # Prepare data for Requisition Items sheet
     all_requisition_items = []
     for req in requisitions:
-        if req.current_material_list_version:
-            items = req.current_material_list_version.items.all().select_related('source_material')
-            for item in items:
-                all_requisition_items.append({
-                    "訂單單號": req.order_number,
-                    "需求流程": req.get_process_type_display(),
-                    "物料": item.material_number,
-                    "品名": item.item_name,
-                    "需求數量": item.required_quantity,
-                    "庫存數量": item.stock_quantity,
-                    "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
-                    "最終簽收已確認": "是" if item.is_signed_off else "否",
-                })
+        items = req.items.all().select_related('source_material') # Directly access items
+        for item in items:
+            all_requisition_items.append({
+                "訂單單號": req.order_number,
+                "需求流程": req.process_type, # Use process_type directly
+                "物料": item.material_number,
+                "品名": item.item_name,
+                "需求數量": item.required_quantity,
+                "庫存數量": item.stock_quantity,
+                "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
+                "最終簽收已確認": "是" if item.is_signed_off else "否",
+            })
     df_items = pd.DataFrame(all_requisition_items)
 
     output = io.BytesIO()
@@ -99,19 +84,18 @@ def export_requisitions_excel(request):
     # Prepare data for Requisition Items sheet
     all_requisition_items = []
     for req in requisitions:
-        if req.current_material_list_version:
-            items = req.current_material_list_version.items.all().select_related('source_material')
-            for item in items:
-                all_requisition_items.append({
-                    "訂單單號": req.order_number,
-                    "需求流程": req.get_process_type_display(),
-                    "物料": item.material_number,
-                    "品名": item.item_name,
-                    "需求數量": item.required_quantity,
-                    "庫存數量": item.stock_quantity,
-                    "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
-                    "最終簽收已確認": "是" if item.is_signed_off else "否",
-                })
+        items = req.items.all().select_related('source_material') # Directly access items
+        for item in items:
+            all_requisition_items.append({
+                "訂單單號": req.order_number,
+                "需求流程": req.process_type, # Use process_type directly
+                "物料": item.material_number,
+                "品名": item.item_name,
+                "需求數量": item.required_quantity,
+                "庫存數量": item.stock_quantity,
+                "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
+                "最終簽收已確認": "是" if item.is_signed_off else "否",
+            })
     df_items = pd.DataFrame(all_requisition_items)
 
     output = io.BytesIO()
@@ -207,7 +191,7 @@ def generate_dispatch_note(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('requisitions:homepage')
+        return redirect('core:homepage')
 
     dispatcher_subquery = WorkOrderMaterialTransaction.objects.filter(
         work_order_material=OuterRef('pk'),
@@ -271,7 +255,7 @@ def export_backorder_note_excel(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('requisitions:homepage')
+        return redirect('core:homepage')
 
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(
@@ -323,11 +307,12 @@ def export_backorder_note_excel(request, pk):
 def export_material_confirmation_excel(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     
-    if not requisition.current_material_list_version:
-        messages.error(request, "此申請單沒有當前物料清單，無法匯出。")
+    # No need to check for current_material_list_version as items are directly linked
+    items = RequisitionItem.objects.filter(requisition=requisition) # Directly filter by requisition
+    
+    if not items.exists(): # Check if there are any items
+        messages.error(request, "此申請單沒有物料明細，無法匯出。")
         return redirect('material_confirmation', pk=pk)
-
-    items = RequisitionItem.objects.filter(material_list_version=requisition.current_material_list_version)
 
     data = {
         "工單單號": [item.order_number for item in items],
@@ -358,22 +343,21 @@ def export_all_pending_materials_excel(request):
 
     all_pending_requisition_items = []
     for req in pending_requisitions:
-        if req.current_material_list_version:
-            items = req.current_material_list_version.items.all().select_related('source_material')
-            for item in items:
-                all_pending_requisition_items.append({
-                    "訂單單號": req.order_number,
-                    "需求流程": req.get_process_type_display(),
-                    "物料": item.material_number,
-                    "品名": item.item_name,
-                    "需求數量": item.required_quantity,
-                    "庫存數量": item.stock_quantity,
-                    "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
-                    "最終簽收已確認": "是" if item.is_signed_off else "否",
-                    "申請單狀態": req.get_status_display(),
-                    "申請人": req.applicant.username,
-                    "申請日期": req.request_date.strftime('%Y-%m-%d') if req.request_date else '',
-                })
+        items = req.items.all().select_related('source_material') # Directly access items
+        for item in items:
+            all_pending_requisition_items.append({
+                "訂單單號": req.order_number,
+                "需求流程": req.process_type, # Use process_type directly
+                "物料": item.material_number,
+                "品名": item.item_name,
+                "需求數量": item.required_quantity,
+                "庫存數量": item.stock_quantity,
+                "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
+                "最終簽收已確認": "是" if item.is_signed_off else "否",
+                "申請單狀態": req.get_status_display(),
+                "申請人": req.applicant.username,
+                "申請日期": req.request_date.strftime('%Y-%m-%d') if req.request_date else '',
+            })
     
     df_pending_items = pd.DataFrame(all_pending_requisition_items)
 

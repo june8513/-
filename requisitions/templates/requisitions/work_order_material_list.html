@@ -75,15 +75,19 @@
             </div>
         </div>
         
-        <form method="post" action="{% url 'requisitions:update_work_order_quantities' %}">
-            {% csrf_token %}
-            <input type="hidden" name="order_number" value="{{ selected_order }}">
-            <input type="hidden" name="process_type_filter" value="{{ selected_process_type|default_if_none:'' }}">
-            {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True %}
-            <div class="d-flex justify-content-end mt-3">
-                <button type="submit" class="btn btn-primary">確認本頁所有變更</button>
-            </div>
-        </form>
+        {% if is_admin or is_material_handler %}
+            <form method="post" action="{% url 'requisitions:update_work_order_quantities' %}">
+                {% csrf_token %}
+                <input type="hidden" name="order_number" value="{{ selected_order }}">
+                <input type="hidden" name="process_type_filter" value="{{ selected_process_type|default_if_none:'' }}">
+                {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True is_admin=is_admin is_material_handler=is_material_handler %}
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-primary">確認本頁所有變更</button>
+                </div>
+            </form>
+        {% else %}
+            {% include 'requisitions/_material_table.html' with materials=materials show_change_input=False is_admin=is_admin is_material_handler=is_material_handler %}
+        {% endif %}
     {% else %}
         <div class="alert alert-info">
             請先輸入訂單單號以查詢其物料清單。

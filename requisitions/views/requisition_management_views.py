@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet
-from ..models import Requisition, RequisitionItem, MaterialListVersion, WorkOrderMaterial, Inventory, MachineModel, ProcessType
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType
 from inventory.models import Material
 from django.db import transaction
 from django.conf import settings
@@ -63,13 +63,11 @@ def _filter_requisitions(request, sort_by='created_at', order='desc', material_s
     if material_status_filter:
         if material_status_filter == 'has_materials':
             all_requisitions = all_requisitions.filter(
-                current_material_list_version__isnull=False,
-                current_material_list_version__items__isnull=False
+                items__isnull=False # Check if there are any RequisitionItems directly linked
             ).distinct()
         elif material_status_filter == 'no_materials':
             all_requisitions = all_requisitions.filter(
-                Q(current_material_list_version__isnull=True) |
-                Q(current_material_list_version__items__isnull=True)
+                items__isnull=True # Check if there are no RequisitionItems directly linked
             ).distinct()
 
     unique_requisitions = []
@@ -116,7 +114,7 @@ def requisition_list(request):
                                                 order=order, 
                                                 material_status_filter=material_status_selected,
                                                 order_number_search=order_number_search,
-                                                status_filter_list=['pending', 'awaiting_dispatch'])
+                                                status_filter_list=['demand_submitted', 'dispatch_in_progress'])
 
     paginator = Paginator(unique_requisitions, 10)
     page = request.GET.get('page')
@@ -151,6 +149,60 @@ def requisition_list(request):
         'show_results': show_results,
     }
     return render(request, 'requisitions/requisition_list.html', context)
+
+@login_required
+def requisition_detail(request, pk):
+    requisition = get_object_or_404(Requisition, pk=pk)
+
+    # Permissions check: Only applicant, material handler, or admin can view
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+
+    # --- DEBUG LOGS ---
+    print(f"DEBUG: requisition_detail view for Requisition PK: {pk}")
+    print(f"DEBUG: Current User: {request.user.username} (ID: {request.user.id})")
+    print(f"DEBUG: Is Admin: {is_admin}")
+    print(f"DEBUG: Is Applicant (for this requisition): {is_applicant}")
+    print(f"DEBUG: Is Material Handler: {is_material_handler}")
+    print(f"DEBUG: Requisition Applicant: {requisition.applicant.username} (ID: {requisition.applicant.id})")
+    # --- END DEBUG LOGS ---
+
+    if not (is_admin or is_applicant or is_material_handler):
+        messages.error(request, "您沒有權限查看此撥料申請單詳情。")
+        return redirect('requisitions:requisition_list')
+
+    # Fetch all RequisitionItems for this requisition
+    all_items = RequisitionItem.objects.filter(requisition=requisition).order_by('material_number')
+
+    # Categorize items
+    dispatched_items = all_items.filter(dispatch_status='dispatched', is_signed_off=False)
+    backordered_items = all_items.filter(dispatch_status='backordered', is_signed_off=False)
+    signed_off_items = all_items.filter(is_signed_off=True)
+
+    # --- DEBUG LOGS for Requisition Items ---
+    print(f"DEBUG: Requisition {pk} - Total RequisitionItems: {all_items.count()}")
+    print(f"DEBUG: Requisition {pk} - Dispatched Items (not signed off): {dispatched_items.count()}")
+    for item in dispatched_items:
+        print(f"  - Dispatched Item PK: {item.pk}, Material: {item.material_number}, Confirmed Qty: {item.confirmed_quantity}, Required Qty: {item.required_quantity}, Dispatch Status: {item.dispatch_status}, Signed Off: {item.is_signed_off}")
+    print(f"DEBUG: Requisition {pk} - Backordered Items (not signed off): {backordered_items.count()}")
+    for item in backordered_items:
+        print(f"  - Backordered Item PK: {item.pk}, Material: {item.material_number}, Confirmed Qty: {item.confirmed_quantity}, Required Qty: {item.required_quantity}, Dispatch Status: {item.dispatch_status}, Signed Off: {item.is_signed_off}")
+    print(f"DEBUG: Requisition {pk} - Signed Off Items: {signed_off_items.count()}")
+    for item in signed_off_items:
+        print(f"  - Signed Off Item PK: {item.pk}, Material: {item.material_number}, Confirmed Qty: {item.confirmed_quantity}, Required Qty: {item.required_quantity}, Dispatch Status: {item.dispatch_status}, Signed Off: {item.is_signed_off}")
+    # --- END DEBUG LOGS ---
+
+    context = {
+        'requisition': requisition,
+        'dispatched_items': dispatched_items,
+        'backordered_items': backordered_items,
+        'signed_off_items': signed_off_items,
+        'is_admin': is_admin,
+        'is_applicant': is_applicant,
+        'is_material_handler': is_material_handler,
+    }
+    return render(request, 'requisitions/requisition_detail.html', context)
 
 @login_required
 def archived_requisition_list(request):
@@ -283,7 +335,7 @@ def requisition_create(request):
                 requisition.applicant = request.user
                 requisition.order_number = order_number
                 requisition.process_type = selected_process_type_obj.name # Assign the name to the CharField
-                requisition.status = 'awaiting_dispatch' # Set the new status
+                requisition.status = 'demand_submitted' # Set the new status
                 requisition.save()
                 messages.success(request, "撥料申請單建立成功，等待撥料人員處理！")
                 return redirect('requisitions:requisition_list')
@@ -352,17 +404,13 @@ def requisition_history(request):
         history_requisitions_qs = history_requisitions_qs.filter(status=status_filter)
     
     if material_or_item_search:
-        latest_material_version_subquery = Subquery(
-            MaterialListVersion.objects.filter(
-                requisition=OuterRef('pk')
-            ).order_by('-uploaded_at').values('pk')[:1]
-        )
         matching_items_subquery = RequisitionItem.objects.filter(
             Q(material_number__icontains=material_or_item_search) |
             Q(item_name__icontains=material_or_item_search),
-            material_list_version__pk=latest_material_version_subquery)
+            requisition=OuterRef('pk') # Directly link to Requisition
+        )
         history_requisitions_qs = history_requisitions_qs.filter(
-            Exists(matching_items_subquery.filter(material_list_version__requisition=OuterRef('pk')))
+            Exists(matching_items_subquery)
         ).distinct()
 
     paginator = Paginator(history_requisitions_qs, 10)
@@ -384,185 +432,78 @@ def requisition_history(request):
         'process_type_choices': process_type_choices, # Add process type choices to context
     })
 
-@login_required
-def material_confirmation(request, pk):
-    requisition = get_object_or_404(Requisition, pk=pk)
 
-    is_admin = request.user.is_superuser
-    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
-
-    if not is_material_handler and not is_admin:
-        messages.error(request, "您沒有權限執行物料確認操作。")
-        return redirect('requisition_list')
-
-    if requisition.status not in ['pending', 'awaiting_dispatch']: # Allow both pending and awaiting_dispatch
-        messages.warning(request, f"此申請單狀態為 '{requisition.get_status_display()}'，無法進行物料確認。")
-        return redirect('requisitions:requisition_list') # Redirect to requisition_list (which now shows pending)
-
-    # Sorting logic
-    sort_by = request.GET.get('sort_by', 'material_number')
-    order = request.GET.get('order', 'asc')
-    sort_mapping = {
-        'material_number': 'material_number',
-        'item_name': 'item_name',
-        'required_quantity': 'required_quantity',
-    }
-    model_sort_by = sort_mapping.get(sort_by, 'material_number')
-    order_field = f'{'-' if order == 'desc' else ''}{model_sort_by}'
-
-    queryset = RequisitionItem.objects.filter(
-        material_list_version=requisition.current_material_list_version
-    ).order_by(order_field)
-    print("Queryset count:", queryset.count()) # Debugging
-    formset = RequisitionItemMaterialConfirmationFormSet(queryset=queryset)
-    print("Formset is bound:", formset.is_bound) # Debugging
-    print("Formset total forms:", formset.total_form_count()) # Debugging
-    
-    # Fetch inventory data for each item and attach to form
-    for form in formset:
-        try:
-            inventory_item = Inventory.objects.get(material_number=form.instance.material_number)
-            form.inventory_item = inventory_item # Attach inventory item to the form object
-        except Inventory.DoesNotExist:
-            form.inventory_item = None # Set to None if not found
-
-    # Get unique machine models for this requisition
-    unique_machine_model_names = []
-    if requisition.current_material_list_version:
-        # Get machine models from the source_material of RequisitionItems
-        machine_model_ids = RequisitionItem.objects.filter(
-            material_list_version=requisition.current_material_list_version,
-            source_material__machine_model__isnull=False # Ensure there's a machine model
-        ).values_list('source_material__machine_model__id', flat=True).distinct()
-
-        unique_machine_models = MachineModel.objects.filter(id__in=machine_model_ids).order_by('name')
-        unique_machine_model_names = [str(mm.name) for mm in unique_machine_models] # Get names
-
-    if request.method == 'POST':
-        formset = RequisitionItemMaterialConfirmationFormSet(request.POST, queryset=queryset)
-        print("Request POST data:", request.POST) # Add this line for debugging
-        if formset.is_valid():
-            items = formset.save()
-            
-            for item in items:
-                if item.confirmed_quantity is not None and item.confirmed_quantity > item.required_quantity:
-                    messages.warning(request, f"物料 {item.material_number} 的撥料數量 ({item.confirmed_quantity}) 超過需求數量 ({item.required_quantity})。")
-                if item.source_material and item.confirmed_quantity is not None:
-                    item.source_material.confirmed_quantity = item.confirmed_quantity
-                    item.source_material.save()
-
-            all_items_confirmed = all(item.confirmed_quantity is not None for item in queryset)
-            
-            if all_items_confirmed:
-                with transaction.atomic():
-                    requisition.status = 'materials_confirmed'
-                    requisition.material_confirmed_by = request.user
-                    requisition.material_confirmed_date = timezone.now()
-                    requisition.save()
-                    messages.success(request, "物料已全部確認，申請單狀態已更新！")
-                return redirect('requisition_list')
-            else:
-                messages.info(request, "物料確認已保存，但仍有未確認項目。")
-                return redirect('material_confirmation', pk=requisition.pk)
-        else:
-            print("Formset errors:", formset.errors)
-            print("Formset non-form errors:", formset.non_form_errors) # Add this line
-            print("Formset management form errors:", formset.management_form.errors) # Add this line
-            messages.error(request, "物料確認保存失敗，請檢查輸入。")
-    
-    return render(request, 'requisitions/material_confirmation.html', {
-        'requisition': requisition,
-        'formset': formset,
-        'unique_machine_model_names': unique_machine_model_names, # Pass to context
-    })
 
 @login_required
 def requisition_sign_off(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
 
-    if not request.user.groups.filter(name='申請人員').exists() and not request.user.is_superuser:
+    is_admin = request.user.is_superuser
+    is_applicant = request.user == requisition.applicant
+
+    if not (is_applicant or is_admin):
         messages.error(request, "您沒有權限執行最終簽收操作。")
-        return redirect('requisition_list')
+        return redirect('requisitions:requisition_list')
 
     if request.method == 'POST':
         with transaction.atomic():
-            for key in request.POST.keys():
-                if key.startswith('signed_off_'):
-                    material_id = key.split('_')[-1]
-                    try:
-                        material = WorkOrderMaterial.objects.get(id=material_id)
-                        material.is_signed_off = True
-                        material.save()
-                    except WorkOrderMaterial.DoesNotExist:
-                        messages.error(request, f"物料 ID {material_id} 不存在。")
-                        continue
-            
-            # Check if all materials for this requisition are signed off
-            all_materials = WorkOrderMaterial.objects.filter(
-                order_number=requisition.order_number,
-                process_type__name=requisition.process_type,
-                is_active=True
+            signed_off_count = 0
+            if 'confirm_all_sign_off' in request.POST:
+                # Sign off all dispatched items for this requisition
+                dispatched_items_to_sign_off = RequisitionItem.objects.filter(
+                    requisition=requisition,
+                    dispatch_status='dispatched',
+                    is_signed_off=False
+                )
+                for item in dispatched_items_to_sign_off:
+                    item.is_signed_off = True
+                    item.sign_off_by = request.user
+                    item.sign_off_date = timezone.now()
+                    item.save()
+                    signed_off_count += 1
+                if signed_off_count > 0:
+                    messages.success(request, f"成功簽收 {signed_off_count} 筆已撥料項目。")
+                else:
+                    messages.info(request, "沒有新的已撥料項目需要簽收。")
+            else: # Process individual sign-off buttons
+                for key in request.POST.keys():
+                    if key.startswith('sign_off_item_'):
+                        item_pk = key.split('_')[-1]
+                        try:
+                            item = RequisitionItem.objects.get(pk=item_pk, requisition=requisition)
+                            if not item.is_signed_off:
+                                item.is_signed_off = True
+                                item.sign_off_by = request.user
+                                item.sign_off_date = timezone.now()
+                                item.save()
+                                signed_off_count += 1
+                        except RequisitionItem.DoesNotExist:
+                            messages.error(request, f"物料項目 ID {item_pk} 不存在。")
+                            continue
+                if signed_off_count > 0:
+                    messages.success(request, f"成功簽收 {signed_off_count} 筆物料項目。")
+
+            # Check if all relevant RequisitionItems for this requisition are signed off
+            # We consider items that were dispatched or backordered
+            all_relevant_items = RequisitionItem.objects.filter(
+                requisition=requisition,
+                dispatch_status__in=['dispatched', 'backordered']
             )
-            if all(m.is_signed_off for m in all_materials):
-                requisition.status = 'completed'
+            if all_relevant_items.exists() and all(item.is_signed_off for item in all_relevant_items):
+                requisition.status = 'signed_off'
                 requisition.sign_off_by = request.user
                 requisition.sign_off_date = timezone.now()
                 requisition.save()
                 messages.success(request, "撥料單已全部最終簽收！")
+            elif all_relevant_items.exists():
+                messages.info(request, "部分物料已簽收，但仍有未簽收項目。")
             else:
-                messages.success(request, "部分物料已簽收。")
+                messages.warning(request, "此申請單沒有可簽收的物料項目。")
 
-    return redirect('requisition_list')
+    return redirect('requisitions:requisition_detail', pk=requisition.pk)
 
 
-@login_required
-def activate_material_version(request, pk, version_pk):
-    requisition = get_object_or_404(Requisition, pk=pk)
 
-    is_admin = request.user.is_superuser
-    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
-
-    if not is_material_handler and not is_admin:
-        messages.error(request, "您沒有權限激活物料清單版本。")
-        return redirect('requisition_detail', pk=requisition.pk)
-
-    old_version = get_object_or_404(MaterialListVersion, pk=version_pk, requisition=requisition)
-
-    if request.method == 'POST':
-        try:
-            with transaction.atomic():
-                new_material_version = MaterialListVersion.objects.create(
-                    requisition=requisition,
-                    uploaded_by=request.user,
-                )
-
-                for item in old_version.items.all():
-                    RequisitionItem.objects.create(
-                        material_list_version=new_material_version,
-                        source_material=item.source_material, # Also copy the source material link
-                        order_number=item.order_number,
-                        material_number=item.material_number,
-                        item_name=item.item_name,
-                        required_quantity=item.required_quantity,
-                        stock_quantity=item.stock_quantity,
-                        confirmed_quantity=None, # Always reset confirmed quantity
-                        is_signed_off=False, # Always reset sign-off status
-                    )
-                
-                requisition.current_material_list_version = new_material_version
-                requisition.status = 'pending'
-                requisition.material_confirmed_by = None
-                requisition.material_confirmed_date = None
-                requisition.sign_off_by = None
-                requisition.sign_off_date = None
-                requisition.save()
-
-                messages.success(request, "物料清單版本已成功激活，並已重置申請單狀態為待撥料。")
-                return redirect('material_confirmation', pk=requisition.pk)
-        except Exception as e:
-            messages.error(request, f"激活物料清單版本時發生錯誤: {e}")
-    
-    return redirect('requisition_detail', pk=requisition.pk)
 
 def get_available_process_types(request):
     order_number = request.GET.get('order_number')
@@ -675,81 +616,16 @@ def get_requisition_items_json(request, pk):
     return JsonResponse({'items': []})
 
 
-@login_required
-def import_materials_to_requisition(request):
-    if request.method != 'POST':
-        return redirect('work_order_material_list')
 
-    is_admin = request.user.is_superuser
-    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
-
-    if not is_material_handler and not is_admin:
-        messages.error(request, "您沒有權限匯入物料到撥料單。")
-        return redirect('work_order_material_list')
-
-    material_ids = request.POST.getlist('material_ids')
-    requisition_id = request.POST.get('requisition_id')
-    order_number = request.POST.get('order_number')
-
-    if not material_ids or not requisition_id:
-        messages.error(request, "請至少選擇一個物料和一個目標撥料單。")
-        return redirect('work_order_material_list')
-
-    try:
-        requisition = Requisition.objects.get(pk=requisition_id)
-        materials_to_import = WorkOrderMaterial.objects.filter(pk__in=material_ids)
-
-        with transaction.atomic():
-            new_version = MaterialListVersion.objects.create(
-                requisition=requisition,
-                uploaded_by=request.user
-            )
-
-            items_to_create = []
-            for material in materials_to_import:
-                items_to_create.append(
-                    RequisitionItem(
-                        material_list_version=new_version,
-                        source_material=material,
-                        order_number=material.order_number,
-                        material_number=material.material_number,
-                        item_name=material.item_name,
-                        required_quantity=material.required_quantity,
-                        stock_quantity=0,
-                        confirmed_quantity=None,
-                        is_signed_off=False,
-                    )
-                )
-            
-            RequisitionItem.objects.bulk_create(items_to_create)
-
-            requisition.current_material_list_version = new_version
-            requisition.status = 'pending'
-            requisition.material_confirmed_by = None
-            requisition.material_confirmed_date = None
-            requisition.sign_off_by = None
-            requisition.sign_off_date = None
-            requisition.save()
-
-        messages.success(request, f"成功將 {len(items_to_create)} 筆物料匯入到撥料單 '{requisition.process_type}'。")
-        return redirect(f"{reverse('work_order_material_list')}?order_number={order_number}")
-
-    except Requisition.DoesNotExist:
-        messages.error(request, "找不到指定的撥料單。")
-    except Exception as e:
-        messages.error(request, f"匯入物料時發生錯誤: {e}")
-
-    return redirect('work_order_material_list')
 
 
 @login_required
-def sign_off_item(request, pk, version_pk, item_pk):
+def sign_off_item(request, pk, item_pk): # Removed version_pk
     requisition = get_object_or_404(Requisition, pk=pk)
-    target_version = get_object_or_404(MaterialListVersion, pk=version_pk, requisition=requisition)
-    item = get_object_or_404(RequisitionItem, pk=item_pk, material_list_version=target_version)
+    item = get_object_or_404(RequisitionItem, pk=item_pk, requisition=requisition) # Directly link to Requisition
 
     is_admin = request.user.is_superuser
-    is_applicant = request.user.groups.filter(name='申請人員').exists()
+    is_applicant = request.user == requisition.applicant # Consistent with requisition_sign_off
 
     if not is_applicant and not is_admin:
         return JsonResponse({'success': False, 'message': "您沒有權限簽收物料項目。"}, status=403)

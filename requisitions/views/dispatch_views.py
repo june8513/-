@@ -23,7 +23,7 @@ def update_dispatch_note(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage') # Changed from 'homepage'
     if request.method == 'POST':
         confirm_value = request.POST.get('confirm')
         if confirm_value:
@@ -105,7 +105,7 @@ def generate_backorder_note(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('requisitions:homepage')
+        return redirect('core:homepage') # Changed from 'requisitions:homepage'
 
     # Subquery to get storage_bin and stock_quantity from Inventory
     inventory_subquery_storage_bin = Subquery(

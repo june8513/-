@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageUploadForm, WorkOrderMaterialImageUploadForm
-from ..models import Requisition, RequisitionItem, MaterialListVersion, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -97,12 +97,12 @@ from django.db.models import Sum
 @login_required
 def work_order_material_list(request):
     is_admin = request.user.is_superuser
-    is_applicant = request.user.groups.filter(name='申請人員').exists()
+    # is_applicant = request.user.groups.filter(name='申請人員').exists() # No longer needed for access control
     is_material_handler = request.user.groups.filter(name='撥料人員').exists()
 
-    if not is_admin and not is_applicant and not is_material_handler:
+    if not is_admin and not is_material_handler: # Only admin and material handler can access
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage') # Redirect to core:homepage
 
     # Initialize all variables that will be used in the context
     order_number = request.GET.get('order_number', None)
@@ -228,6 +228,8 @@ def work_order_material_list(request):
         'query_params': query_params.urlencode(),
         'requisition': requisition, # Pass the requisition object
         'show_inactive': show_inactive, # New context variable
+        'is_admin': is_admin, # Pass to context
+        'is_material_handler': is_material_handler, # Pass to context
     }
     return render(request, 'requisitions/work_order_material_list.html', context)
 
@@ -326,7 +328,8 @@ def update_work_order_quantities(request):
 
       order_number = request.POST.get('order_number')
       process_type_filter = request.POST.get('process_type_filter', '')
-      updated_materials = []
+      updated_materials = [] # Re-initialize updated_materials here
+      redirect_to_requisition_pk = None # Initialize a variable to store the PK for redirection
 
       print(f"Received POST data: {request.POST}") # DEBUG
 
@@ -335,6 +338,26 @@ def update_work_order_quantities(request):
       if '?' in redirect_url:
           query_string = '?' + redirect_url.split('?', 1)[1]
           redirect_url = redirect_url.split('?', 1)[0]
+
+      # Find the ProcessType object by its ID
+      process_type_obj = get_object_or_404(ProcessType, pk=process_type_filter)
+
+      # Get the unique Requisition associated with this order and process type
+      current_requisition = Requisition.objects.filter(
+          order_number=order_number,
+          process_type=process_type_obj.name # ProcessType name as CharField
+      ).first()
+      
+      if not current_requisition:
+          messages.error(request, f"找不到訂單 {order_number} 和流程 {process_type_obj.name} 對應的撥料申請單。")
+          return redirect(f'{redirect_url}{query_string}')
+
+      # Get all WorkOrderMaterials relevant to this order and process type
+      all_relevant_work_order_materials = WorkOrderMaterial.objects.filter(
+          order_number=order_number,
+          process_type=process_type_obj
+      )
+      processed_work_order_material_pks = set() # To track materials explicitly handled by user input
 
       for key, value in request.POST.items():
           print(f"Processing key: {key}, value: {value}") # DEBUG
@@ -347,9 +370,16 @@ def update_work_order_quantities(request):
 
                   if quantity_change == 0:
                       print("  Skipping: quantity_change is 0") # DEBUG
+                      # Even if quantity_change is 0, we treat it as "processed" by user action
+                      # So, if user explicitly set to 0, it means they considered it.
+                      # This ensures it's not picked up by the 'unprocessed' loop later.
+                      material = WorkOrderMaterial.objects.get(pk=material_id)
+                      processed_work_order_material_pks.add(material.pk) 
                       continue
 
-                  material =WorkOrderMaterial.objects.get(pk=material_id)
+                  material = WorkOrderMaterial.objects.get(pk=material_id)
+                  processed_work_order_material_pks.add(material.pk) # Mark as processed
+
 
                   current_confirmed = material.confirmed_quantity if material.confirmed_quantity is not None else Decimal('0')
 
@@ -371,25 +401,155 @@ def update_work_order_quantities(request):
                   )
                   updated_materials.append(f"{material.material_number} ({quantity_change:+.2f})")
 
+                  # --- New Logic for Requisition and RequisitionItem ---
+                  # Find relevant Requisitions
+                  relevant_requisitions = Requisition.objects.filter(
+                      order_number=material.order_number,
+                      process_type=material.process_type.name,
+                      status__in=['demand_submitted', 'dispatch_in_progress', 'dispatch_completed', 'signed_off'] # Include more statuses
+                  )
+
+                  for req in relevant_requisitions:
+                      print(f"DEBUG: Processing Requisition (PK: {req.pk}, Order: {req.order_number}, Process: {req.process_type}, Status: {req.status}) for WorkOrderMaterial (PK: {material.pk}, Material: {material.material_number})") # DEBUG
+
+                      # Update Requisition status if it's still 'demand_submitted'
+                      if req.status == 'demand_submitted':
+                          req.status = 'dispatch_in_progress'
+                          req.save()
+
+                      # Create or update RequisitionItem
+                      requisition_item, created = RequisitionItem.objects.update_or_create(
+                          requisition=req,
+                          material_number=material.material_number, # Use material_number for lookup
+                          defaults={
+                              'source_material': material, # Keep source_material in defaults
+                              'order_number': material.order_number,
+                              'item_name': material.item_name,
+                              'required_quantity': material.required_quantity,
+                              'stock_quantity': Inventory.objects.filter(material_number=material.material_number).values_list('stock_quantity', flat=True).first() or Decimal('0'), # Fetch current stock
+                              'confirmed_quantity': material.confirmed_quantity,
+                              'dispatch_status': 'dispatched' if material.confirmed_quantity >= material.required_quantity else 'backordered',
+                          }
+                      )
+                      if created:
+                          messages.info(request, f"為申請單 {req.order_number} ({req.process_type}) 新增物料 {material.material_number}。")
+                      else:
+                          messages.info(request, f"更新申請單 {req.order_number} ({req.process_type}) 的物料 {material.material_number} 撥料數量。")
+
+                      # Check if all items for this requisition are fully dispatched
+                      all_items_for_req = RequisitionItem.objects.filter(requisition=req)
+                      all_dispatched = True
+                      for item in all_items_for_req:
+                          if item.confirmed_quantity < item.required_quantity:
+                              all_dispatched = False
+                              break
+                      
+                      if all_dispatched and req.status != 'dispatch_completed':
+                          req.status = 'dispatch_completed'
+                          req.dispatch_performed = True # Set dispatch_performed to True
+                          req.save()
+                          messages.success(request, f"申請單 {req.order_number} ({req.process_type}) 所有物料已撥料完成！")
+                          redirect_to_requisition_pk = req.pk # Store the PK for redirection
+                  # --- End New Logic ---
+
               except (ValueError, WorkOrderMaterial.DoesNotExist) as e:
                   print(f"  Error in loop: {e}") # DEBUG
                   messages.error(request, f"處理物料 ID  {key.split('_')[1]} 時發生錯誤: {e}，部分或所有變更可能未儲存。")
                   return redirect(f'{redirect_url}{query_string}')
 
+      # --- New Logic: Handle WorkOrderMaterials not explicitly processed by user input ---
+      for material in all_relevant_work_order_materials:
+          # Check if a RequisitionItem already exists for this material and requisition
+          # This covers both explicitly processed materials and previously existing items
+          if not RequisitionItem.objects.filter(requisition=current_requisition, material_number=material.material_number).exists():
+              # This material has no RequisitionItem yet, meaning it was not explicitly handled
+              # and no RequisitionItem was created for it previously.
+              # It should be considered 'backordered' as it was not dispatched.
+              
+              # Create RequisitionItem for this unprocessed material
+              requisition_item, created = RequisitionItem.objects.update_or_create(
+                  requisition=current_requisition,
+                  material_number=material.material_number,
+                  defaults={
+                      'source_material': material,
+                      'order_number': material.order_number,
+                      'item_name': material.item_name,
+                      'required_quantity': material.required_quantity,
+                      'stock_quantity': Inventory.objects.filter(material_number=material.material_number).values_list('stock_quantity', flat=True).first() or Decimal('0'),
+                      'confirmed_quantity': Decimal('0'), # Set to 0 as it was not dispatched
+                      'dispatch_status': 'backordered', # Explicitly set to backordered
+                  }
+              )
+              if created:
+                  messages.info(request, f"為申請單 {current_requisition.order_number} ({current_requisition.process_type}) 新增未撥物料 {material.material_number}。")
+              else:
+                  messages.info(request, f"更新申請單 {current_requisition.order_number} ({current_requisition.process_type}) 的未撥物料 {material.material_number} 狀態。")
+      # --- End New Logic ---
+
+      # After processing all materials (both explicitly updated and implicitly backordered),
+      # check the overall status of the requisition.
+      # This part needs to be updated to use current_requisition instead of req from the loop.
+      if current_requisition:
+          all_items_for_req = RequisitionItem.objects.filter(requisition=current_requisition)
+          all_dispatched = True
+          for item in all_items_for_req:
+              if item.confirmed_quantity < item.required_quantity:
+                  all_dispatched = False
+                  break
+          
+          if all_dispatched and current_requisition.status != 'dispatch_completed':
+              current_requisition.status = 'dispatch_completed'
+              current_requisition.dispatch_performed = True # Set dispatch_performed to True
+              current_requisition.save()
+              messages.success(request, f"申請單 {current_requisition.order_number} ({current_requisition.process_type}) 所有物料已撥料完成！")
+              redirect_to_requisition_pk = current_requisition.pk # Store the PK for redirection
+          elif not all_dispatched and current_requisition.status == 'demand_submitted':
+              # If some items are backordered, but none were dispatched yet, set to dispatch_in_progress
+              current_requisition.status = 'dispatch_in_progress'
+              current_requisition.save()
+      
       if updated_materials:
-          if process_type_filter:
-              try:
-                  process_type = get_object_or_404(ProcessType, id=process_type_filter)
-                  requisition = get_object_or_404(Requisition, order_number=order_number, process_type=process_type.name)
-                  requisition.dispatch_performed = True
-                  requisition.save()
-              except Exception as e:
-                  messages.error(request, f"更新撥料狀態時發生錯誤: {e}")
+            print(f"Updated materials list: {updated_materials}") # DEBUG
+            if updated_materials:
+                messages.success(request, f"成功更新撥料數量: {','.join(updated_materials)}")
+            
+            if redirect_to_requisition_pk:
+                # If a requisition completed dispatch, redirect to its detail page
+                return redirect('requisitions:requisition_detail', pk=redirect_to_requisition_pk)
+            else:
+                # If no requisition completed dispatch, but materials were updated,
+                # we need to find the requisition associated with the order_number and process_type
+                # and redirect to its detail page.
+                # If no such requisition exists, then redirect back to the work_order_material_list.
+                
+                # Try to find a relevant requisition based on the order_number and process_type_filter
+                # This assumes that the order_number and process_type_filter are always present in the POST data
+                # and correspond to a single requisition that was being worked on.
+                if order_number and process_type_filter:
+                    try:
+                        # Find the ProcessType object by its ID
+                        process_type_obj = ProcessType.objects.get(pk=process_type_filter)
+                        # Find the Requisition based on order_number and process_type name
+                        current_requisition = Requisition.objects.filter(
+                            order_number=order_number,
+                            process_type=process_type_obj.name
+                        ).first()
+                        if current_requisition:
+                            return redirect('requisitions:requisition_detail', pk=current_requisition.pk)
+                    except ProcessType.DoesNotExist:
+                        pass # Fallback to default redirect
 
-      print(f"Updated materials list: {updated_materials}") # DEBUG
-      if updated_materials:messages.success(request, f"成功更新撥料數量: {','.join(updated_materials)}")
-      return redirect(f'{redirect_url}{query_string}')
-
+                # Fallback if no specific requisition detail can be determined
+                return redirect(f'{redirect_url}{query_string}')
+      else:
+          # If no materials were updated, but there might be implicitly backordered items,
+          # we should still redirect to the requisition detail page if current_requisition exists.
+          if current_requisition:
+              messages.info(request, "沒有物料數量被明確更新，但已處理未撥物料狀態。")
+              return redirect('requisitions:requisition_detail', pk=current_requisition.pk)
+          else:
+              messages.info(request, "沒有物料數量被更新。")
+              return redirect(f'{redirect_url}{query_string}')
 @login_required
 def update_material_process_type(request, material_id):
     if not request.user.is_superuser:

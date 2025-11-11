@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, UpdateProcessTypeDBForm, UploadInventoryFileForm
-from ..models import Requisition, RequisitionItem, MaterialListVersion, WorkOrderMaterial, Inventory, MachineModel, ProcessType
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -26,141 +26,7 @@ import tempfile
 from requisitions.utils import process_order_model_excel, process_material_details_excel
 import datetime
 
-@login_required
-def upload_materials(request, pk):
-    requisition = get_object_or_404(Requisition, pk=pk)
 
-    is_admin = request.user.is_superuser
-    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
-
-    if not is_material_handler and not is_admin:
-        messages.error(request, "您沒有權限上傳物料清單。")
-        return redirect('requisition_list')
-
-    if request.method == 'POST':
-        form = UploadFileForm(request.POST, request.FILES)
-        if form.is_valid():
-            excel_file = request.FILES['file']
-            try:
-                with transaction.atomic():
-                    new_material_version = MaterialListVersion.objects.create(
-                        requisition=requisition,
-                        uploaded_by=request.user,
-                    )
-
-                    requisition.current_material_list_version = new_material_version
-                    if requisition.status != 'pending':
-                        requisition.status = 'pending'
-                        requisition.material_confirmed_by = None
-                        requisition.material_confirmed_date = None
-                        requisition.sign_off_by = None
-                        requisition.sign_off_date = None
-                    requisition.save()
-
-                    df = pd.read_excel(excel_file)
-                    df.columns = df.columns.str.strip()
-
-                    column_map = {
-                        '訂單': 'order_number',
-                        '訂單單號': 'order_number',
-                        '物料': 'material_number',
-                        '品名': 'item_name',
-                        '物料說明': 'item_name',
-                        '機型': 'machine_model',
-                        '需求數量': 'required_quantity',
-                        '庫存數量': 'stock_quantity',
-                    }
-                    df.rename(columns=column_map, inplace=True)
-
-                    required_cols = ['order_number', 'material_number', 'item_name', 'machine_model', 'required_quantity']
-                    missing_cols = [col for col in required_cols if col not in df.columns]
-                    if missing_cols:
-                        # Map back to original names for error message
-                        original_missing = [key for key, val in column_map.items() if val in missing_cols]
-                        raise ValueError(f"上傳的 Excel 檔案中缺少必要的欄位，請檢查是否包含： {', '.join(original_missing)}")
-
-                    df_aggregated = df.groupby([
-                        'order_number', 'material_number', 'machine_model'
-                    ]).agg({
-                        'required_quantity': 'sum',
-                        'item_name': 'first',
-                        'stock_quantity': 'first'
-                    }).reset_index()
-
-                    # Create a list of tuples for all materials to fetch
-                    materials_to_find = [
-                        (str(row['order_number']).strip(), str(row['material_number']).strip(), str(row['machine_model']).strip())
-                        for index, row in df_aggregated.iterrows()
-                    ]
-
-                    found_materials = []
-                    batch_size = 500
-                    for i in range(0, len(materials_to_find), batch_size):
-                        batch = materials_to_find[i:i + batch_size]
-                        query = Q()
-                        for order, material, machine in batch:
-                            query |= Q(order_number=order, material_number=material, machine_model__name=machine)
-                        found_materials.extend(WorkOrderMaterial.objects.filter(query).select_related('machine_model'))
-
-                    # Create a dictionary for quick lookup
-                    materials_dict = {
-                        (m.order_number, m.material_number, m.machine_model.name): m
-                        for m in found_materials
-                    }
-
-                    items_to_create = []
-                    not_found_materials = []
-
-                    for index, row in df_aggregated.iterrows():
-                        order_number = str(row['order_number']).strip()
-                        material_number = str(row['material_number']).strip()
-                        machine_model_name = str(row['machine_model']).strip()
-
-                        work_order_material = materials_dict.get((order_number, material_number, machine_model_name))
-
-                        if work_order_material:
-                            items_to_create.append(
-                                RequisitionItem(
-                                    material_list_version=new_material_version,
-                                    source_material=work_order_material,
-                                    order_number=order_number,
-                                    material_number=material_number,
-                                    item_name=row['item_name'],
-                                    required_quantity=row['required_quantity'],
-                                    stock_quantity=row.get('stock_quantity', 0),
-                                    confirmed_quantity=None,
-                                    is_signed_off=False,
-                                )
-                            )
-                        else:
-                            not_found_materials.append(f"訂單 {order_number}, 物料 {material_number}, 機型 {machine_model_name}")
-
-                    if not_found_materials:
-                        error_message = "上傳失敗，因為在主物料清單中找不到以下物料，請檢查資料是否正確: <br><ul>" + "".join([f"<li>{item}</li>" for item in not_found_materials]) + "</ul>"
-                        messages.error(request, error_message, extra_tags='safe')
-                        raise IntegrityError("Aborting transaction due to missing source materials.")
-
-                    RequisitionItem.objects.bulk_create(items_to_create)
-
-                messages.success(request, "物料清單上傳成功！")
-                return redirect('requisition_list')
-
-            except ValueError as ve:
-                messages.error(request, str(ve))
-            except IntegrityError:
-                pass
-            except Exception as e:
-                messages.error(request, f"上傳檔案時發生未預期的錯誤: {e}")
-    else:
-        form = UploadFileForm()
-    
-    material_versions = requisition.material_versions.all().order_by('-uploaded_at')
-
-    return render(request, 'requisitions/upload_materials.html', {
-        'form': form, 
-        'requisition': requisition,
-        'material_versions': material_versions,
-    })
 
 
 @login_required

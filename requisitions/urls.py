@@ -12,6 +12,7 @@ urlpatterns = [
     path('<int:pk>/upload_page/', views.upload_requisition_images_page, name='upload_requisition_images_page'),
     path('dispatch_preparation_list/', views.dispatch_preparation_list, name='dispatch_preparation_list'),
     path('list/', views.requisition_list, name='requisition_list'),
+    path('<int:pk>/detail/', views.requisition_detail, name='requisition_detail'),
     path('archived_list/', views.archived_requisition_list, name='archived_requisition_list'), # Renamed from ''
     path('list/export/excel/', views.export_requisitions_excel, name='export_requisitions_excel'),
     path('archived_list/export/excel/', views.export_archived_requisitions_excel, name='export_archived_requisitions_excel'),
@@ -21,26 +22,23 @@ urlpatterns = [
     path('create/', views.requisition_create, name='requisition_create'),
     path('get_process_types/', views.get_available_process_types, name='get_available_process_types'),
     
-    path('<int:pk>/upload_materials/', views.upload_materials, name='upload_materials'),
+
     path('upload_order_model_excel/', views.upload_order_model_excel, name='upload_order_model_excel'),
     path('upload_material_details_excel/', views.upload_material_details_excel, name='upload_material_details_excel'),
-    path('<int:pk>/material_confirmation/', views.material_confirmation, name='material_confirmation'),
-    path('<int:pk>/material_confirmation/export/excel/', views.export_material_confirmation_excel, name='export_material_confirmation_excel'), # New URL for material handler confirmation
-    path('<int:pk>/sign_off/<int:version_pk>/', views.requisition_sign_off, name='requisition_sign_off_version'),
+
     path('<int:pk>/sign_off/', views.requisition_sign_off, name='requisition_sign_off'),
     path('<int:pk>/delete/', views.requisition_delete, name='requisition_delete'), # New URL for deleting requisition
     path('history/', views.requisition_history, name='requisition_history'),
     path('login/', views.user_login, name='login'),
     path('logout/', views.user_logout, name='logout'),
-    path('<int:pk>/activate_version/<int:version_pk>/', views.activate_material_version, name='activate_material_version'),
-    path('<int:pk>/sign_off_item/<int:version_pk>/<int:item_pk>/', views.sign_off_item, name='sign_off_item'),
+    path('<int:pk>/sign_off_item/<int:item_pk>/', views.sign_off_item, name='sign_off_item'),
     path('update_db/', views.update_process_type_db, name='update_process_type_db'),
     path('upload_inventory/', views.upload_inventory_data, name='upload_inventory_data'),
 
     path('material_list/', views.work_order_material_list, name='work_order_material_list'),
     path('archived_material_list/', views.archived_work_order_material_list, name='archived_work_order_material_list'),
     path('update_work_order_quantities/', views.update_work_order_quantities, name='update_work_order_quantities'),
-    path('import_materials/', views.import_materials_to_requisition, name='import_materials_to_requisition'),
+
     path('<int:pk>/generate_dispatch_note/', views.generate_dispatch_note, name='generate_dispatch_note'),
     path('<int:pk>/generate_dispatch_note/excel/', views.generate_dispatch_note, name='generate_dispatch_note_excel'),
     path('<int:pk>/update_dispatch_note/', views.update_dispatch_note, name='update_dispatch_note'),

@@ -28,17 +28,18 @@ class ProcessType(models.Model):
 
 class Requisition(models.Model):
     STATUS_CHOICES = [
-        ('pending', '待處理'),
-        ('awaiting_dispatch', '待撥料人員處理'),
-        ('materials_confirmed', '物料已確認'),
-        ('completed', '已處理'),
+        ('demand_submitted', '需求已提交'),
+        ('dispatch_in_progress', '撥料中'),
+        ('dispatch_completed', '撥料已完成'),
+        ('signed_off', '已簽收'),
+        ('archived', '已歸檔'),
     ]
 
     order_number = models.CharField(max_length=100, verbose_name="訂單單號")
     applicant = models.ForeignKey(User, on_delete=models.CASCADE, related_name='requisitions_applied', verbose_name="申請人")
     request_date = models.DateField(verbose_name="需求日期", db_index=True)
     process_type = models.CharField(max_length=100, verbose_name="需求流程", db_index=True, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="狀態", db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='demand_submitted', verbose_name="狀態", db_index=True)
     dispatch_performed = models.BooleanField(default=False, verbose_name="已執行撥料")
     is_archived = models.BooleanField(default=False, verbose_name="是否已歸檔")
     
@@ -46,7 +47,7 @@ class Requisition(models.Model):
     material_confirmed_date = models.DateTimeField(null=True, blank=True, verbose_name="物料確認日期")
     sign_off_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisitions_signed_off', verbose_name="最終簽收人員")
     sign_off_date = models.DateTimeField(null=True, blank=True, verbose_name="最終簽收日期")
-    current_material_list_version = models.ForeignKey('MaterialListVersion', on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="當前物料清單版本")
+
 
     remarks = models.TextField(blank=True, null=True, verbose_name="備註")
 
@@ -64,18 +65,7 @@ class Requisition(models.Model):
     def __str__(self):
         return f"撥料申請單: {self.order_number} ({self.process_type}) - {self.applicant.username}"
 
-class MaterialListVersion(models.Model):
-    requisition = models.ForeignKey(Requisition, on_delete=models.CASCADE, related_name='material_versions', verbose_name="所屬撥料單")
-    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上傳時間")
-    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="上傳人員")
 
-    class Meta:
-        verbose_name = "物料清單版本"
-        verbose_name_plural = "物料清單版本"
-        ordering = ['-uploaded_at']
-
-    def __str__(self):
-        return f"{self.requisition.order_number} - 物料版本 ({self.uploaded_at.strftime('%Y-%m-%d %H:%M')})"
 
 class WorkOrderMaterial(models.Model):
     machine_model = models.ForeignKey(MachineModel, on_delete=models.CASCADE, verbose_name="機型", related_name="work_order_materials", null=True, blank=True)
@@ -104,7 +94,12 @@ class WorkOrderMaterial(models.Model):
         return f"{self.order_number} - {self.machine_model} - {self.material_number} ({self.item_name})"
 
 class RequisitionItem(models.Model):
-    material_list_version = models.ForeignKey(MaterialListVersion, on_delete=models.CASCADE, null=True, blank=True, related_name='items', verbose_name="物料清單版本")
+    DISPATCH_STATUS_CHOICES = [
+        ('dispatched', '已撥料'),
+        ('backordered', '欠料'),
+    ]
+
+    requisition = models.ForeignKey(Requisition, on_delete=models.CASCADE, related_name='items', verbose_name="所屬撥料單", null=True, blank=True)
     source_material = models.ForeignKey(WorkOrderMaterial, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisition_items', verbose_name="來源主物料")
     order_number = models.CharField(max_length=100, verbose_name="訂單單號")
     material_number = models.CharField(max_length=100, verbose_name="物料", db_index=True)
@@ -115,6 +110,9 @@ class RequisitionItem(models.Model):
     
     confirmed_quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="確認撥料數量")
     is_signed_off = models.BooleanField(default=False, verbose_name="最終簽收已確認")
+    sign_off_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisition_items_signed_off', verbose_name="簽收人員")
+    sign_off_date = models.DateTimeField(null=True, blank=True, verbose_name="簽收日期")
+    dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, null=True, blank=True, verbose_name="撥料狀態")
 
     class Meta:
         verbose_name = "撥料物料明細"
