@@ -3,7 +3,7 @@ from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from ..forms import RequisitionImageUploadForm, WorkOrderMaterialImageUploadForm
+from ..forms import RequisitionImageForm, WorkOrderMaterialImageUploadForm
 from ..models import Requisition, RequisitionImage, ProcessType
 
 @login_required
@@ -33,7 +33,7 @@ def upload_requisition_images_page(request, pk):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('homepage')
 
-    form = RequisitionImageUploadForm()
+    form = RequisitionImageForm()
     return render(request, 'requisitions/upload_requisition_images.html', {'requisition': requisition, 'form': form})
 
 @login_required
@@ -89,7 +89,7 @@ def upload_requisition_images(request, pk):
         return redirect('homepage')
 
     if request.method == 'POST':
-        form = RequisitionImageUploadForm(request.POST, request.FILES)
+        form = RequisitionImageForm(request.POST, request.FILES)
         if form.is_valid():
             image_instance = form.save(commit=False)
             image_instance.requisition = requisition

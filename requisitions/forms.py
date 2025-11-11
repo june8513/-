@@ -1,8 +1,19 @@
 from django import forms
 from django.forms import modelformset_factory, ClearableFileInput
-from .models import Requisition, RequisitionItem, ProcessType, MachineModel
+from .models import Requisition, RequisitionItem, ProcessType, MachineModel, RequisitionImage, WorkOrderMaterialImage
 
-from django.core.exceptions import ValidationError # Import ValidationError
+# Custom widget for multiple file uploads
+class MultipleFileInput(forms.FileInput):
+    def render(self, name, value, attrs=None, renderer=None):
+        final_attrs = self.build_attrs(self.attrs, attrs)
+        final_attrs['multiple'] = True
+        return super().render(name, value, final_attrs, renderer)
+
+class RequisitionImageForm(forms.Form):
+    image = forms.ImageField(
+        label='上傳圖片 (可多選)',
+        widget=MultipleFileInput()
+    )
 
 class RequisitionForm(forms.ModelForm):
     order_number = forms.CharField(
@@ -95,17 +106,11 @@ class ProcessTypeForm(forms.ModelForm):
             'machine_model': '所屬機型',
         }
 
-
-
-class RequisitionImageUploadForm(forms.Form):
-    pass
-
 class StagedBulkUploadMaterialsForm(forms.Form):
     file = forms.FileField(label='選擇分階段批量物料 Excel 檔案')
-
-from .models import Requisition, RequisitionItem, ProcessType, MachineModel, WorkOrderMaterialImage
 
 class WorkOrderMaterialImageUploadForm(forms.ModelForm):
     class Meta:
         model = WorkOrderMaterialImage
         fields = ['image']
+

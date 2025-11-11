@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from ..forms import RequisitionForm, UploadFileForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType
+from ..forms import RequisitionForm, UploadFileForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, RequisitionImageForm
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage
 from inventory.models import Material
 from django.db import transaction
 from django.conf import settings
@@ -154,50 +154,68 @@ def requisition_list(request):
 def requisition_detail(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
 
-    # Permissions check: Only applicant, material handler, or admin can view
+    # Permissions check
     is_admin = request.user.is_superuser
     is_applicant = request.user == requisition.applicant
     is_material_handler = request.user.groups.filter(name='撥料人員').exists()
-
-    # --- DEBUG LOGS ---
-    print(f"DEBUG: requisition_detail view for Requisition PK: {pk}")
-    print(f"DEBUG: Current User: {request.user.username} (ID: {request.user.id})")
-    print(f"DEBUG: Is Admin: {is_admin}")
-    print(f"DEBUG: Is Applicant (for this requisition): {is_applicant}")
-    print(f"DEBUG: Is Material Handler: {is_material_handler}")
-    print(f"DEBUG: Requisition Applicant: {requisition.applicant.username} (ID: {requisition.applicant.id})")
-    # --- END DEBUG LOGS ---
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限查看此撥料申請單詳情。")
         return redirect('requisitions:requisition_list')
 
+    if request.method == 'POST':
+        # Check if the user has permission to upload
+        if not (is_admin or is_applicant or is_material_handler):
+            messages.error(request, "您沒有權限上傳圖片。")
+            return redirect(requisition.get_absolute_url()) # Assumes get_absolute_url is defined
+
+        upload_form = RequisitionImageForm(request.POST, request.FILES)
+        if upload_form.is_valid():
+            images = request.FILES.getlist('image')
+            for img in images:
+                RequisitionImage.objects.create(
+                    requisition=requisition,
+                    image=img,
+                    uploaded_by=request.user
+                )
+            messages.success(request, f"成功上傳 {len(images)} 張圖片。")
+            return redirect(f"{reverse('requisitions:requisition_detail', kwargs={'pk': pk})}#images-card")
+    else:
+        upload_form = RequisitionImageForm()
+
     # Fetch all RequisitionItems for this requisition
     all_items = RequisitionItem.objects.filter(requisition=requisition).order_by('material_number')
+    images = requisition.images.all()
 
     # Categorize items
-    dispatched_items = all_items.filter(dispatch_status='dispatched', is_signed_off=False)
-    backordered_items = all_items.filter(dispatch_status='backordered', is_signed_off=False)
-    signed_off_items = all_items.filter(is_signed_off=True)
+    dispatched_items_qs = all_items.filter(dispatch_status='dispatched', is_signed_off=False)
+    backordered_items_qs = all_items.filter(dispatch_status='backordered', is_signed_off=False)
+    signed_off_items_qs = all_items.filter(is_signed_off=True)
 
-    # --- DEBUG LOGS for Requisition Items ---
-    print(f"DEBUG: Requisition {pk} - Total RequisitionItems: {all_items.count()}")
-    print(f"DEBUG: Requisition {pk} - Dispatched Items (not signed off): {dispatched_items.count()}")
-    for item in dispatched_items:
-        print(f"  - Dispatched Item PK: {item.pk}, Material: {item.material_number}, Confirmed Qty: {item.confirmed_quantity}, Required Qty: {item.required_quantity}, Dispatch Status: {item.dispatch_status}, Signed Off: {item.is_signed_off}")
-    print(f"DEBUG: Requisition {pk} - Backordered Items (not signed off): {backordered_items.count()}")
-    for item in backordered_items:
-        print(f"  - Backordered Item PK: {item.pk}, Material: {item.material_number}, Confirmed Qty: {item.confirmed_quantity}, Required Qty: {item.required_quantity}, Dispatch Status: {item.dispatch_status}, Signed Off: {item.is_signed_off}")
-    print(f"DEBUG: Requisition {pk} - Signed Off Items: {signed_off_items.count()}")
-    for item in signed_off_items:
-        print(f"  - Signed Off Item PK: {item.pk}, Material: {item.material_number}, Confirmed Qty: {item.confirmed_quantity}, Required Qty: {item.required_quantity}, Dispatch Status: {item.dispatch_status}, Signed Off: {item.is_signed_off}")
-    # --- END DEBUG LOGS ---
+    items_per_page = 10
+
+    # Paginate dispatched items
+    dispatched_paginator = Paginator(dispatched_items_qs, items_per_page)
+    page_dispatched = request.GET.get('page_dispatched', 1)
+    dispatched_items_page = dispatched_paginator.get_page(page_dispatched)
+
+    # Paginate backordered items
+    backordered_paginator = Paginator(backordered_items_qs, items_per_page)
+    page_backordered = request.GET.get('page_backordered', 1)
+    backordered_items_page = backordered_paginator.get_page(page_backordered)
+
+    # Paginate signed off items
+    signed_off_paginator = Paginator(signed_off_items_qs, items_per_page)
+    page_signed_off = request.GET.get('page_signed_off', 1)
+    signed_off_items_page = signed_off_paginator.get_page(page_signed_off)
 
     context = {
         'requisition': requisition,
-        'dispatched_items': dispatched_items,
-        'backordered_items': backordered_items,
-        'signed_off_items': signed_off_items,
+        'dispatched_items': dispatched_items_page,
+        'backordered_items': backordered_items_page,
+        'signed_off_items': signed_off_items_page,
+        'images': images,
+        'upload_form': upload_form,
         'is_admin': is_admin,
         'is_applicant': is_applicant,
         'is_material_handler': is_material_handler,
@@ -500,7 +518,8 @@ def requisition_sign_off(request, pk):
             else:
                 messages.warning(request, "此申請單沒有可簽收的物料項目。")
 
-    return redirect('requisitions:requisition_detail', pk=requisition.pk)
+    redirect_url = reverse('requisitions:requisition_detail', kwargs={'pk': requisition.pk})
+    return redirect(f'{redirect_url}#dispatched-items-card')
 
 
 

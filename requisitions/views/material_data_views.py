@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageUploadForm, WorkOrderMaterialImageUploadForm
+from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageForm, WorkOrderMaterialImageUploadForm
 from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
 from inventory.models import Material
 from django.db import transaction
@@ -121,20 +121,18 @@ def work_order_material_list(request):
     selected_process_type_for_context = None # Initialize for context
 
     if order_number:
-        # Subquery to get storage_bin and stock_quantity from Inventory
-        # Subquery to get bin from Material model
+        # Subquery to get stock_quantity from the main inventory.Material model
+        inventory_subquery_stock_quantity = Subquery(
+            Material.objects.filter(material_code=OuterRef('material_number')).values('system_quantity')[:1]
+        )
         material_subquery_bin = Subquery(
             Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
-        )
-        # Subquery to get stock_quantity from Inventory
-        inventory_subquery_stock_quantity = Subquery(
-            Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
         )
 
         materials = WorkOrderMaterial.objects.filter(order_number=order_number).select_related('process_type').annotate(
             import_count=Count('requisition_items'),
             bin=material_subquery_bin, # Fetch bin from Material model
-            stock_quantity=inventory_subquery_stock_quantity
+            stock_quantity=inventory_subquery_stock_quantity # Use the correct inventory source
         )
         # Apply is_active filter
         if not show_inactive:
@@ -426,7 +424,7 @@ def update_work_order_quantities(request):
                               'order_number': material.order_number,
                               'item_name': material.item_name,
                               'required_quantity': material.required_quantity,
-                              'stock_quantity': Inventory.objects.filter(material_number=material.material_number).values_list('stock_quantity', flat=True).first() or Decimal('0'), # Fetch current stock
+                              'stock_quantity': Material.objects.filter(material_code=material.material_number).values_list('system_quantity', flat=True).first() or Decimal('0'), # Fetch current stock from the correct source
                               'confirmed_quantity': material.confirmed_quantity,
                               'dispatch_status': 'dispatched' if material.confirmed_quantity >= material.required_quantity else 'backordered',
                           }
@@ -475,7 +473,7 @@ def update_work_order_quantities(request):
                       'order_number': material.order_number,
                       'item_name': material.item_name,
                       'required_quantity': material.required_quantity,
-                      'stock_quantity': Inventory.objects.filter(material_number=material.material_number).values_list('stock_quantity', flat=True).first() or Decimal('0'),
+                      'stock_quantity': Material.objects.filter(material_code=material.material_number).values_list('system_quantity', flat=True).first() or Decimal('0'),
                       'confirmed_quantity': Decimal('0'), # Set to 0 as it was not dispatched
                       'dispatch_status': 'backordered', # Explicitly set to backordered
                   }

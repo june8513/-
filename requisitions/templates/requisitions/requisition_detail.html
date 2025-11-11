@@ -48,7 +48,7 @@
     </div>
 
     <!-- Dispatched Items (簽收單) -->
-    <div class="card mb-4">
+    <div class="card mb-4" id="dispatched-items-card">
         <div class="card-header bg-success text-white">
             簽收單 (已撥料項目)
         </div>
@@ -62,15 +62,15 @@
                                 <tr>
                                     <th>物料</th>
                                     <th>品名</th>
-                                    <th>需求數量</th>
-                                    <th>已撥料數量</th>
+                                    <th>需求</th>
+                                    <th>已撥料</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in dispatched_items %}
                                     <tr>
-                                        <td>{{ item.material_number }}</td>
+                                        <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}" class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
                                         <td>{{ item.item_name }}</td>
                                         <td>{{ item.required_quantity|floatformat:2 }}</td>
                                         <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
@@ -92,6 +92,42 @@
                         </div>
                     {% endif %}
                 </form>
+                {# Pagination for dispatched_items #}
+                {% if dispatched_items.has_other_pages %}
+                    <nav aria-label="Page navigation for dispatched items">
+                        <ul class="pagination justify-content-center">
+                            {% if dispatched_items.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% query_transform page_dispatched=dispatched_items.previous_page_number %}#dispatched-items-card" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                            {% endif %}
+
+                            {% for i in dispatched_items.paginator.page_range %}
+                                {% if dispatched_items.number == i %}
+                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% query_transform page_dispatched=i %}#dispatched-items-card">{{ i }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if dispatched_items.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% query_transform page_dispatched=dispatched_items.next_page_number %}#dispatched-items-card" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
             {% else %}
                 <p>目前沒有已撥料的項目。</p>
             {% endif %}
@@ -99,7 +135,7 @@
     </div>
 
     <!-- Backordered Items (欠料單) -->
-    <div class="card mb-4">
+    <div class="card mb-4" id="backordered-items-card">
         <div class="card-header bg-warning text-dark">
             欠料單 (未完全撥料項目)
         </div>
@@ -111,15 +147,15 @@
                             <tr>
                                 <th>物料</th>
                                 <th>品名</th>
-                                <th>需求數量</th>
-                                <th>已撥料數量</th>
-                                <th>欠料數量</th>
+                                <th>需求</th>
+                                <th>已撥料</th>
+                                <th>欠料</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for item in backordered_items %}
                                 <tr>
-                                    <td>{{ item.material_number }}</td>
+                                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}" class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
                                     <td>{{ item.item_name }}</td>
                                     <td>{{ item.required_quantity|floatformat:2 }}</td>
                                     <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
@@ -129,6 +165,42 @@
                         </tbody>
                     </table>
                 </div>
+                {# Pagination for backordered_items #}
+                {% if backordered_items.has_other_pages %}
+                    <nav aria-label="Page navigation for backordered items">
+                        <ul class="pagination justify-content-center">
+                            {% if backordered_items.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% query_transform page_backordered=backordered_items.previous_page_number %}#backordered-items-card" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                            {% endif %}
+
+                            {% for i in backordered_items.paginator.page_range %}
+                                {% if backordered_items.number == i %}
+                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% query_transform page_backordered=i %}#backordered-items-card">{{ i }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if backordered_items.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% query_transform page_backordered=backordered_items.next_page_number %}#backordered-items-card" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
             {% else %}
                 <p>目前沒有欠料項目。</p>
             {% endif %}
@@ -136,7 +208,7 @@
     </div>
 
     <!-- Signed-off Items (已簽收項目) -->
-    <div class="card mb-4">
+    <div class="card mb-4" id="signed-off-items-card">
         <div class="card-header bg-info text-white">
             已簽收項目
         </div>
@@ -148,14 +220,14 @@
                             <tr>
                                 <th>物料</th>
                                 <th>品名</th>
-                                <th>需求數量</th>
-                                <th>已撥料數量</th>
+                                <th>需求</th>
+                                <th>已撥料</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for item in signed_off_items %}
                                 <tr>
-                                    <td>{{ item.material_number }}</td>
+                                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}" class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
                                     <td>{{ item.item_name }}</td>
                                     <td>{{ item.required_quantity|floatformat:2 }}</td>
                                     <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
@@ -164,8 +236,86 @@
                         </tbody>
                     </table>
                 </div>
+                {# Pagination for signed_off_items #}
+                {% if signed_off_items.has_other_pages %}
+                    <nav aria-label="Page navigation for signed off items">
+                        <ul class="pagination justify-content-center">
+                            {% if signed_off_items.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% query_transform page_signed_off=signed_off_items.previous_page_number %}#signed-off-items-card" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                            {% endif %}
+
+                            {% for i in signed_off_items.paginator.page_range %}
+                                {% if signed_off_items.number == i %}
+                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% query_transform page_signed_off=i %}#signed-off-items-card">{{ i }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if signed_off_items.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% query_transform page_signed_off=signed_off_items.next_page_number %}#signed-off-items-card" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
             {% else %}
                 <p>目前沒有已簽收項目。</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Image Upload Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            圖片上傳
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" action="{% url 'requisitions:requisition_detail' pk=requisition.pk %}">
+                {% csrf_token %}
+                {{ upload_form.as_p }}
+                <button type="submit" class="btn btn-primary">上傳圖片</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Uploaded Images Display Section -->
+    <div class="card mb-4" id="images-card">
+        <div class="card-header bg-secondary text-white">
+            已上傳圖片
+        </div>
+        <div class="card-body">
+            {% if images %}
+                <div class="row">
+                    {% for image in images %}
+                        <div class="col-md-3 mb-3">
+                            <div class="card">
+                                <a href="{{ image.image.url }}" target="_blank">
+                                    <img src="{{ image.image.url }}" class="card-img-top" alt="Requisition Image" style="height: 150px; object-fit: cover;">
+                                </a>
+                                <div class="card-body">
+                                    <p class="card-text"><small class="text-muted">上傳者: {{ image.uploaded_by.username }}</small></p>
+                                    <p class="card-text"><small class="text-muted">上傳時間: {{ image.uploaded_at|date:"Y-m-d H:i" }}</small></p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>目前沒有上傳的圖片。</p>
             {% endif %}
         </div>
     </div>
