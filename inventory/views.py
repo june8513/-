@@ -15,7 +15,7 @@ import json
 def import_material_master(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
 
     if request.method != 'POST' or not request.FILES.get('excel_file'):
         return redirect('inventory_update')
@@ -109,7 +109,7 @@ def import_material_master(request):
     except Exception as e:
         messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
 
-    return redirect('inventory_home')
+    return redirect('inventory:inventory_home')
 
 # View for listing master materials and providing import/stocktake creation options
 @login_required
@@ -370,7 +370,7 @@ def export_master_material_differences(request):
             '庫位': material.location,
             '儲格': material.bin,
             '物料': material.material_code,
-            '物料說明': material.material_description,
+            '物料說明': material.material.material_description,
             '系統庫存數量': material.system_quantity,
             '最新盤點數量': material.latest_counted_quantity if material.latest_counted_quantity is not None else '',
             '最新差異': material.current_difference if material.current_difference is not None else '',
@@ -397,7 +397,7 @@ def inventory_dashboard(request):
 def inventory_update_view(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
     
     # Get all distinct locations to populate the form
     locations = StorageLocation.objects.all().order_by('name')
@@ -411,7 +411,7 @@ def inventory_update_view(request):
 def stocktake_location_list(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
 
     locations_stats = StorageLocation.objects.annotate(
         total_items=Count('material'),
@@ -427,7 +427,7 @@ def stocktake_location_list(request):
 def stocktake_detail_by_location(request, location_name):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
 
     sort_by = request.GET.get('sort_by', 'bin') # Default sort by bin
     order = request.GET.get('order', 'asc')
@@ -486,7 +486,7 @@ def update_counted_quantity(request):
 def difference_location_list(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
 
     locations_stats = StorageLocation.objects.annotate(
         difference_items=Count('material', 
@@ -504,7 +504,7 @@ def difference_location_list(request):
 def difference_detail_by_location(request, location_name):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
 
     sort_by = request.GET.get('sort_by', 'bin')
     order = request.GET.get('order', 'asc')
@@ -538,7 +538,7 @@ def difference_detail_by_location(request, location_name):
 def export_differences_excel(request, location_name):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
 
     materials = Material.objects.filter(
         location__name=location_name
@@ -574,7 +574,7 @@ def export_differences_excel(request, location_name):
 def danger_zone(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
     return render(request, 'inventory/danger_zone.html')
 
 @login_required
@@ -584,7 +584,7 @@ def quick_stocktake_view(request):
     """
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('inventory_home')
+        return redirect('inventory:inventory_home')
     return render(request, 'inventory/quick_stocktake.html')
 
 @login_required
@@ -646,7 +646,7 @@ def clear_all_materials(request):
                     # Material deletion will cascade to transactions and images
                     count, _ = Material.objects.all().delete()
                 messages.success(request, f"成功清除所有物料資料 (共 {count} 筆)。")
-                return redirect('inventory_home')
+                return redirect('inventory:inventory_home')
             except Exception as e:
                 messages.error(request, f"清除資料時發生錯誤: {e}")
         else:

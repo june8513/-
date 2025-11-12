@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, RequisitionImageForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrder
 from inventory.models import Material
 from django.db import transaction
 from django.conf import settings
@@ -310,6 +310,18 @@ def requisition_create(request):
 
     if request.method == 'POST':
         order_number = request.POST.get('order_number') # Get order_number from POST data
+
+        # Check if the work order is archived
+        try:
+            work_order = WorkOrder.objects.get(order_number=order_number)
+            if work_order.is_archived:
+                messages.error(request, f"工單 {order_number} 已被歸檔，無法為其建立新的撥料申請單。")
+                form = RequisitionForm(request.POST) # Re-initialize form to show user's input
+                return render(request, 'requisitions/requisition_create.html', {'form': form})
+        except WorkOrder.DoesNotExist:
+            # This case might be handled by other logic, but it's good to be explicit.
+            # If the work order doesn't exist at all, the process type query will be empty anyway.
+            pass
 
         # Re-generate choices for process_type based on the submitted order_number
         material_process_type_ids = WorkOrderMaterial.objects.filter(

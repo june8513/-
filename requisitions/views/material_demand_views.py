@@ -79,23 +79,24 @@ def estimated_material_demand(request):
     all_materials_analysis = get_material_demand_analysis()
 
     # Convert to list for filtering and sorting
-    demand_list = list(all_materials_analysis.values())
+    # Filter to only include materials with a shortage (Requirement #4)
+    demand_list = [item for item in all_materials_analysis.values() if item['is_shortage']]
 
-    # --- The rest of the view is for filtering, sorting, and pagination ---
-
-    # Add calculated fields first, so we can filter on them
+    # Add calculated fields and format dates for template
     for item in demand_list:
         # Calculate demanding_orders_count
         item['demanding_orders_count'] = len(item['detail_orders'])
 
-        # Find the first shortage date
-        item['shortage_date'] = None
-        # Ensure detail_orders is sorted by date to find the *first* shortage
-        sorted_details = sorted(item['detail_orders'], key=lambda x: x.get('demand_date') or datetime.date.max)
-        for detail in sorted_details:
-            if detail.get('is_running_shortage'):
-                item['shortage_date'] = detail['demand_date']
-                break # Found the first shortage date, no need to look further
+        # Format dates for display in template
+        if item.get('first_shortage_shipping_date'):
+            item['first_shortage_shipping_date_str'] = item['first_shortage_shipping_date'].strftime('%Y-%m-%d')
+        else:
+            item['first_shortage_shipping_date_str'] = ''
+        
+        if item.get('estimated_arrival_date'):
+            item['estimated_arrival_date_str'] = item['estimated_arrival_date'].strftime('%Y-%m-%d')
+        else:
+            item['estimated_arrival_date_str'] = ''
 
     material_number_filter = request.GET.get('material_number')
     purchaser_filter = request.GET.get('purchaser')
@@ -107,6 +108,9 @@ def estimated_material_demand(request):
     if material_number_filter:
         demand_list = [m for m in demand_list if material_number_filter.lower() in m['material_number'].lower()]
 
+    if purchaser_filter:
+        demand_list = [m for m in demand_list if m.get('purchaser') and purchaser_filter.lower() in m.get('purchaser', '').lower()]
+
     if shortage_date_filter:
         try:
             filter_date = datetime.datetime.strptime(shortage_date_filter, '%Y-%m-%d').date()
@@ -114,14 +118,14 @@ def estimated_material_demand(request):
         except ValueError:
             messages.error(request, "無效的日期格式，請使用 YYYY-MM-DD 格式。")
     
-    # Note: Purchaser filter needs to be adapted as the analysis function doesn't fetch it anymore.
-    # This will be added back if necessary.
-
     # Sorting
-    # Simplified sorting for now, can be expanded
     reverse_order = order == 'desc'
     if sort_by == 'material_number':
         demand_list.sort(key=lambda x: x['material_number'], reverse=reverse_order)
+    elif sort_by == 'first_shortage_shipping_date': # New sort option
+        demand_list.sort(key=lambda x: x['first_shortage_shipping_date'] if x['first_shortage_shipping_date'] else datetime.date.max, reverse=reverse_order)
+    elif sort_by == 'estimated_arrival_date': # New sort option
+        demand_list.sort(key=lambda x: x['estimated_arrival_date'] if x['estimated_arrival_date'] else datetime.date.max, reverse=reverse_order)
     # Add other sort options as needed
 
     # Add detail_orders_json for the frontend
@@ -132,6 +136,10 @@ def estimated_material_demand(request):
                 detail['required_quantity'] = str(detail['required_quantity'])
             if isinstance(detail['demand_date'], datetime.date):
                 detail['demand_date'] = str(detail['demand_date'])
+            if isinstance(detail['shipping_date'], datetime.date): # Format shipping_date
+                detail['shipping_date'] = str(detail['shipping_date'])
+            else:
+                detail['shipping_date'] = '' # Ensure it's a string even if None
         item['detail_orders_json'] = json.dumps(item['detail_orders'])
 
     # Pagination
@@ -141,7 +149,7 @@ def estimated_material_demand(request):
 
     # Get all unique purchasers for the filter dropdown
     all_purchasers = User.objects.filter(
-        id__in=Material.objects.values_list('purchaser__id', flat=True).distinct()
+        username__in=Material.objects.values_list('purchaser', flat=True).distinct()
     ).order_by('username')
     purchaser_choices = [(p.username, p.username) for p in all_purchasers if p.username]
 

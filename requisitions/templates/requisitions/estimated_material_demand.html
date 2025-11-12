@@ -65,11 +65,17 @@
                             {% if sort_by == 'estimated_arrival_date' %}{% if order == 'asc' %} &#9650;{% else %} &#9660;{% endif %}{% endif %}
                         </a>
                     </th>
+                    <th>
+                        <a class="text-white" href="?material_number={{ material_number_filter|default:'' }}&shortage_date={{ shortage_date_filter|default:'' }}&purchaser={{ purchaser_filter|default:'' }}&sort_by=first_shortage_shipping_date&order={% if sort_by == 'first_shortage_shipping_date' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                            缺料出貨日
+                            {% if sort_by == 'first_shortage_shipping_date' %}{% if order == 'asc' %} &#9650;{% else %} &#9660;{% endif %}{% endif %}
+                        </a>
+                    </th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in demand_list %}
-                <tr data-pk="{{ item.pk }}">
+                <tr data-pk="{{ item.pk }}" class="{% if item.estimated_arrival_date and item.first_shortage_shipping_date and item.estimated_arrival_date > item.first_shortage_shipping_date %}table-danger{% endif %}">
                     <td>
                         <a href="#" class="material-detail-link"
                            data-bs-toggle="modal"
@@ -82,13 +88,14 @@
                         </a>
                     </td>
                     <td>{{ item.item_name }}</td>
-                    <td>{{ item.purchaser.username|default:"N/A" }}</td>
+                    <td>{{ item.purchaser|default:"N/A" }}</td>
                     <td>{{ item.current_stock|floatformat:2 }}</td>
                     <td>{{ item.shortage_date|date:'Y-m-d'|default_if_none:"" }}</td>
                     <td>{{ item.demanding_orders_count }}</td>
                     <td>{{ item.total_required_quantity|floatformat:2 }}</td>
                     <td class="{% if item.final_shortage > 0 %}text-danger{% else %}text-success{% endif %}">{{ item.final_shortage|floatformat:2 }}</td>
                     <td><input type="date" class="form-control estimated-arrival-date" value="{% if item.estimated_arrival_date %}{{ item.estimated_arrival_date|date:'Y-m-d' }}{% endif %}"></td>
+                    <td>{{ item.first_shortage_shipping_date_str|default_if_none:"" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -161,6 +168,7 @@
                                 <th>庫存量</th>
                                 <th>機型</th>
                                 <th>投料點</th>
+                                <th>出貨日期</th> <!-- New column for shipping date -->
                             </tr>
                         </thead>
                         <tbody id="modalOrderList">
@@ -255,6 +263,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     demandDate = date.toLocaleDateString();
                 }
 
+                let shippingDate = 'N/A'; // New variable for shipping date
+                if (order.shipping_date) {
+                    const date = new Date(order.shipping_date + 'T00:00:00');
+                    shippingDate = date.toLocaleDateString();
+                }
+
                 let orderNumberSpan = `<span class="${shortageClass}">${order.order_number}</span>`;
                 let requiredQuantitySpan = `<span class="${shortageClass}">${parseFloat(order.required_quantity).toFixed(2)}</span>`;
 
@@ -265,6 +279,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${parseFloat(order.running_stock).toFixed(2)}</td> <!-- Display running_stock -->
                     <td>${order.machine_model_name}</td>
                     <td>${order.process_type_name}</td>
+                    <td>${shippingDate}</td> <!-- Display shipping date -->
                 `;
                 modalOrderList.appendChild(row);
             });
@@ -273,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // If no orders were processed, display the "no data" message
         if (!detailOrdersJson || detailOrdersJson.length === 0) {
             var row = document.createElement('tr');
-            row.innerHTML = '<td colspan="5" class="text-center">沒有找到相關訂單詳情。</td>';
+            row.innerHTML = '<td colspan="7" class="text-center">沒有找到相關訂單詳情。</td>'; <!-- Updated colspan -->
             modalOrderList.appendChild(row);
         }
     });
