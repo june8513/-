@@ -1,5 +1,7 @@
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F, ExpressionWrapper, DecimalField
+from django.db.models.functions import Coalesce
+from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 import pandas as pd
@@ -13,11 +15,9 @@ from inventory.models import MaterialTransaction, Material
 def _apply_filters_to_queryset(queryset, filters):
     q_objects = Q()
     for key, value in filters.items():
-        if key == 'status' and value == '缺料':
-            # This is a specific rule for '缺料' status, assuming it's a status field
-            # In a real scenario, '缺料' might mean stock_quantity < reorder_level
-            # For Requisition, we'll assume '缺料' means status is pending or similar
-            q_objects &= Q(status='pending') # Placeholder for actual '缺料' logic
+        if key == 'is_shortage' and value is True:
+            if queryset.model == WorkOrderMaterial:
+                q_objects &= Q(required_quantity__gt=Coalesce('confirmed_quantity', Decimal('0.00')))
         elif key.endswith('__date__gte') or key.endswith('__date__lte'):
             q_objects &= Q(**{key: value})
         elif key.endswith('__date'):
@@ -85,21 +85,29 @@ def handle_export(request, parameters):
         agg_function = aggregation.get('function')
         agg_field = aggregation.get('field')
 
-        if not group_by_field or not agg_function or not agg_field:
+        if not agg_function or not agg_field:
             return JsonResponse({'error': 'Missing aggregation parameters'}, status=400)
 
         # Django ORM aggregation
         if data_source == "MaterialTransaction":
             # For MaterialTransaction, group by material and sum quantity_change
             # Need to filter by transaction_type='ALLOCATION' for '撥出'
-            aggregated_results = filtered_queryset.filter(transaction_type='ALLOCATION') \
-                                                .values(group_by_field) \
-                                                .annotate(Total_Quantity=Sum(agg_field))
-            # Convert queryset to a more explicit dictionary for DataFrame creation
-            data_dict = {
-                '物料編號': [item['material__material_code'] for item in aggregated_results],
-                '總撥出數量': [item['Total_Quantity'] for item in aggregated_results]
-            }
+            queryset = filtered_queryset.filter(transaction_type='ALLOCATION')
+            
+            if group_by_field:
+                aggregated_results = queryset.values(group_by_field) \
+                                             .annotate(Total_Quantity=Sum(agg_field))
+                # Convert queryset to a more explicit dictionary for DataFrame creation
+                data_dict = {
+                    '物料編號': [item[group_by_field] for item in aggregated_results],
+                    '總撥出數量': [item['Total_Quantity'] for item in aggregated_results]
+                }
+            else:
+                # Calculate grand total if no group_by_field is provided
+                total = queryset.aggregate(Total_Quantity=Sum(agg_field))['Total_Quantity'] or 0
+                data_dict = {
+                    '總撥出數量': [total]
+                }
             df_data = data_dict # For debug printing
         elif data_source == "WorkOrderMaterial":
             # Aggregation for WorkOrderMaterial (e.g., group by material and sum required_quantity)
@@ -127,7 +135,25 @@ def handle_export(request, parameters):
         if data_source == "Requisition":
             df_data = list(filtered_queryset.values('order_number', 'applicant__username', 'request_date', 'status', 'created_at'))
         elif data_source == "WorkOrderMaterial":
-            df_data = list(filtered_queryset.values('order_number', 'material_number', 'item_name', 'required_quantity', 'estimated_arrival_date'))
+            # Annotate with shortage quantity for a more informative export
+            annotated_queryset = filtered_queryset.annotate(
+                shortage_quantity=ExpressionWrapper(
+                    F('required_quantity') - Coalesce('confirmed_quantity', Decimal('0.00')),
+                    output_field=DecimalField()
+                )
+            )
+            # Prepare data with Chinese keys for the Excel export
+            df_data = [
+                {
+                    '訂單單號': item.order_number,
+                    '物料編號': item.material_number,
+                    '品名': item.item_name,
+                    '需求數量': item.required_quantity,
+                    '已撥數量': item.confirmed_quantity or 0,
+                    '欠料數量': item.shortage_quantity,
+                }
+                for item in annotated_queryset
+            ]
         elif data_source == "MaterialTransaction":
             df_data = list(filtered_queryset.values('material__material_code', 'user__username', 'transaction_type', 'quantity_change', 'timestamp'))
 

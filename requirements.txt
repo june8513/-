@@ -45,3 +45,4 @@ django-widget-tweaks
 django-sslserver==0.22 
 waitress==3.0.2 
 whitenoise==6.10.0
+ollama
