@@ -16,7 +16,7 @@ class Material(models.Model):
     system_quantity = models.IntegerField(verbose_name="系統庫存數量")
     last_counted_date = models.DateTimeField(null=True, blank=True, verbose_name="上次盤點日期")
     latest_counted_quantity = models.IntegerField(null=True, blank=True, verbose_name="最新盤點數量") # Keep this field
-    purchaser = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchased_materials', verbose_name="採購員")
+    purchaser = models.CharField(max_length=100, blank=True, null=True, verbose_name="採購員")
     last_counted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="盤點人員")
 
     class Meta:

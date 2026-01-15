@@ -1,12 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from requisitions.models import Requisition, WorkOrderMaterial, Inventory
-from django.db import transaction
+from requisitions.models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, ProcessType
+from inventory.models import Material
+from django.db import transaction, IntegrityError
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.http import JsonResponse, HttpResponse
-from django.db.models import F, ExpressionWrapper, DecimalField, Subquery, OuterRef
+from django.db.models import F, ExpressionWrapper, DecimalField, Subquery, OuterRef, Sum, Q
 from django.db.models.functions import Coalesce
 
 @login_required
@@ -114,21 +115,20 @@ def generate_backorder_note(request, pk):
     inventory_subquery_stock_quantity = Subquery(
         Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
     )
-    # Filter for active materials where required_quantity > confirmed_quantity
-    # and are associated with this specific requisition and its process type
-    shortage_materials = WorkOrderMaterial.objects.filter(
-        is_active=True,
-        required_quantity__gt=F('confirmed_quantity'),
-        order_number=requisition.order_number,
-        process_type__name=requisition.process_type
+    # Filter for RequisitionItems that are not fully dispatched (shortage)
+    # We use RequisitionItem as the source of truth because it tracks confirmed_quantity
+    # and includes all items (including those from Kit child process types)
+    shortage_materials = RequisitionItem.objects.filter(
+        requisition=requisition,
+        required_quantity__gt=Coalesce(F('confirmed_quantity'), Decimal('0'))
     ).annotate(
         shortage_quantity=ExpressionWrapper(
-            F('required_quantity') - Coalesce(F('confirmed_quantity'), 0),
+            F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0')),
             output_field=DecimalField()
         ),
         storage_bin=inventory_subquery_storage_bin,
         stock_quantity=inventory_subquery_stock_quantity
-    ).order_by('order_number', 'material_number').distinct()
+    ).order_by('order_number', 'material_number')
 
     context = {
         'requisition': requisition,
@@ -142,45 +142,248 @@ def supplement_material(request):
     return HttpResponse("This is a placeholder for supplement_material.")
 
 @login_required
-def dispatch_preparation_list(request):
-    is_admin = request.user.is_superuser
-    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
+def batch_dispatch_view(request):
+    """
+    Displays an aggregated list of materials for batch dispatch,
+    only showing materials that still require dispatching.
+    """
+    req_ids = request.GET.getlist('req_id')
+    
+    # Handle case where req_id is passed as a comma-separated string (e.g. from sorting links)
+    if len(req_ids) == 1 and ',' in req_ids[0]:
+        req_ids = req_ids[0].split(',')
 
-    if not (is_admin or is_material_handler):
-        messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('core:homepage')
+    if not req_ids:
+        messages.error(request, "沒有選擇任何申請單。")
+        return redirect('requisitions:requisition_list')
 
-    # Filter requisitions that are awaiting dispatch and not archived
-    requisitions_qs = Requisition.objects.filter(
-        status='awaiting_dispatch',
+    requisitions = Requisition.objects.filter(
+        pk__in=req_ids,
+        dispatch_performed=False,
         is_archived=False
-    ).order_by('-created_at').select_related('applicant')
+    )
+    
+    if len(req_ids) != requisitions.count():
+        messages.error(request, "包含無效或已完成撥料的申請單。")
+        return redirect('requisitions:requisition_list')
 
-    # Add search/filter options if needed (e.g., by order_number, process_type)
-    order_number_search = request.GET.get('order_number_search')
-    if order_number_search:
-        requisitions_qs = requisitions_qs.filter(order_number__icontains=order_number_search)
+    # --- 1. Get all items that still need dispatching, and pre-calculate their need ---
+    items_to_process = RequisitionItem.objects.filter(
+        requisition__in=requisitions
+    ).annotate(
+        current_confirmed=Coalesce('confirmed_quantity', Decimal('0'))
+    ).filter(
+        required_quantity__gt=F('current_confirmed')
+    ).select_related('requisition', 'source_material__process_type').order_by('material_number', 'requisition__created_at')
 
-    process_type_filter = request.GET.get('process_type')
-    if process_type_filter:
-        requisitions_qs = requisitions_qs.filter(process_type=process_type_filter)
+    # --- 2. Group them by Kit or Material for the template ---
+    grouped_items = {}
+    
+    # Pre-fetch ProcessTypes for all items to avoid N+1 queries
+    # We need to know if the item's source material's process type is a kit or has a kit parent
+    # RequisitionItem -> WorkOrderMaterial (source_material) -> ProcessType
+    
+    # Helper to get kit info
+    def get_kit_info(item):
+        if not item.source_material or not item.source_material.process_type:
+            return None
+        
+        pt = item.source_material.process_type
+        if pt.is_kit:
+            return pt
+        if pt.parent and pt.parent.is_kit:
+            return pt.parent
+        return None
 
-    # Pagination
-    paginator = Paginator(requisitions_qs, 10) # Show 10 requisitions per page
-    page_number = request.GET.get('page')
-    requisitions_page = paginator.get_page(page_number)
+    for item in items_to_process:
+        kit = get_kit_info(item)
+        
+        if kit:
+            # Group by Kit
+            group_key = f"KIT_{kit.id}"
+            group_display_name = f"台份: {kit.name}"
+            is_kit_group = True
+            kit_id = kit.id
+        else:
+            # Group by Material Number (Legacy behavior)
+            group_key = item.material_number
+            group_display_name = f"物料: {item.material_number}"
+            is_kit_group = False
+            kit_id = None
 
-    # Get unique process types for filter dropdown
-    process_types = Requisition.objects.filter(
-        status='awaiting_dispatch',
-        is_archived=False
-    ).values_list('process_type', flat=True).distinct().order_by('process_type')
-    process_type_choices = [(pt, pt) for pt in process_types if pt]
+        if group_key not in grouped_items:
+            # First time seeing this group
+            if not is_kit_group:
+                # Fetch stock info for single material
+                main_material = Material.objects.filter(material_code=item.material_number).first()
+                stock_quantity = main_material.system_quantity if main_material else Decimal('0')
+                storage_bin = main_material.bin if main_material else ''
+                item_name_display = item.item_name
+            else:
+                # For kits, stock info is per item, so we don't show it at group level
+                stock_quantity = Decimal('0') 
+                storage_bin = 'Multiple'
+                item_name_display = '包含多個物料'
+
+            grouped_items[group_key] = {
+                'display_name': group_display_name,
+                'is_kit': is_kit_group,
+                'kit_id': kit_id,
+                'item_name': item_name_display,
+                'storage_bin': storage_bin,
+                'stock_quantity': stock_quantity,
+                'items': [],
+                'material_number': item.material_number # Keep for sorting if not kit
+            }
+        
+        # Add the item itself to the list for this group
+        item.quantity_needed = item.required_quantity - item.current_confirmed
+        
+        # If it's a kit, we might want to fetch individual stock info for display in the table
+        if is_kit_group:
+             main_material = Material.objects.filter(material_code=item.material_number).first()
+             item.stock_quantity_display = main_material.system_quantity if main_material else Decimal('0')
+             item.storage_bin_display = main_material.bin if main_material else ''
+
+        grouped_items[group_key]['items'].append(item)
+
+    # Calculate total remaining need for each group
+    for key, details in grouped_items.items():
+        total_need = sum(item.quantity_needed for item in details['items'])
+        details['total_remaining_need'] = total_need
+
+    # --- 3. Sorting Logic ---
+    sort_option = request.GET.get('sort', 'material') # Default to material sort
+    
+    if sort_option == 'storage_bin':
+        # Sort by storage_bin (empty bins last), then by material_number
+        sorted_items = dict(sorted(grouped_items.items(), key=lambda item: (item[1]['storage_bin'] == '', item[1]['storage_bin'], item[0])))
+    else:
+        # Default: Sort by material_number
+        sorted_items = dict(sorted(grouped_items.items(), key=lambda item: item[0]))
 
     context = {
-        'requisitions': requisitions_page,
-        'process_type_choices': process_type_choices,
-        'selected_process_type': process_type_filter,
-        'order_number_search': order_number_search,
+        'grouped_items': sorted_items,
+        'requisition_ids': ",".join(req_ids),
+        'current_sort': sort_option
     }
-    return render(request, 'requisitions/dispatch_preparation_list.html', context)
+    return render(request, 'requisitions/batch_dispatch_aggregated.html', context)
+
+@login_required
+@transaction.atomic
+def batch_dispatch_action(request):
+    """
+    Handles the submission of the batch dispatch form from the manual allocation UI.
+    Processes individual quantities for each RequisitionItem.
+    Updates RequisitionItem, Inventory, and parent Requisition status.
+    """
+    if request.method != 'POST':
+        messages.error(request, "無效的請求。")
+        return redirect('requisitions:requisition_list')
+
+    requisition_ids_str = request.POST.get('requisition_ids', '')
+    if not requisition_ids_str:
+        messages.error(request, "沒有提供申請單 ID。")
+        return redirect('requisitions:requisition_list')
+
+    # --- 1. Parse dispatched quantities for each item from the form ---
+    item_quantities = {}
+    for key, value in request.POST.items():
+        if key.startswith('dispatch_item_'):
+            if not value or value.isspace():
+                continue  # Skip if the input is empty
+
+            try:
+                item_pk = int(key.replace('dispatch_item_', ''))
+                quantity = Decimal(value)
+                if quantity > 0:  # Only process positive quantities
+                    item_quantities[item_pk] = quantity
+            except (ValueError, InvalidOperation):
+                messages.error(request, f"提供的數量 '{value}' 無效。")
+                return redirect('requisitions:requisition_list')
+
+    if not item_quantities:
+        messages.warning(request, "沒有輸入任何撥料數量。")
+        return redirect('requisitions:requisition_list')
+
+    # --- 2. Process each item and update inventory ---
+    # Keep track of total dispatch per material for inventory update
+    inventory_updates = {}
+    updated_item_pks = set(item_quantities.keys())
+
+    items_to_update = RequisitionItem.objects.filter(pk__in=updated_item_pks).select_related('requisition')
+    
+    for item in items_to_update:
+        quantity_to_add = item_quantities.get(item.pk, Decimal('0'))
+        if quantity_to_add <= 0:
+            continue
+
+        # Security/safety check
+        current_confirmed = item.confirmed_quantity or Decimal('0')
+        needed = item.required_quantity - current_confirmed
+        if quantity_to_add > needed:
+            messages.error(request, f"物料 {item.material_number} 的撥料數量 ({quantity_to_add}) 超過尚需數量 ({needed})。")
+            # Rolling back transaction manually
+            transaction.set_rollback(True)
+            return redirect('requisitions:requisition_list')
+
+        item.confirmed_quantity += quantity_to_add
+        item.save()
+
+        # Aggregate inventory changes
+        if item.material_number not in inventory_updates:
+            inventory_updates[item.material_number] = Decimal('0')
+        inventory_updates[item.material_number] += quantity_to_add
+
+    # --- 3. Update inventory in a separate loop ---
+    for material_number, total_to_dispatch in inventory_updates.items():
+        try:
+            # Use lock for update to prevent race conditions
+            inventory_item = Inventory.objects.select_for_update().get(material_number=material_number)
+            if inventory_item.stock_quantity < total_to_dispatch:
+                messages.error(request, f"物料 {material_number} 的庫存 ({inventory_item.stock_quantity}) 不足，無法撥料 {total_to_dispatch}。")
+                transaction.set_rollback(True)
+                return redirect('requisitions:requisition_list')
+            
+            inventory_item.stock_quantity -= total_to_dispatch
+            inventory_item.save()
+        except Inventory.DoesNotExist:
+            messages.error(request, f"庫存中找不到物料 {material_number}。")
+            transaction.set_rollback(True)
+            return redirect('requisitions:requisition_list')
+
+    # --- 4. Update dispatch_status for all affected items ---
+    for item in items_to_update:
+        if item.pk in updated_item_pks:  # Redundant check, but safe
+            if item.confirmed_quantity >= item.required_quantity:
+                item.dispatch_status = 'dispatched'
+            elif item.confirmed_quantity > 0:
+                item.dispatch_status = 'dispatched' # Partially dispatched is still 'dispatched'
+            else:
+                # This case shouldn't be hit if we only process quantity > 0, but for completeness:
+                item.dispatch_status = 'backordered'
+            item.save()
+
+    # --- 5. Update status for all affected requisitions ---
+    requisition_ids = [int(id) for id in requisition_ids_str.split(',') if id.isdigit()]
+    requisitions_to_update = Requisition.objects.filter(pk__in=requisition_ids)
+    for req in requisitions_to_update:
+        # Re-fetch all items for the requisition to get the most up-to-date state
+        all_req_items = RequisitionItem.objects.filter(requisition=req)
+        
+        total_required = sum(i.required_quantity for i in all_req_items)
+        total_confirmed = sum(i.confirmed_quantity or Decimal('0') for i in all_req_items)
+
+        if total_confirmed >= total_required:
+            req.status = 'dispatch_completed'
+            req.dispatch_performed = True
+        elif total_confirmed > 0:
+            req.status = 'dispatch_in_progress'
+            # dispatch_performed remains False
+        else:
+            # Status remains as it was (e.g., demand_submitted)
+            pass
+        req.save()
+
+    messages.success(request, f"批量撥料操作成功！")
+    return redirect('requisitions:requisition_list')

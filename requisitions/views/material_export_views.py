@@ -206,6 +206,63 @@ def generate_dispatch_note(request, pk):
         dispatcher_name=Subquery(dispatcher_subquery)
     )
 
+    # --- Check for Earlier Shortages (Queue Jumping Alert) ---
+    backlog_map = {}
+    target_material_numbers = list(materials.values_list('material_number', flat=True))
+    
+    if target_material_numbers:
+        # 1. Find all *other* active shortages for these materials
+        other_shortages = WorkOrderMaterial.objects.filter(
+            material_number__in=target_material_numbers,
+            is_active=True,
+            required_quantity__gt=Coalesce(F('confirmed_quantity'), 0)
+        ).exclude(
+            order_number=requisition.order_number,
+            process_type__name=requisition.process_type 
+        ).select_related('process_type')
+        
+        # 2. Check their requisition dates
+        shortage_groups = {}
+        for s in other_shortages:
+             # Handle process_type being None or having a name
+             p_name = s.process_type.name if s.process_type else None
+             key = (s.order_number, p_name)
+             if key not in shortage_groups:
+                 shortage_groups[key] = []
+             shortage_groups[key].append(s)
+             
+        if shortage_groups:
+            # 3. Find which of these groups have an earlier requisition
+            date_q = Q()
+            for (o_num, p_name) in shortage_groups.keys():
+                if p_name:
+                    date_q |= Q(order_number=o_num, process_type=p_name)
+                else:
+                    date_q |= Q(order_number=o_num, process_type__isnull=True)
+            
+            if date_q:
+                earlier_reqs = Requisition.objects.filter(
+                    date_q,
+                    request_date__lt=requisition.request_date,
+                    status__in=['demand_submitted', 'dispatch_in_progress'],
+                    is_archived=False
+                ).values('order_number', 'process_type', 'request_date')
+                
+                # 4. Build the final map
+                for req in earlier_reqs:
+                    key = (req['order_number'], req['process_type'])
+                    if key in shortage_groups:
+                        for s in shortage_groups[key]:
+                            if s.material_number not in backlog_map:
+                                backlog_map[s.material_number] = []
+                            
+                            shortage_qty = s.required_quantity - (s.confirmed_quantity or 0)
+                            backlog_map[s.material_number].append({
+                                'order': s.order_number,
+                                'date': req['request_date'],
+                                'shortage': shortage_qty
+                            })
+
     # Excel Export Logic
     if 'excel' in request.path:
         data = {
@@ -238,12 +295,17 @@ def generate_dispatch_note(request, pk):
             process_type__name=requisition.process_type
         ).order_by('-uploaded_at')
 
+    # Attach backlog info to material objects for easier template access
+    materials_list = list(materials)
+    for m in materials_list:
+        m.backlog_info = backlog_map.get(m.material_number, [])
+
     context = {
         'requisition': requisition,
-        'materials': materials,
+        'materials': materials_list,
         'dispatch_note_images': dispatch_note_images,
     }
-    return render(request, 'requisitions/dispatch_note.html', context)
+    return render(request, 'requisitions/dispatch_note_v2.html', context)
 
 @login_required
 def export_backorder_note_excel(request, pk):

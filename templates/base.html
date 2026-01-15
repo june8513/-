@@ -39,7 +39,6 @@
                                 <ul class="dropdown-menu" aria-labelledby="finishedGoodsDispatchDropdown">
                                     {% if user.is_authenticated %}
                                         {% if is_admin or is_material_handler %}
-                                            <li><a class="dropdown-item" href="{% url 'requisitions:dispatch_preparation_list' %}">撥料準備清單</a></li>
                                             <li><a class="dropdown-item" href="{% url 'requisitions:requisition_list' %}">待撥料申請</a></li>
                                         {% endif %}
                                     {% endif %}

@@ -96,7 +96,7 @@ def get_ollama_response(query_text: str, user_id: int) -> dict:
     try:
         # Call Ollama model
         response = ollama.chat(
-            model='phi3', # Use the phi3 model
+            model='gemma:2b', # Use the gemma:2b model (smaller memory footprint)
             messages=[
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_message},
@@ -113,5 +113,10 @@ def get_ollama_response(query_text: str, user_id: int) -> dict:
         print(f"Ollama response was not valid JSON: {response_content}. Error: {e}")
         return {"error": "Ollama 返回了無效的 JSON 格式。"}
     except Exception as e:
-        print(f"Error calling Ollama: {e}")
-        return {"error": f"與 Ollama 溝通時發生錯誤: {e}"}
+        error_msg = str(e)
+        print(f"Error calling Ollama: {error_msg}")
+        if "model requires more system memory" in error_msg:
+            return {"error": "系統記憶體不足，無法執行模型。請嘗試關閉其他應用程式或聯絡管理員。"}
+        elif "pull access denied" in error_msg or "try pulling it first" in error_msg:
+             return {"error": "找不到模型 'gemma:2b'。請在伺服器終端機執行 `ollama pull gemma:2b`。"}
+        return {"error": f"與 Ollama 溝通時發生錯誤: {error_msg}"}

@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageForm, WorkOrderMaterialImageUploadForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage, WorkOrder
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -23,7 +23,7 @@ import io
 import json
 from decimal import Decimal, InvalidOperation
 import tempfile
-from requisitions.utils import process_order_model_excel, process_material_details_excel
+from requisitions.utils import process_order_model_excel, process_material_details_excel, notify_requisition_shortages
 import datetime
 
 @login_required
@@ -97,12 +97,12 @@ from django.db.models import Sum
 @login_required
 def work_order_material_list(request):
     is_admin = request.user.is_superuser
-    # is_applicant = request.user.groups.filter(name='申請人員').exists() # No longer needed for access control
+    is_applicant = request.user.groups.filter(name='申請人員').exists()
     is_material_handler = request.user.groups.filter(name='撥料人員').exists()
 
-    if not is_admin and not is_material_handler: # Only admin and material handler can access
+    if not (is_admin or is_material_handler or is_applicant): # Allow applicant
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('core:homepage') # Redirect to core:homepage
+        return redirect('core:homepage')
 
     # Initialize all variables that will be used in the context
     order_number = request.GET.get('order_number', None)
@@ -116,7 +116,20 @@ def work_order_material_list(request):
     requisitions_for_import = Requisition.objects.none()
     process_type_choices = []
     machine_models_for_display = []
-    order_numbers = WorkOrderMaterial.objects.values_list('order_number', flat=True).distinct()
+    order_numbers = WorkOrder.objects.filter(is_archived=False).values_list('order_number', flat=True).order_by('-order_number')
+    
+    all_process_type_names = ['機械', '系統', '電裝', '鑄件', '護蓋', '刀庫', '出貨', '組件']
+
+    # Check if the requested order_number is archived
+    if order_number:
+        try:
+            work_order = WorkOrder.objects.get(order_number=order_number)
+            if work_order.is_archived:
+                messages.error(request, f"工單 {order_number} 已被歸檔，無法在此頁面查看。")
+                return redirect('requisitions:work_order_list')
+        except WorkOrder.DoesNotExist:
+            messages.error(request, f"找不到工單 {order_number}。")
+            return redirect('requisitions:work_order_list')
 
     selected_process_type_for_context = None # Initialize for context
 
@@ -129,18 +142,25 @@ def work_order_material_list(request):
             Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
         )
 
+        # Subquery to calculate the total confirmed quantity from all related RequisitionItems
+        total_confirmed_subquery = RequisitionItem.objects.filter(
+            source_material=OuterRef('pk')
+        ).values('source_material').annotate(
+            total=Sum('confirmed_quantity')
+        ).values('total')
+
         materials = WorkOrderMaterial.objects.filter(order_number=order_number).select_related('process_type').annotate(
             import_count=Count('requisition_items'),
-            bin=material_subquery_bin, # Fetch bin from Material model
-            stock_quantity=inventory_subquery_stock_quantity # Use the correct inventory source
+            bin=material_subquery_bin,
+            stock_quantity=inventory_subquery_stock_quantity,
+            total_confirmed_quantity=Coalesce(Subquery(total_confirmed_subquery, output_field=DecimalField()), Decimal('0.0'))
         )
         # Apply is_active filter
         if not show_inactive:
-            materials = materials.filter(is_active=True)
+            # Show active materials OR inactive materials that have confirmed quantity > 0
+            materials = materials.filter(Q(is_active=True) | Q(confirmed_quantity__gt=0))
         
-        # DEBUG: Print bin values
-        for m in materials:
-            print(f"Material: {m.material_number}, Bin: {m.bin}")
+
 
         # If process_type_name_filter is provided (from requisition_list), find its ID
         if process_type_name_filter:
@@ -187,7 +207,7 @@ def work_order_material_list(request):
             'item_name': 'item_name',
             'required_quantity': 'required_quantity',
             'process_type': 'process_type__name',
-            'confirmed_quantity': 'confirmed_quantity',
+            'confirmed_quantity': 'total_confirmed_quantity', # Use the annotated field for sorting
             'is_signed_off': 'is_signed_off',
             'bin': 'bin', # Add bin for sorting
         }
@@ -195,13 +215,77 @@ def work_order_material_list(request):
         order_field = f'{'-' if order == "desc" else ""}{model_sort_by}'
         materials = materials.order_by(order_field)
 
-        # Get other data needed for the context
-        requisitions_for_import = Requisition.objects.filter(
-            order_number=order_number,
-            status__in=['pending', 'materials_confirmed', 'completed']
-        ).order_by('process_type')
+        # --- Check for Earlier Shortages (Queue Jumping Alert) ---
+        backlog_map = {}
+        current_req_dates = {}
+        
+        if order_number:
+            # Get dates for current order's requisitions
+            current_reqs = Requisition.objects.filter(order_number=order_number)
+            for req in current_reqs:
+                current_req_dates[req.process_type] = req.request_date
 
-        unique_machine_model_ids = materials.values_list('machine_model__id', flat=True).distinct()
+        if order_number and materials:
+            target_material_numbers = list(materials.values_list('material_number', flat=True))
+            
+            if current_req_dates:
+                 # Find all *other* active shortages for these materials
+                 other_shortages = WorkOrderMaterial.objects.filter(
+                    material_number__in=target_material_numbers,
+                    is_active=True,
+                    required_quantity__gt=Coalesce(F('confirmed_quantity'), 0)
+                ).exclude(
+                    order_number=order_number
+                ).select_related('process_type')
+                
+                 shortage_groups = {}
+                 for s in other_shortages:
+                     p_name = s.process_type.name if s.process_type else None
+                     key = (s.order_number, p_name)
+                     if key not in shortage_groups: shortage_groups[key] = []
+                     shortage_groups[key].append(s)
+                     
+                 if shortage_groups:
+                    date_q = Q()
+                    for (o_num, p_name) in shortage_groups.keys():
+                        if p_name: date_q |= Q(order_number=o_num, process_type=p_name)
+                        else: date_q |= Q(order_number=o_num, process_type__isnull=True)
+                    
+                    other_reqs = Requisition.objects.filter(
+                        date_q,
+                        status__in=['demand_submitted', 'dispatch_in_progress'],
+                        is_archived=False
+                    ).values('order_number', 'process_type', 'request_date')
+                    
+                    other_req_map = { (r['order_number'], r['process_type']): r['request_date'] for r in other_reqs }
+                    
+                    for s_list in shortage_groups.values():
+                        for s in s_list:
+                            p_name = s.process_type.name if s.process_type else None
+                            other_date = other_req_map.get((s.order_number, p_name))
+                            if other_date:
+                                if s.material_number not in backlog_map: backlog_map[s.material_number] = []
+                                backlog_map[s.material_number].append({
+                                    'order': s.order_number,
+                                    'date': other_date,
+                                    'shortage': s.required_quantity - (s.confirmed_quantity or 0)
+                                })
+        
+        # Convert queryset to list and attach info
+        materials_list = list(materials)
+        for m in materials_list:
+            m_process_name = m.process_type.name if m.process_type else None
+            current_date = current_req_dates.get(m_process_name)
+            
+            m.backlog_info = []
+            if current_date and m.material_number in backlog_map:
+                m.backlog_info = [b for b in backlog_map[m.material_number] if b['date'] < current_date]
+        
+        # Use the list for context
+        materials = materials_list 
+
+        # Get other data needed for the context
+        unique_machine_model_ids = set(m.machine_model_id for m in materials if m.machine_model_id)
         unique_machine_models = MachineModel.objects.filter(id__in=unique_machine_model_ids).order_by('name')
         machine_models_for_display = [str(mm) for mm in unique_machine_models]
 
@@ -228,6 +312,7 @@ def work_order_material_list(request):
         'show_inactive': show_inactive, # New context variable
         'is_admin': is_admin, # Pass to context
         'is_material_handler': is_material_handler, # Pass to context
+        'all_process_type_names': all_process_type_names,
     }
     return render(request, 'requisitions/work_order_material_list.html', context)
 
@@ -250,7 +335,7 @@ def archived_work_order_material_list(request):
     materials = WorkOrderMaterial.objects.none()
     process_type_choices = []
     machine_models_for_display = []
-    order_numbers = WorkOrderMaterial.objects.values_list('order_number', flat=True).distinct()
+    order_numbers = WorkOrder.objects.filter(is_archived=True).values_list('order_number', flat=True).order_by('-order_number')
 
     selected_process_type_for_context = None
 
@@ -328,6 +413,7 @@ def update_work_order_quantities(request):
       process_type_filter = request.POST.get('process_type_filter', '')
       updated_materials = [] # Re-initialize updated_materials here
       redirect_to_requisition_pk = None # Initialize a variable to store the PK for redirection
+      affected_requisition_ids = set() # Track affected requisitions for notification
 
       print(f"Received POST data: {request.POST}") # DEBUG
 
@@ -359,6 +445,40 @@ def update_work_order_quantities(request):
 
       for key, value in request.POST.items():
           print(f"Processing key: {key}, value: {value}") # DEBUG
+          
+          if key.startswith('processtype_'):
+              try:
+                  material_id = int(key.split('_')[1])
+                  new_pt_name = value
+                  
+                  if not new_pt_name: continue
+                  
+                  material = WorkOrderMaterial.objects.get(pk=material_id)
+                  current_pt_name = material.process_type.name if material.process_type else None
+                  
+                  if current_pt_name != new_pt_name:
+                      try:
+                          new_pt_obj = ProcessType.objects.get(name=new_pt_name, machine_model=material.machine_model)
+                          material.process_type = new_pt_obj
+                          material.save()
+                          updated_materials.append(f"物料 {material.material_number} 投料點更新: {new_pt_name}")
+                          
+                          # Learning
+                          from requisitions.models import MaterialProcessTypeRule
+                          material_prefix = material.material_number[:10]
+                          MaterialProcessTypeRule.objects.update_or_create(
+                              material_prefix=material_prefix,
+                              machine_model_name=material.machine_model.name,
+                              defaults={
+                                  'process_type_name': new_pt_name,
+                                  'updated_by': request.user
+                              }
+                          )
+                      except ProcessType.DoesNotExist:
+                          messages.error(request, f"物料 {material.material_number} 更新失敗：機型 {material.machine_model} 不支援投料點 '{new_pt_name}'。")
+              except Exception as e:
+                  print(f"Error updating PT: {e}")
+
           if key.startswith('change_') and value:
               try:
                   material_id = int(key.split('_')[1])
@@ -433,12 +553,15 @@ def update_work_order_quantities(request):
                           messages.info(request, f"為申請單 {req.order_number} ({req.process_type}) 新增物料 {material.material_number}。")
                       else:
                           messages.info(request, f"更新申請單 {req.order_number} ({req.process_type}) 的物料 {material.material_number} 撥料數量。")
+                      
+                      affected_requisition_ids.add(req.pk)
 
                       # Check if all items for this requisition are fully dispatched
                       all_items_for_req = RequisitionItem.objects.filter(requisition=req)
                       all_dispatched = True
                       for item in all_items_for_req:
-                          if item.confirmed_quantity < item.required_quantity:
+                          confirmed_qty = item.confirmed_quantity if item.confirmed_quantity is not None else Decimal('0')
+                          if confirmed_qty < item.required_quantity:
                               all_dispatched = False
                               break
                       
@@ -482,6 +605,8 @@ def update_work_order_quantities(request):
                   messages.info(request, f"為申請單 {current_requisition.order_number} ({current_requisition.process_type}) 新增未撥物料 {material.material_number}。")
               else:
                   messages.info(request, f"更新申請單 {current_requisition.order_number} ({current_requisition.process_type}) 的未撥物料 {material.material_number} 狀態。")
+              
+              affected_requisition_ids.add(current_requisition.pk)
       # --- End New Logic ---
 
       # After processing all materials (both explicitly updated and implicitly backordered),
@@ -491,7 +616,8 @@ def update_work_order_quantities(request):
           all_items_for_req = RequisitionItem.objects.filter(requisition=current_requisition)
           all_dispatched = True
           for item in all_items_for_req:
-              if item.confirmed_quantity < item.required_quantity:
+              confirmed_qty = item.confirmed_quantity if item.confirmed_quantity is not None else Decimal('0')
+              if confirmed_qty < item.required_quantity:
                   all_dispatched = False
                   break
           
@@ -506,6 +632,14 @@ def update_work_order_quantities(request):
               current_requisition.status = 'dispatch_in_progress'
               current_requisition.save()
       
+      # Send notifications for all affected requisitions
+      for req_id in affected_requisition_ids:
+          try:
+              req_to_notify = Requisition.objects.get(pk=req_id)
+              notify_requisition_shortages(req_to_notify)
+          except Requisition.DoesNotExist:
+              pass
+
       if updated_materials:
             print(f"Updated materials list: {updated_materials}") # DEBUG
             if updated_materials:

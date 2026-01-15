@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from .views import api_views, assistant_views # Import assistant_views
+from .views.requisition_management_views import dismiss_requisition_alert
 
 app_name = 'requisitions'
 
@@ -14,7 +15,9 @@ urlpatterns = [
     path('finished_goods_dispatch/', views.finished_goods_dispatch, name='finished_goods_dispatch'),
     path('<int:pk>/images/', views.view_requisition_images, name='view_requisition_images'),
     path('<int:pk>/upload_page/', views.upload_requisition_images_page, name='upload_requisition_images_page'),
-    path('dispatch_preparation_list/', views.dispatch_preparation_list, name='dispatch_preparation_list'),
+
+    path('batch_dispatch_view/', views.batch_dispatch_view, name='batch_dispatch_view'),
+    path('batch_dispatch_action/', views.batch_dispatch_action, name='batch_dispatch_action'),
     path('list/', views.requisition_list, name='requisition_list'),
     path('<int:pk>/detail/', views.requisition_detail, name='requisition_detail'),
     path('archived_list/', views.archived_requisition_list, name='archived_requisition_list'), # Renamed from ''
@@ -49,6 +52,7 @@ urlpatterns = [
     path('<int:pk>/update_material_dispatch_status/', views.update_material_dispatch_status, name='update_material_dispatch_status'),
     path('<int:pk>/generate_backorder_note/', views.generate_backorder_note, name='generate_backorder_note'),
     path('<int:pk>/generate_backorder_note/excel/', views.export_backorder_note_excel, name='generate_backorder_note_excel'),
+    path('<int:pk>/dismiss_alert/', dismiss_requisition_alert, name='dismiss_requisition_alert'), # New URL
     path('database/', views.view_database, name='view_database'),
     path('inventory_database/', views.view_inventory_database, name='inventory_database'),
     path('clear_database/', views.clear_work_order_material_database, name='clear_work_order_material_database'),

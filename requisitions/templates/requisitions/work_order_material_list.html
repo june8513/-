@@ -80,9 +80,9 @@
                 {% csrf_token %}
                 <input type="hidden" name="order_number" value="{{ selected_order }}">
                 <input type="hidden" name="process_type_filter" value="{{ selected_process_type|default_if_none:'' }}">
-                {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True is_admin=is_admin is_material_handler=is_material_handler %}
+                {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True is_admin=is_admin is_material_handler=is_material_handler all_process_type_names=all_process_type_names %}
                 <div class="d-flex justify-content-end mt-3">
-                    <button type="submit" class="btn btn-primary">確認本頁所有變更</button>
+                    <button type="submit" class="btn btn-primary" id="originalSubmitBtn">確認本頁所有變更</button>
                 </div>
             </form>
         {% else %}
@@ -94,5 +94,69 @@
         </div>
     {% endif %}
 </div>
+
+<!-- Floating Action Button for Submit -->
+<button type="button" class="btn btn-primary rounded-circle shadow" id="fabSubmitBtn" title="確認變更">
+    <span style="font-size: 30px; line-height: 1;">✔</span>
+</button>
+
+<style>
+    #fabSubmitBtn {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+        display: none; /* Hidden by default */
+        z-index: 1050; /* Above most elements */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const originalBtn = document.getElementById('originalSubmitBtn');
+        const fabBtn = document.getElementById('fabSubmitBtn');
+        
+        // Ensure elements exist before adding listeners
+        if (originalBtn && fabBtn) {
+            const form = originalBtn.closest('form');
+
+            function toggleFab() {
+                const rect = originalBtn.getBoundingClientRect();
+                const windowHeight = (window.innerHeight || document.documentElement.clientHeight);
+                
+                // Check if the original button is visible within the viewport
+                // We add a small buffer (e.g., 50px) so it disappears slightly before the button fully enters
+                const isVisible = (rect.top <= windowHeight) && (rect.bottom >= 0);
+
+                if (isVisible) {
+                    fabBtn.style.display = 'none';
+                } else {
+                    fabBtn.style.display = 'flex'; // Use flex to center icon
+                }
+            }
+
+            // Initial check
+            toggleFab();
+
+            // Check on scroll and resize
+            window.addEventListener('scroll', toggleFab);
+            window.addEventListener('resize', toggleFab);
+
+            // Handle FAB click
+            fabBtn.addEventListener('click', function() {
+                if (form) {
+                    // Create a hidden input to mimic the submit button if needed (not strictly needed here as no value is passed)
+                    // Submit the form
+                    form.submit();
+                }
+            });
+        }
+    });
+</script>
 
 {% endblock %}

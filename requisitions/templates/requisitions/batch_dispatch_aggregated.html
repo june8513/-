@@ -1,0 +1,136 @@
+{% extends "requisitions/base.html" %}
+
+{% block title %}批量撥料作業{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">批量撥料作業</h2>
+    <p class="text-muted">以下是您所選申請單的物料彙總清單。請輸入實際撥料數量並確認。</p>
+
+    <!-- Sorting Toolbar -->
+    <div class="d-flex justify-content-end mb-3">
+        <div class="btn-group" role="group" aria-label="Sorting">
+            <a href="?req_id={{ requisition_ids|safe }}&sort=material"
+                class="btn btn-sm {% if current_sort == 'material' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="fas fa-sort-alpha-down"></i> 依物料編號排序
+            </a>
+            <a href="?req_id={{ requisition_ids|safe }}&sort=storage_bin"
+                class="btn btn-sm {% if current_sort == 'storage_bin' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="fas fa-warehouse"></i> 依儲格排序
+            </a>
+        </div>
+    </div>
+
+    {% if grouped_items %}
+    <form action="{% url 'requisitions:batch_dispatch_action' %}" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="requisition_ids" value="{{ requisition_ids }}">
+
+        {% for key, details in grouped_items.items %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            {% if details.is_kit %}
+                            <span class="badge bg-info text-dark">台份</span> {{ details.display_name }}
+                            {% else %}
+                            {{ details.display_name }}
+                            {% endif %}
+                            <small class="text-muted">{{ details.item_name }}</small>
+                        </h5>
+                        <small>
+                            儲格: {{ details.storage_bin|default:"N/A" }} /
+                            庫存: {{ details.stock_quantity|floatformat:2 }} /
+                            <b>總尚需: {{ details.total_remaining_need|floatformat:2 }}</b>
+                        </small>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary fill-all-btn" type="button"
+                            data-material-group="{{ key }}">
+                            {% if details.is_kit %}撥發整套台份{% else %}全部填滿{% endif %}
+                        </button>
+                        <a class="btn btn-sm btn-secondary" data-bs-toggle="collapse" href="#details-{{ key }}"
+                            role="button" aria-expanded="true" aria-controls="details-{{ key }}">
+                            <i class="fas fa-chevron-down"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse show" id="details-{{ key }}">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                {% if details.is_kit %}
+                                <th>物料編號</th>
+                                <th>品名</th>
+                                <th>儲格</th>
+                                <th>庫存</th>
+                                {% endif %}
+                                <th>工單號</th>
+                                <th>尚需數量</th>
+                                <th style="width: 200px;">本次撥料數量</th>
+                            </tr>
+                        </thead>
+                        <tbody data-material-group-inputs="{{ key }}">
+                            {% for item in details.items %}
+                            <tr>
+                                {% if details.is_kit %}
+                                <td>{{ item.material_number }}</td>
+                                <td>{{ item.item_name }}</td>
+                                <td>{{ item.storage_bin_display }}</td>
+                                <td>{{ item.stock_quantity_display|floatformat:2 }}</td>
+                                {% endif %}
+                                <td>{{ item.requisition.order_number }} ({{ item.requisition.process_type }})</td>
+                                <td>{{ item.quantity_needed|floatformat:2 }}</td>
+                                <td>
+                                    <input type="number" name="dispatch_item_{{ item.pk }}"
+                                        class="form-control form-control-sm dispatch-input" value="0" step="0.01"
+                                        min="0" data-quantity-needed="{{ item.quantity_needed|floatformat:2 }}">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="d-flex justify-content-end mt-4">
+            <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-secondary me-2">取消</a>
+            <button type="submit" class="btn btn-primary">確認撥料</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="alert alert-warning" role="alert">
+        沒有找到需要撥料的物料項目。
+    </div>
+    <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-primary">返回列表</a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const fillAllButtons = document.querySelectorAll('.fill-all-btn');
+
+        fillAllButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                const materialGroup = this.getAttribute('data-material-group');
+                const inputsContainer = document.querySelector(`tbody[data-material-group-inputs="${materialGroup}"]`);
+
+                if (inputsContainer) {
+                    const dispatchInputs = inputsContainer.querySelectorAll('.dispatch-input');
+                    dispatchInputs.forEach(input => {
+                        const quantityNeeded = input.getAttribute('data-quantity-needed');
+                        input.value = quantityNeeded;
+                    });
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

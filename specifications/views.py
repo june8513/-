@@ -1,13 +1,15 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.contrib import messages
-from inventory.models import Material
+from inventory.models import Material, StorageLocation
 from .models import MaterialSpecification
 from .forms import MaterialSpecificationForm
 import pandas as pd
 from django.db import transaction
-
+from decimal import Decimal, InvalidOperation
 from django.core.paginator import Paginator
+from inventory.forms import MaterialForm
 
 @login_required
 def material_spec_list(request):
@@ -15,7 +17,7 @@ def material_spec_list(request):
     is_admin = request.user.is_superuser
 
     # Start with a base queryset
-    queryset = Material.objects.all().select_related('specification', 'purchaser').order_by('material_code')
+    queryset = Material.objects.all().select_related('specification').order_by('material_code')
 
     if query:
         # If there is a search query, filter based on it (for all users)
@@ -41,8 +43,6 @@ def material_spec_list(request):
         'query': query,
     })
 
-from inventory.forms import MaterialForm
-
 @login_required
 def material_spec_edit(request, material_id):
     material = get_object_or_404(Material, pk=material_id)
@@ -55,7 +55,7 @@ def material_spec_edit(request, material_id):
             form.save()
             material_form.save()
             messages.success(request, '物料規格已成功儲存。')
-            return redirect('material_spec_list')
+            return redirect('specifications:material_spec_list')
     else:
         form = MaterialSpecificationForm(instance=spec)
         material_form = MaterialForm(instance=material)
@@ -73,27 +73,52 @@ def import_material_specs(request):
             if not all(col in df.columns for col in expected_columns):
                 missing_cols = ", ".join([col for col in expected_columns if col not in df.columns])
                 messages.error(request, f"Excel 檔案缺少必要的欄位，請檢查是否包含: {missing_cols}")
-                return redirect('material_spec_list')
+                return redirect('specifications:material_spec_list')
 
             with transaction.atomic():
                 for index, row in df.iterrows():
-                    material_code = row['material_code']
-                    
+                    # Clean material_code
+                    raw_material_code = row['material_code']
+                    material_code = str(raw_material_code)
+                    if material_code.endswith('.0'):
+                        material_code = material_code[:-2]
+
+                    # Handle the location ForeignKey
+                    location_name = row.get('location')
+                    location_obj = None
+                    if location_name:
+                        location_obj, _ = StorageLocation.objects.get_or_create(name=location_name)
+
+                    # --- Data Cleaning ---
+                    # Handle system_quantity
+                    try:
+                        system_quantity_value = int(row.get('system_quantity', 0))
+                    except (ValueError, TypeError):
+                        system_quantity_value = 0 # Default to 0 if conversion fails
+
+                    # Handle weight
+                    try:
+                        # Convert to string first to handle potential float values from pandas
+                        weight_value = Decimal(str(row.get('weight', '0')))
+                    except (InvalidOperation, ValueError, TypeError):
+                        weight_value = None # Default to None if conversion fails
+
+                    # --- Database Operations ---
                     material, created = Material.objects.update_or_create(
                         material_code=material_code,
                         defaults={
                             'material_description': row['material_description'],
-                            'location': row.get('location', ''),
+                            'location': location_obj,
                             'bin': row.get('bin', ''),
-                            'system_quantity': row.get('system_quantity', 0),
+                            'system_quantity': system_quantity_value, # Use cleaned value
                         }
                     )
-                    
+
                     MaterialSpecification.objects.update_or_create(
                         material=material,
                         defaults={
                             'size': row['size'],
-                            'weight': row['weight'],
+                            'weight': weight_value, # Use cleaned value
                             'detailed_description': row['detailed_description'],
                         }
                     )
@@ -102,7 +127,7 @@ def import_material_specs(request):
         except Exception as e:
             messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
 
-    return redirect('material_spec_list')
+    return redirect('specifications:material_spec_list')
 
 @login_required
 def redirect_to_material_edit(request):
@@ -116,4 +141,51 @@ def redirect_to_material_edit(request):
                 messages.error(request, f"物料號碼 '{material_code}' 不存在。")
         else:
             messages.error(request, "請輸入物料號碼。")
-    return redirect('material_spec_list')
+    return redirect('specifications:material_spec_list')
+
+@login_required
+def import_material_purchasers(request):
+    if request.method == 'POST' and request.FILES.get('excel_file_purchaser'):
+        excel_file = request.FILES['excel_file_purchaser']
+        try:
+            df = pd.read_excel(excel_file)
+            
+            expected_columns = ['material_code', 'purchaser']
+            if not all(col in df.columns for col in expected_columns):
+                missing_cols = ", ".join([col for col in expected_columns if col not in df.columns])
+                messages.error(request, f"Excel 檔案缺少必要的欄位，請檢查是否包含: {missing_cols}")
+                return redirect('specifications:material_spec_list')
+
+            updated_count = 0
+            not_found_materials = []
+            not_found_users = []
+
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    # Clean material_code
+                    raw_material_code = row['material_code']
+                    material_code = str(raw_material_code)
+                    if material_code.endswith('.0'):
+                        material_code = material_code[:-2]
+                        
+                    purchaser_name = row.get('purchaser', '')
+
+                    try:
+                        material = Material.objects.get(material_code=material_code)
+                        material.purchaser = purchaser_name
+                        material.save()
+                        updated_count += 1
+                            
+                    except Material.DoesNotExist:
+                        not_found_materials.append(material_code)
+
+            if updated_count > 0:
+                messages.success(request, f"成功更新 {updated_count} 筆物料的採購員。")
+            if not_found_materials:
+                messages.warning(request, f"找不到以下物料號碼: {', '.join(map(str, set(not_found_materials)))}")
+
+
+        except Exception as e:
+            messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
+
+    return redirect('specifications:material_spec_list')

@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}工單列表{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2 class="mb-4">工單列表</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card" id="work-order-list-table">
+        <div class="card-header">
+            進行中工單
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>
+                                <a href="?sort=order_number&direction={% if current_sort == 'order_number' and current_direction == 'asc' %}desc{% else %}asc{% endif %}">
+                                    工單單號
+                                    {% if current_sort == 'order_number' %}
+                                        <i class="bi bi-arrow-{% if current_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="?sort=machine_model_name&direction={% if current_sort == 'machine_model_name' and current_direction == 'asc' %}desc{% else %}asc{% endif %}">
+                                    機型
+                                    {% if current_sort == 'machine_model_name' %}
+                                        <i class="bi bi-arrow-{% if current_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="?sort=shipping_date&direction={% if current_sort == 'shipping_date' and current_direction == 'asc' %}desc{% else %}asc{% endif %}">
+                                    出貨日期
+                                    {% if current_sort == 'shipping_date' %}
+                                        <i class="bi bi-arrow-{% if current_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="?sort=status_message&direction={% if current_sort == 'status_message' and current_direction == 'asc' %}desc{% else %}asc{% endif %}">
+                                    工單現況
+                                    {% if current_sort == 'status_message' %}
+                                        <i class="bi bi-arrow-{% if current_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for data in work_orders_data %}
+                            <tr class="work-order-row" data-bs-toggle="collapse" data-bs-target="#details-{{ data.work_order.order_number }}" aria-expanded="false" aria-controls="details-{{ data.work_order.order_number }}">
+                                <td>{{ data.work_order.order_number }}</td>
+                                <td>{{ data.machine_model }}</td>
+                                <td>{{ data.work_order.shipping_date|date:"Y-m-d"|default:"N/A" }}</td>
+                                <td>
+                                    {% if data.work_order.status_message %}
+                                        <span class="badge bg-warning text-dark">{{ data.work_order.status_message }}</span>
+                                    {% else %}
+                                        <span class="badge bg-success">正常</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <form method="post" action="{% url 'requisitions:toggle_work_order_archive' data.work_order.order_number %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-secondary">歸檔</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="details-{{ data.work_order.order_number }}">
+                                <td colspan="5">
+                                    <div class="p-3 d-flex flex-wrap justify-content-center">
+                                        {% for pt in data.process_type_progress %}
+                                            {% if pt.requisition_pk %}
+                                                <a href="{% url 'requisitions:requisition_detail' pt.requisition_pk %}" class="circular-progress-container text-center m-3 text-decoration-none">
+                                                    <div class="circular-progress" data-progress="{{ pt.progress }}">
+                                                        <div class="circular-progress-value">0%</div>
+                                                    </div>
+                                                    <div class="circular-progress-label mt-2">{{ pt.name }}</div>
+                                                </a>
+                                            {% else %}
+                                                <div class="circular-progress-container text-center m-3">
+                                                    <div class="circular-progress" data-progress="{{ pt.progress }}">
+                                                        <div class="circular-progress-value">0%</div>
+                                                    </div>
+                                                    <div class="circular-progress-label mt-2">{{ pt.name }} (無申請單)</div>
+                                                </div>
+                                            {% endif %}
+                                        {% empty %}
+                                            <span>無投料點資訊</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">沒有進行中的工單資料。</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            已歸檔工單
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>工單單號</th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for wo in archived_work_orders %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'requisitions:work_order_requisitions_list' wo.order_number %}">
+                                        {{ wo.order_number }}
+                                    </a>
+                                </td>
+                                <td class="text-center">
+                                    <form method="post" action="{% url 'requisitions:toggle_work_order_archive' wo.order_number %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">取消歸檔</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="2" class="text-center">沒有已歸檔的工單資料。</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var collapseElements = document.querySelectorAll('.collapse');
+    collapseElements.forEach(function (collapseEl) {
+        collapseEl.addEventListener('shown.bs.collapse', function (event) {
+            const detailRow = event.target;
+            const progressBars = detailRow.querySelectorAll('.circular-progress');
+            
+            progressBars.forEach(function(progressBar) {
+                const progressValue = parseFloat(progressBar.getAttribute('data-progress'));
+                const progressValueEl = progressBar.querySelector('.circular-progress-value');
+                let startValue = 0;
+                const speed = 20;
+
+                const progress = setInterval(() => {
+                    startValue++;
+                    
+                    progressValueEl.textContent = `${startValue}%`;
+                    progressBar.style.background = `conic-gradient(#7d2ae8 ${startValue * 3.6}deg, #ededed 0deg)`;
+
+                    if (startValue >= progressValue) {
+                        clearInterval(progress);
+                    }
+                }, speed);
+            });
+        });
+
+        collapseEl.addEventListener('hidden.bs.collapse', function (event) {
+            const detailRow = event.target;
+            const progressBars = detailRow.querySelectorAll('.circular-progress');
+            
+            progressBars.forEach(function(progressBar) {
+                const progressValueEl = progressBar.querySelector('.circular-progress-value');
+                progressValueEl.textContent = '0%';
+                progressBar.style.background = `conic-gradient(#7d2ae8 0deg, #ededed 0deg)`;
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

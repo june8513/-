@@ -30,6 +30,17 @@
 
                     <hr> <!-- Separator -->
 
+                    <!-- Import Purchasers Form -->
+                    <form action="{% url 'specifications:import_material_purchasers' %}" method="post" enctype="multipart/form-data" class="mb-4">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="file" name="excel_file_purchaser" class="form-control" accept=".xlsx, .xls" required>
+                            <button type="submit" class="btn btn-info">匯入採購員</button>
+                        </div>
+                    </form>
+
+                    <hr> <!-- Separator -->
+
                     <!-- Edit Material Form -->
                     <form action="{% url 'specifications:redirect_to_material_edit' %}" method="post">
                         {% csrf_token %}
@@ -82,7 +93,7 @@
             <tr>
                 <td data-label="物料號碼"><a href="{% url 'specifications:material_spec_edit' material.id %}">{{ material.material_code }}</a></td>
                 <td data-label="物料說明">{{ material.material_description }}</td>
-                <td data-label="採購員">{{ material.purchaser.username|default:"N/A" }}</td>
+                <td data-label="採購員">{{ material.purchaser|default:"N/A" }}</td>
                 <td data-label="大小">{{ material.specification.size|default:"" }}</td>
                 <td data-label="重量">{{ material.specification.weight|default:"" }}</td>
                 <td data-label="詳細說明">{{ material.specification.detailed_description|default:"" }}</td>

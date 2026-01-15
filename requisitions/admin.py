@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
-from .models import Requisition, RequisitionItem
+from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule
 
 class RequisitionItemInline(admin.TabularInline):
     model = RequisitionItem
@@ -52,3 +52,17 @@ class CustomUserAdmin(UserAdmin):
     def get_groups(self, obj):
         return ", ".join([g.name for g in obj.groups.all()])
     get_groups.short_description = '所屬角色'
+
+@admin.register(AutoUploadConfig)
+class AutoUploadConfigAdmin(admin.ModelAdmin):
+    list_display = ('priority', 'get_upload_type_display', 'file_path', 'is_active', 'last_run', 'last_status')
+    list_editable = ('is_active', 'file_path') # Removed 'priority' from list_editable
+    ordering = ('priority',)
+
+@admin.register(MaterialProcessTypeRule)
+class MaterialProcessTypeRuleAdmin(admin.ModelAdmin):
+    list_display = ('material_prefix', 'machine_model_name', 'parent_material_desc_keyword', 'process_type_name', 'updated_by', 'updated_at')
+    list_filter = ('machine_model_name', 'process_type_name')
+    search_fields = ('material_prefix', 'machine_model_name', 'process_type_name', 'parent_material_desc_keyword')
+    raw_id_fields = ('updated_by',)
+    list_editable = ('parent_material_desc_keyword', 'process_type_name')

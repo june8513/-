@@ -16,6 +16,8 @@ class MachineModel(models.Model):
 class ProcessType(models.Model):
     name = models.CharField(max_length=100, verbose_name="投料點名稱")
     machine_model = models.ForeignKey(MachineModel, on_delete=models.CASCADE, related_name="process_types", verbose_name="所屬機型")
+    parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children', verbose_name="上層投料點")
+    is_kit = models.BooleanField(default=False, verbose_name="是否為台份(Kit)")
 
     class Meta:
         verbose_name = "投料點"
@@ -25,6 +27,22 @@ class ProcessType(models.Model):
 
     def __str__(self):
         return self.name
+
+class WorkOrder(models.Model):
+    order_number = models.CharField(max_length=100, unique=True, verbose_name="工單單號")
+    shipping_date = models.DateField(null=True, blank=True, verbose_name="出貨日期")
+    is_archived = models.BooleanField(default=False, verbose_name="是否已歸檔")
+    status_message = models.CharField(max_length=255, blank=True, null=True, verbose_name="工單現況")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新時間")
+
+    class Meta:
+        verbose_name = "工單"
+        verbose_name_plural = "工單"
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.order_number
 
 class Requisition(models.Model):
     STATUS_CHOICES = [
@@ -42,6 +60,10 @@ class Requisition(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='demand_submitted', verbose_name="狀態", db_index=True)
     dispatch_performed = models.BooleanField(default=False, verbose_name="已執行撥料")
     is_archived = models.BooleanField(default=False, verbose_name="是否已歸檔")
+    
+    # Demand Change Alerts
+    has_alert = models.BooleanField(default=False, verbose_name="有需求變更警示")
+    alert_message = models.TextField(blank=True, null=True, verbose_name="警示訊息")
     
     material_confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisitions_material_confirmed', verbose_name="物料確認人員")
     material_confirmed_date = models.DateTimeField(null=True, blank=True, verbose_name="物料確認日期")
@@ -184,3 +206,41 @@ class WorkOrderMaterialImage(models.Model):
 
     def __str__(self):
         return f"圖片 for {self.requisition.order_number if self.requisition else 'N/A'} ({self.uploaded_at.strftime('%Y-%m-%d %H:%M')})"
+
+class AutoUploadConfig(models.Model):
+    UPLOAD_TYPES = [
+        ('inventory', '庫存資料 (Inventory)'),
+        ('order_model', '訂單機型 (Order Models)'),
+        ('material_details', '物料明細 (Material Details)'),
+    ]
+    upload_type = models.CharField(max_length=50, choices=UPLOAD_TYPES, unique=True, verbose_name="上傳類型")
+    file_path = models.CharField(max_length=255, verbose_name="檔案路徑", help_text="請輸入完整檔案路徑，例如 C:\\SAP\\inventory.xlsx")
+    is_active = models.BooleanField(default=True, verbose_name="是否啟用")
+    last_run = models.DateTimeField(null=True, blank=True, verbose_name="最後執行時間")
+    last_status = models.CharField(max_length=255, blank=True, verbose_name="最後執行狀態")
+    last_processed_mtime = models.FloatField(null=True, blank=True, verbose_name="最後處理檔案修改時間")
+    priority = models.IntegerField(default=0, verbose_name="執行順序", help_text="數字越小越先執行")
+
+    class Meta:
+        verbose_name = "自動上傳設定"
+        verbose_name_plural = "自動上傳設定"
+        ordering = ['priority']
+
+    def __str__(self):
+        return f"{self.get_upload_type_display()} - {self.file_path}"
+
+class MaterialProcessTypeRule(models.Model):
+    material_prefix = models.CharField(max_length=100, verbose_name="物料前綴/號碼", db_index=True)
+    machine_model_name = models.CharField(max_length=100, verbose_name="機型名稱", db_index=True)
+    process_type_name = models.CharField(max_length=100, verbose_name="投料點名稱")
+    parent_material_desc_keyword = models.CharField(max_length=100, blank=True, null=True, verbose_name="上層說明關鍵字", help_text="若填寫，則只有當上層物料說明包含此關鍵字時才套用")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="最後更新時間")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="更新人員")
+
+    class Meta:
+        verbose_name = "物料投料點規則 (學習紀錄)"
+        verbose_name_plural = "物料投料點規則 (學習紀錄)"
+        unique_together = ('material_prefix', 'machine_model_name', 'parent_material_desc_keyword')
+
+    def __str__(self):
+        return f"{self.material_prefix} + {self.machine_model_name} -> {self.process_type_name}"

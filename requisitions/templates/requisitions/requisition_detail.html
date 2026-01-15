@@ -9,53 +9,176 @@
 
     <!-- Messages -->
     {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %}" role="alert">
-                {{ message }}
-            </div>
-        {% endfor %}
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %}" role="alert">
+        {{ message }}
+    </div>
+    {% endfor %}
     {% endif %}
 
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            申請單基本資訊
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>訂單單號:</strong> {{ requisition.order_number }}</p>
-                    <p><strong>需求流程:</strong> {{ requisition.process_type }}</p>
-                    <p><strong>申請人:</strong> {{ requisition.applicant.username }}</p>
-                    <p><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</p>
+    <div class="accordion" id="reuisitionDetailAccordion">
+        <!-- Basic Info Card -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingInfo">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInfo" aria-expanded="true" aria-controls="collapseInfo">
+                    申請單基本資訊
+                </button>
+            </h2>
+            <div id="collapseInfo" class="accordion-collapse collapse show" aria-labelledby="headingInfo" data-bs-parent="#reuisitionDetailAccordion">
+                <div class="card-body">
+                    
+                    {% if requisition.has_alert %}
+                    <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert">
+                        <div>
+                            <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>需求變更警示</h5>
+                            <pre class="mb-0 mt-2" style="white-space: pre-wrap; font-family: inherit;">{{ requisition.alert_message }}</pre>
+                        </div>
+                        {% if is_material_handler or is_admin %}
+                        <form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post" onsubmit="return confirm('確定要解除此警示嗎？');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-sm text-nowrap ms-3">解除警示</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>訂單單號:</strong> {{ requisition.order_number }}</p>
+                            <p><strong>需求流程:</strong> {{ requisition.process_type }}</p>
+                            <p><strong>申請人:</strong> {{ requisition.applicant.username }}</p>
+                            <p><strong>需求日期:</strong> {{ requisition.request_date|date:"Y-m-d" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>狀態:</strong>
+                                <span
+                                    class="badge bg-{% if requisition.status == 'demand_submitted' %}secondary{% elif requisition.status == 'dispatch_in_progress' %}info{% elif requisition.status == 'dispatch_completed' %}success{% elif requisition.status == 'signed_off' %}primary{% elif requisition.status == 'archived' %}dark{% else %}warning{% endif %}">
+                                    {{ requisition.get_status_display }}
+                                </span>
+                            </p>
+                            <p><strong>建立時間:</strong> {{ requisition.created_at|date:"Y-m-d H:i" }}</p>
+                            <p><strong>備註:</strong> {{ requisition.remarks|default:"無" }}</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <p><strong>狀態:</strong> 
-                        <span class="badge bg-{% if requisition.status == 'demand_submitted' %}secondary{% elif requisition.status == 'dispatch_in_progress' %}info{% elif requisition.status == 'dispatch_completed' %}success{% elif requisition.status == 'signed_off' %}primary{% elif requisition.status == 'archived' %}dark{% else %}warning{% endif %}">
-                            {{ requisition.get_status_display }}
-                        </span>
-                    </p>
-                    <p><strong>建立時間:</strong> {{ requisition.created_at|date:"Y-m-d H:i" }}</p>
-                    <p><strong>備註:</strong> {{ requisition.remarks|default:"無" }}</p>
+                <div class="card-footer text-end">
+                    <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-secondary">返回列表</a>
+                    {% if is_material_handler or is_admin %}
+                    <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ requisition.order_number }}&process_type_name={{ requisition.process_type }}"
+                        class="btn btn-primary">前往撥料</a>
+                    {% endif %}
                 </div>
             </div>
         </div>
-        <div class="card-footer text-end">
-            <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-secondary">返回列表</a>
-            {% if is_material_handler or is_admin %}
-                <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ requisition.order_number }}&process_type_name={{ requisition.process_type }}" class="btn btn-primary">前往撥料</a>
-            {% endif %}
-        </div>
-    </div>
 
-    <!-- Dispatched Items (簽收單) -->
-    <div class="card mb-4" id="dispatched-items-card">
-        <div class="card-header bg-success text-white">
-            簽收單 (已撥料項目)
+        <!-- Dispatched Items (簽收單) -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingDispatched">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDispatched" aria-expanded="false" aria-controls="collapseDispatched">
+                    簽收單 (已撥料項目)
+                </button>
+            </h2>
+            <div id="collapseDispatched" class="accordion-collapse collapse" aria-labelledby="headingDispatched" data-bs-parent="#reuisitionDetailAccordion">
+                <div class="card-body">
+                    {% if dispatched_items %}
+                    <form method="post" action="{% url 'requisitions:requisition_sign_off' pk=requisition.pk %}">
+                        {% csrf_token %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>物料</th>
+                                        <th>品名</th>
+                                        <th>需求</th>
+                                        <th>已撥料</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in dispatched_items %}
+                                    <tr>
+                                        <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}"
+                                                class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
+                                        <td>{{ item.item_name }}</td>
+                                        <td>{{ item.required_quantity|floatformat:2 }}</td>
+                                        <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
+                                        <td>
+                                            {% if is_applicant or is_admin %}
+                                            <button type="submit" name="sign_off_item_{{ item.pk }}"
+                                                class="btn btn-sm btn-primary">簽收</button>
+                                            {% else %}
+                                            <span class="text-muted">無權限</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if is_applicant or is_admin %}
+                        <div class="text-end mt-3">
+                            <button type="submit" name="confirm_all_sign_off" class="btn btn-success">確認本頁所有簽收</button>
+                        </div>
+                        {% endif %}
+                    </form>
+                    {# Pagination for dispatched_items #}
+                    {% if dispatched_items.has_other_pages %}
+                    <nav aria-label="Page navigation for dispatched items">
+                        <ul class="pagination justify-content-center">
+                            {% if dispatched_items.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                    href="?{% query_transform page_dispatched=dispatched_items.previous_page_number %}#headingDispatched"
+                                    aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                            {% endif %}
+
+                            {% for i in dispatched_items.paginator.page_range %}
+                            {% if dispatched_items.number == i %}
+                            <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% query_transform page_dispatched=i %}#headingDispatched">{{ i
+                                    }}</a>
+                            </li>
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if dispatched_items.has_next %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                    href="?{% query_transform page_dispatched=dispatched_items.next_page_number %}#headingDispatched"
+                                    aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                    {% else %}
+                    <p>目前沒有已撥料的項目。</p>
+                    {% endif %}
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            {% if dispatched_items %}
-                <form method="post" action="{% url 'requisitions:requisition_sign_off' pk=requisition.pk %}">
-                    {% csrf_token %}
+
+        <!-- Backordered Items (欠料單) -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingBackordered">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBackordered" aria-expanded="false" aria-controls="collapseBackordered">
+                    欠料單 (未完全撥料項目)
+                </button>
+            </h2>
+            <div id="collapseBackordered" class="accordion-collapse collapse" aria-labelledby="headingBackordered" data-bs-parent="#reuisitionDetailAccordion">
+                <div class="card-body">
+                    {% if shortage_items %}
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered">
                             <thead class="table-light">
@@ -64,261 +187,262 @@
                                     <th>品名</th>
                                     <th>需求</th>
                                     <th>已撥料</th>
-                                    <th>操作</th>
+                                    <th>欠料</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in dispatched_items %}
-                                    <tr>
-                                        <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}" class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
-                                        <td>{{ item.item_name }}</td>
-                                        <td>{{ item.required_quantity|floatformat:2 }}</td>
-                                        <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
-                                        <td>
-                                            {% if is_applicant or is_admin %}
-                                                <button type="submit" name="sign_off_item_{{ item.pk }}" class="btn btn-sm btn-primary">簽收</button>
-                                            {% else %}
-                                                <span class="text-muted">無權限</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
+                                {% for item in shortage_items %}
+                                <tr>
+                                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}"
+                                            class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
+                                    <td>{{ item.item_name }}</td>
+                                    <td>{{ item.required_quantity|floatformat:2 }}</td>
+                                    <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
+                                    <td>{{ item.shortage_quantity|floatformat:2 }}</td>
+                                </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                    {% if is_applicant or is_admin %}
-                        <div class="text-end mt-3">
-                            <button type="submit" name="confirm_all_sign_off" class="btn btn-success">確認本頁所有簽收</button>
-                        </div>
+                    {# Pagination for shortage_items #}
+                    {% if shortage_items.has_other_pages %}
+                    <nav aria-label="Page navigation for shortage items">
+                        <ul class="pagination justify-content-center">
+                            {% if shortage_items.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                    href="?{% query_transform page_shortage=shortage_items.previous_page_number %}#headingBackordered"
+                                    aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                            {% endif %}
+
+                            {% for i in shortage_items.paginator.page_range %}
+                            {% if shortage_items.number == i %}
+                            <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% query_transform page_shortage=i %}#headingBackordered">{{
+                                    i }}</a>
+                            </li>
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if shortage_items.has_next %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                    href="?{% query_transform page_shortage=shortage_items.next_page_number %}#headingBackordered"
+                                    aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
                     {% endif %}
-                </form>
-                {# Pagination for dispatched_items #}
-                {% if dispatched_items.has_other_pages %}
-                    <nav aria-label="Page navigation for dispatched items">
-                        <ul class="pagination justify-content-center">
-                            {% if dispatched_items.has_previous %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?{% query_transform page_dispatched=dispatched_items.previous_page_number %}#dispatched-items-card" aria-label="Previous">
-                                        <span aria-hidden="true">&laquo;</span>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
-                            {% endif %}
-
-                            {% for i in dispatched_items.paginator.page_range %}
-                                {% if dispatched_items.number == i %}
-                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
-                                {% else %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?{% query_transform page_dispatched=i %}#dispatched-items-card">{{ i }}</a>
-                                    </li>
-                                {% endif %}
-                            {% endfor %}
-
-                            {% if dispatched_items.has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?{% query_transform page_dispatched=dispatched_items.next_page_number %}#dispatched-items-card" aria-label="Next">
-                                        <span aria-hidden="true">&raquo;</span>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
-                            {% endif %}
-                        </ul>
-                    </nav>
-                {% endif %}
-            {% else %}
-                <p>目前沒有已撥料的項目。</p>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Backordered Items (欠料單) -->
-    <div class="card mb-4" id="backordered-items-card">
-        <div class="card-header bg-warning text-dark">
-            欠料單 (未完全撥料項目)
-        </div>
-        <div class="card-body">
-            {% if backordered_items %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th>物料</th>
-                                <th>品名</th>
-                                <th>需求</th>
-                                <th>已撥料</th>
-                                <th>欠料</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in backordered_items %}
-                                <tr>
-                                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}" class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
-                                    <td>{{ item.item_name }}</td>
-                                    <td>{{ item.required_quantity|floatformat:2 }}</td>
-                                    <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
-                                    <td>{{ item.required_quantity|sub:item.confirmed_quantity|floatformat:2 }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    {% else %}
+                    <p>目前沒有欠料項目。</p>
+                    {% endif %}
                 </div>
-                {# Pagination for backordered_items #}
-                {% if backordered_items.has_other_pages %}
-                    <nav aria-label="Page navigation for backordered items">
-                        <ul class="pagination justify-content-center">
-                            {% if backordered_items.has_previous %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?{% query_transform page_backordered=backordered_items.previous_page_number %}#backordered-items-card" aria-label="Previous">
-                                        <span aria-hidden="true">&laquo;</span>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
-                            {% endif %}
-
-                            {% for i in backordered_items.paginator.page_range %}
-                                {% if backordered_items.number == i %}
-                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
-                                {% else %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?{% query_transform page_backordered=i %}#backordered-items-card">{{ i }}</a>
-                                    </li>
-                                {% endif %}
-                            {% endfor %}
-
-                            {% if backordered_items.has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?{% query_transform page_backordered=backordered_items.next_page_number %}#backordered-items-card" aria-label="Next">
-                                        <span aria-hidden="true">&raquo;</span>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
-                            {% endif %}
-                        </ul>
-                    </nav>
-                {% endif %}
-            {% else %}
-                <p>目前沒有欠料項目。</p>
-            {% endif %}
+            </div>
         </div>
-    </div>
 
-    <!-- Signed-off Items (已簽收項目) -->
-    <div class="card mb-4" id="signed-off-items-card">
-        <div class="card-header bg-info text-white">
-            已簽收項目
-        </div>
-        <div class="card-body">
-            {% if signed_off_items %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th>物料</th>
-                                <th>品名</th>
-                                <th>需求</th>
-                                <th>已撥料</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in signed_off_items %}
+        <!-- Signed-off Items (已簽收項目) -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingSignedOff">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSignedOff" aria-expanded="false" aria-controls="collapseSignedOff">
+                    已簽收項目
+                </button>
+            </h2>
+            <div id="collapseSignedOff" class="accordion-collapse collapse" aria-labelledby="headingSignedOff" data-bs-parent="#reuisitionDetailAccordion">
+                <div class="card-body">
+                    {% if signed_off_items %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead class="table-light">
                                 <tr>
-                                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}" class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
+                                    <th>物料</th>
+                                    <th>品名</th>
+                                    <th>需求</th>
+                                    <th>已撥料</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in signed_off_items %}
+                                <tr>
+                                    <td><a href="{% url 'specifications:material_spec_list' %}?q={{ item.material_number }}"
+                                            class="text-decoration-none text-dark">{{ item.material_number }}</a></td>
                                     <td>{{ item.item_name }}</td>
                                     <td>{{ item.required_quantity|floatformat:2 }}</td>
                                     <td>{{ item.confirmed_quantity|floatformat:2 }}</td>
                                 </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {# Pagination for signed_off_items #}
-                {% if signed_off_items.has_other_pages %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {# Pagination for signed_off_items #}
+                    {% if signed_off_items.has_other_pages %}
                     <nav aria-label="Page navigation for signed off items">
                         <ul class="pagination justify-content-center">
                             {% if signed_off_items.has_previous %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?{% query_transform page_signed_off=signed_off_items.previous_page_number %}#signed-off-items-card" aria-label="Previous">
-                                        <span aria-hidden="true">&laquo;</span>
-                                    </a>
-                                </li>
+                            <li class="page-item">
+                                <a class="page-link"
+                                    href="?{% query_transform page_signed_off=signed_off_items.previous_page_number %}#headingSignedOff"
+                                    aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
                             {% else %}
-                                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                            <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
                             {% endif %}
 
                             {% for i in signed_off_items.paginator.page_range %}
-                                {% if signed_off_items.number == i %}
-                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
-                                {% else %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?{% query_transform page_signed_off=i %}#signed-off-items-card">{{ i }}</a>
-                                    </li>
-                                {% endif %}
+                            {% if signed_off_items.number == i %}
+                            <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% query_transform page_signed_off=i %}#headingSignedOff">{{ i
+                                    }}</a>
+                            </li>
+                            {% endif %}
                             {% endfor %}
 
                             {% if signed_off_items.has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?{% query_transform page_signed_off=signed_off_items.next_page_number %}#signed-off-items-card" aria-label="Next">
-                                        <span aria-hidden="true">&raquo;</span>
-                                    </a>
-                                </li>
+                            <li class="page-item">
+                                <a class="page-link"
+                                    href="?{% query_transform page_signed_off=signed_off_items.next_page_number %}#headingSignedOff"
+                                    aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
                             {% else %}
-                                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                            <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
                             {% endif %}
                         </ul>
                     </nav>
-                {% endif %}
-            {% else %}
-                <p>目前沒有已簽收項目。</p>
-            {% endif %}
+                    {% endif %}
+                    {% else %}
+                    <p>目前沒有已簽收項目。</p>
+                    {% endif %}
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- Image Upload Section -->
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            圖片上傳
+        <!-- Image Upload Section -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingUpload">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUpload" aria-expanded="false" aria-controls="collapseUpload">
+                    圖片上傳
+                </button>
+            </h2>
+            <div id="collapseUpload" class="accordion-collapse collapse" aria-labelledby="headingUpload" data-bs-parent="#reuisitionDetailAccordion">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data"
+                        action="{% url 'requisitions:requisition_detail' pk=requisition.pk %}">
+                        {% csrf_token %}
+                        {{ upload_form.as_p }}
+                        <button type="submit" class="btn btn-primary">上傳圖片</button>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data" action="{% url 'requisitions:requisition_detail' pk=requisition.pk %}">
-                {% csrf_token %}
-                {{ upload_form.as_p }}
-                <button type="submit" class="btn btn-primary">上傳圖片</button>
-            </form>
-        </div>
-    </div>
 
-    <!-- Uploaded Images Display Section -->
-    <div class="card mb-4" id="images-card">
-        <div class="card-header bg-secondary text-white">
-            已上傳圖片
-        </div>
-        <div class="card-body">
-            {% if images %}
-                <div class="row">
-                    {% for image in images %}
+        <!-- Uploaded Images Display Section -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingImages">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseImages" aria-expanded="false" aria-controls="collapseImages">
+                    已上傳圖片
+                </button>
+            </h2>
+            <div id="collapseImages" class="accordion-collapse collapse" aria-labelledby="headingImages" data-bs-parent="#reuisitionDetailAccordion">
+                <div class="card-body">
+                    {% if images %}
+                    <div class="row">
+                        {% for image in images %}
                         <div class="col-md-3 mb-3">
                             <div class="card">
                                 <a href="{{ image.image.url }}" target="_blank">
-                                    <img src="{{ image.image.url }}" class="card-img-top" alt="Requisition Image" style="height: 150px; object-fit: cover;">
+                                    <img src="{{ image.image.url }}" class="card-img-top" alt="Requisition Image"
+                                        style="height: 150px; object-fit: cover;">
                                 </a>
                                 <div class="card-body">
-                                    <p class="card-text"><small class="text-muted">上傳者: {{ image.uploaded_by.username }}</small></p>
-                                    <p class="card-text"><small class="text-muted">上傳時間: {{ image.uploaded_at|date:"Y-m-d H:i" }}</small></p>
+                                    <p class="card-text"><small class="text-muted">上傳者: {{ image.uploaded_by.username }}</small>
+                                    </p>
+                                    <p class="card-text"><small class="text-muted">上傳時間: {{ image.uploaded_at|date:"Y-m-d H:i"
+                                            }}</small></p>
                                 </div>
                             </div>
                         </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p>目前沒有上傳的圖片。</p>
+                    {% endif %}
                 </div>
-            {% else %}
-                <p>目前沒有上傳的圖片。</p>
-            {% endif %}
+            </div>
         </div>
     </div>
 
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Accordion State Persistence ---
+        // Create a unique key for this specific requisition page
+        var storageKey = 'activeAccordionGroup_' + window.location.pathname; 
+
+        // 1. Restore State on Load
+        var activeCollapseId = localStorage.getItem(storageKey);
+        
+        // Priority: URL Hash > LocalStorage
+        // Check if there is a hash in the URL (e.g., from pagination links)
+        if (window.location.hash) {
+            var hashTarget = document.querySelector(window.location.hash);
+            
+            // Logic to find the collapsible div associated with the hash
+            if (hashTarget) {
+                if (hashTarget.classList.contains('accordion-header')) {
+                    // If hash points to header (e.g. #headingDispatched), open its next sibling
+                    var nextDiv = hashTarget.nextElementSibling;
+                    if (nextDiv && nextDiv.classList.contains('accordion-collapse')) {
+                        activeCollapseId = '#' + nextDiv.id;
+                    }
+                } else if (hashTarget.classList.contains('accordion-collapse')) {
+                    // If hash points directly to the collapsible div
+                    activeCollapseId = '#' + hashTarget.id;
+                }
+            }
+        }
+
+        if (activeCollapseId) {
+            var activeCollapse = document.querySelector(activeCollapseId);
+            if (activeCollapse) {
+                // Initialize Bootstrap Collapse and show
+                var bsCollapse = new bootstrap.Collapse(activeCollapse, {
+                    toggle: false
+                });
+                bsCollapse.show();
+                
+                // Optional: Scroll to ensure it's visible, slightly delayed to allow animation
+                // setTimeout(() => activeCollapse.scrollIntoView({behavior: 'smooth', block: 'start'}), 300);
+            }
+        }
+
+        // 2. Save State on Interaction
+        var accordionButtons = document.querySelectorAll('.accordion-button');
+        accordionButtons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                var targetId = button.getAttribute('data-bs-target');
+                // We simply store the target ID of the button clicked. 
+                // Since this is an accordion, clicking one opens it (and closes others).
+                localStorage.setItem(storageKey, targetId);
+            });
+        });
+    });
+</script>
 {% endblock %}

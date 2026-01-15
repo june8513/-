@@ -22,7 +22,10 @@
 
         <div class="col-md-auto">
             <button type="submit" class="btn btn-outline-primary me-2">篩選</button>
-            <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-outline-secondary">清除篩選</a>
+            <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-outline-secondary me-2">清除篩選</a>
+            <button type="button" class="btn btn-success" id="batchDispatchBtn">
+                <i class="fas fa-boxes-stacked"></i> 批量撥料
+            </button>
         </div>
         
     </form>
@@ -82,6 +85,9 @@
                                 <span class="badge bg-{% if req.status == 'demand_submitted' %}secondary{% elif req.status == 'dispatch_in_progress' %}info{% elif req.status == 'dispatch_completed' %}success{% elif req.status == 'signed_off' %}primary{% elif req.status == 'archived' %}dark{% else %}warning{% endif %}">
                                     {{ req.get_status_display }}
                                 </span>
+                                {% if req.has_alert %}
+                                    <span class="ms-1 fs-5" data-bs-toggle="tooltip" title="有需求變更，請查看詳情">🚨</span>
+                                {% endif %}
                             </td>
 
                             {# Operation Column #}
@@ -143,11 +149,15 @@
 
 
     /* Hidden Field (Status) */
-    .responsive-card-table tbody tr td:nth-of-type(9) {
+    .responsive-card-table tbody tr td:nth-of-type(8) {
         display: none;
     }
 
     /* Action buttons styling */
+    .responsive-card-table tbody td[data-label="操作"] {
+        display: block; /* Ensure action column is visible */
+        width: 100%;
+    }
     .responsive-card-table tbody td[data-label="操作"] a,
     .responsive-card-table tbody td[data-label="操作"] .btn {
         display: block;
@@ -193,7 +203,119 @@
     
 
 
+<!-- Batch Dispatch Modal -->
+<div class="modal fade" id="batchDispatchModal" tabindex="-1" aria-labelledby="batchDispatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="batchDispatchModalLabel">選擇要批量撥料的申請單</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">請勾選您要一次性彙總處理的申請單。</p>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAllCheckbox"></th>
+                    <th>訂單單號</th>
+                    <th>需求流程</th>
+                    <th>申請人</th>
+                    <th>需求日期</th>
+                </tr>
+            </thead>
+            <tbody id="batchDispatchModalBody">
+                <!-- Content will be populated by JavaScript -->
+            </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="proceedToBatchDispatch">下一步</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const batchDispatchBtn = document.getElementById('batchDispatchBtn');
+    const batchDispatchModal = new bootstrap.Modal(document.getElementById('batchDispatchModal'));
+    const modalBody = document.getElementById('batchDispatchModalBody');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const proceedToBatchDispatchBtn = document.getElementById('proceedToBatchDispatch');
+
+    // Data from Django template
+    const allRequisitions = [
+        {% for requisition in requisitions.object_list %}
+        {
+            id: "{{ requisition.pk }}",
+            order_number: "{{ requisition.order_number }}",
+            process_type: "{{ requisition.process_type }}",
+            applicant: "{{ requisition.applicant.username }}",
+            request_date: "{{ requisition.request_date|date:'Y-m-d' }}",
+            has_items: {{ requisition.has_items|yesno:"true,false" }}
+        },
+        {% endfor %}
+    ];
+
+    batchDispatchBtn.addEventListener('click', function() {
+        // Populate modal body
+        modalBody.innerHTML = ''; // Clear previous content
+        allRequisitions.forEach(req => {
+            const checkbox_disabled = !req.has_items;
+            const tooltip_title = checkbox_disabled ? '此申請單沒有物料，無法進行批量撥料。' : '';
+            
+            const row = `
+                <tr>
+                    <td>
+                        <span data-bs-toggle="tooltip" title="${tooltip_title}">
+                            <input type="checkbox" class="form-check-input requisition-checkbox" value="${req.id}" ${checkbox_disabled ? 'disabled' : ''}>
+                        </span>
+                    </td>
+                    <td>${req.order_number}</td>
+                    <td>${req.process_type}</td>
+                    <td>${req.applicant}</td>
+                    <td>${req.request_date}</td>
+                </tr>
+            `;
+            modalBody.insertAdjacentHTML('beforeend', row);
+        });
+
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(modalBody.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        batchDispatchModal.show();
+    });
+
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = modalBody.querySelectorAll('.requisition-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+    });
+
+    proceedToBatchDispatchBtn.addEventListener('click', function() {
+        const selectedCheckboxes = modalBody.querySelectorAll('.requisition-checkbox:checked');
+        const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+        if (selectedIds.length === 0) {
+            alert('請至少選擇一項申請單。');
+            return;
+        }
+
+        // Redirect to the batch dispatch view with selected IDs as query parameters
+        const queryParams = new URLSearchParams();
+        selectedIds.forEach(id => queryParams.append('req_id', id));
+        
+        // IMPORTANT: The URL name 'batch_dispatch_view' is a placeholder and needs to be created in urls.py
+        const url = `{% url 'requisitions:batch_dispatch_view' %}?${queryParams.toString()}`;
+        window.location.href = url;
+    });
+});
+</script>
 {% endblock %}

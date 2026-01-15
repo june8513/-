@@ -1,17 +1,77 @@
 import os
 import pandas as pd
+import requests # Added requests
 from django.db import transaction
-from requisitions.models import WorkOrderMaterial, MachineModel, ProcessType, Requisition
+from django.db.models import Q # Added Q
+from requisitions.models import WorkOrder, WorkOrderMaterial, MachineModel, ProcessType, Requisition
 from inventory.models import Material, MaterialTransaction
 from decimal import Decimal
 from django.conf import settings
+from django.utils import timezone # Added timezone
 import traceback
+
+def notify_requisition_shortages(requisition):
+    """
+    Sends a consolidated notification about ALL shortages for a given requisition.
+    Triggered after batch allocation updates.
+    """
+    try:
+        # Get all items for this requisition that have shortages
+        # We fetch all items to calculate the full picture if needed, or just filter shortages
+        # Let's send a list of items that are currently short
+        items = requisition.items.all()
+        
+        shortage_list = []
+        has_shortage = False
+        
+        for item in items:
+            confirmed = item.confirmed_quantity or Decimal('0')
+            shortage = item.required_quantity - confirmed
+            
+            if shortage > 0:
+                has_shortage = True
+                shortage_list.append({
+                    "material_number": item.material_number,
+                    "item_name": item.item_name,
+                    "required_quantity": float(item.required_quantity),
+                    "confirmed_quantity": float(confirmed),
+                    "shortage_quantity": float(shortage),
+                    "status": "OPEN"
+                })
+
+        # Overall status for the requisition
+        overall_status = "OPEN" if has_shortage else "RESOLVED"
+
+        payload = {
+            "order_number": requisition.order_number,
+            "process_type": requisition.process_type,
+            "requisition_id": requisition.pk,
+            "status": overall_status,
+            "timestamp": timezone.now().isoformat(),
+            "shortage_items": shortage_list
+        }
+        
+        # Send Request
+        external_url = getattr(settings, 'SHORTAGE_NOTIFICATION_URL', None)
+        
+        if external_url:
+            try:
+                response = requests.post(external_url, json=payload, timeout=5)
+                response.raise_for_status()
+                print(f"[Requisition Notification] Success! Sent {len(shortage_list)} items for Order {requisition.order_number}")
+            except requests.RequestException as req_err:
+                print(f"[Requisition Notification] Request failed: {req_err}")
+        else:
+            print(f"[Requisition Notification] URL not configured. Payload: {payload}")
+            
+    except Exception as e:
+        print(f"[Requisition Notification] Error: {e}")
 
 def process_order_model_excel(excel_file_path):
     """
     Processes an Excel file to upload order and machine model data.
     If an (order_number, machine_model) combination is no longer in the Excel,
-    all associated WorkOrderMaterial records are marked as inactive.
+    it sets a status message on the corresponding WorkOrder.
     Returns a tuple (created_count, updated_count).
     """
     try:
@@ -42,26 +102,45 @@ def process_order_model_excel(excel_file_path):
                 new_excel_combinations.add((order_number, machine_model_name))
 
         with transaction.atomic():
-            deactivated_order_numbers = set()
-            # Deactivate existing WorkOrderMaterial records that are not in the new Excel
-            # Iterate through all currently active combinations in the DB
+            # Get all unique order numbers from the upload
+            all_order_numbers_in_upload = {str(row.get(order_col)).strip() for _, row in df_upload.iterrows() if str(row.get(order_col)).strip()}
+
+            # Create WorkOrder entries for all unique order numbers in the upload, and update shipping date
+            for order_number in all_order_numbers_in_upload:
+                # Find the first row for this order number to get the shipping date
+                order_rows = df_upload[df_upload[order_col] == order_number]
+                shipping_date = None
+                if not order_rows.empty and '出貨日期' in df_upload.columns:
+                    date_val = order_rows.iloc[0]['出貨日期']
+                    if pd.notna(date_val):
+                        try:
+                            shipping_date = pd.to_datetime(date_val).date()
+                        except (ValueError, TypeError):
+                            shipping_date = None # Ignore if parsing fails
+                
+                WorkOrder.objects.update_or_create(
+                    order_number=order_number,
+                    defaults={'shipping_date': shipping_date}
+                )
+
+            # Identify combinations in DB that are not in the new Excel
             existing_active_combinations_in_db = set(WorkOrderMaterial.objects.filter(is_active=True).values_list(
                 'order_number', 'machine_model__name'
-            )) # FIX: Convert to set directly
+            ))
 
+            deactivated_order_numbers = set()
             for db_order_num, db_machine_model_name in existing_active_combinations_in_db:
                 if (db_order_num, db_machine_model_name) not in new_excel_combinations:
-                    # This combination is in DB but not in new Excel, so deactivate all its materials
-                    WorkOrderMaterial.objects.filter(
-                        order_number=db_order_num,
-                        machine_model__name=db_machine_model_name
-                    ).update(is_active=False)
-                    # Collect order numbers that had materials deactivated
+                    # This combination is in DB but not in new Excel.
+                    # Instead of deactivating, we set a message on the WorkOrder.
                     deactivated_order_numbers.add(db_order_num)
 
-            # Archive Requisitions whose WorkOrderMaterial records were deactivated
+            # Set status message for WorkOrders that had changes
             if deactivated_order_numbers:
-                Requisition.objects.filter(order_number__in=deactivated_order_numbers).update(is_archived=True)
+                for order_num in deactivated_order_numbers:
+                    WorkOrder.objects.filter(order_number=order_num).update(
+                        status_message="訂單/機型組合已變更，請確認"
+                    )
 
             # Process the new Excel data (update_or_create)
             for _, row in df_upload.iterrows():
@@ -108,10 +187,43 @@ def process_order_model_excel(excel_file_path):
         tb_str = traceback.format_exc()
         raise type(e)(f"處理 Excel 內容時發生未預期的錯誤: {e}\n{tb_str}")
 
+def _update_requisition_alert(order_number, process_type_name, message, is_demand_increase=False):
+    """
+    Helper to update requisition alert status and potentially revert status if demand increases.
+    """
+    try:
+        # Filter for the exact requisition
+        # Note: There should be only one per order/process_type due to UniqueConstraint
+        reqs = Requisition.objects.filter(order_number=order_number, process_type=process_type_name)
+        
+        for req in reqs:
+            # Append message
+            timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
+            new_msg = f"[{timestamp}] {message}"
+            if req.alert_message:
+                req.alert_message += f"\n{new_msg}"
+            else:
+                req.alert_message = new_msg
+            
+            req.has_alert = True
+            
+            # Revert status if demand increases (and it was completed/signed_off/archived)
+            if is_demand_increase:
+                if req.status in ['dispatch_completed', 'signed_off', 'archived'] or req.is_archived:
+                    req.status = 'dispatch_in_progress'
+                    req.is_archived = False # Un-archive
+                    # We might want to keep dispatch_performed as True if partial dispatch is done?
+                    # But strictly, if demand increased, dispatch is NOT fully performed.
+                    req.dispatch_performed = False 
+            
+            req.save()
+    except Exception as e:
+        print(f"Error updating alert for {order_number}: {e}")
+
 def process_material_details_excel(excel_file_path, required_qty_col):
     """
     Processes an Excel file to upload material details.
-    Returns a tuple (created_count, updated_count, deleted_count).
+    Returns a tuple (created_count, updated_count, deactivated_count).
     """
     try:
         # Step 1: Read the process type mapping from the local DB file
@@ -148,8 +260,15 @@ def process_material_details_excel(excel_file_path, required_qty_col):
 
         df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
 
+        # Determine parent description column
+        parent_desc_col = '上層物料說明' if '上層物料說明' in df_upload.columns else None
+
         # --- START of FIX: Aggregate data before processing ---
-        df_aggregated = df_upload.groupby([order_col, '物料']).agg({
+        group_cols = [order_col, '物料']
+        if parent_desc_col:
+            group_cols.append(parent_desc_col)
+
+        df_aggregated = df_upload.groupby(group_cols).agg({
             required_qty_col: 'sum',
             '物料說明': 'first'  # Keep the first item name found
         }).reset_index()
@@ -157,7 +276,7 @@ def process_material_details_excel(excel_file_path, required_qty_col):
 
         updated_count = 0
         created_count = 0
-        deleted_count = 0
+        deactivated_count = 0
 
         with transaction.atomic():
             materials_to_create = []
@@ -166,6 +285,68 @@ def process_material_details_excel(excel_file_path, required_qty_col):
             created_material_keys = set()
 
             all_order_numbers_in_upload = df_upload[order_col].astype(str).str.strip().unique()
+            
+            # Ensure WorkOrder entries exist for all order numbers in the upload
+            for order_number in all_order_numbers_in_upload:
+                WorkOrder.objects.get_or_create(order_number=order_number)
+
+            # --- OPTIMIZATION: Pre-fetch Parent Scopes ---
+            parent_scope_map = {}
+            parent_scopes = WorkOrderMaterial.objects.filter(
+                order_number__in=all_order_numbers_in_upload,
+                material_number="PARENT_SCOPE"
+            ).select_related('machine_model')
+            
+            for ps in parent_scopes:
+                if ps.machine_model:
+                    parent_scope_map[ps.order_number] = ps.machine_model
+
+            # --- OPTIMIZATION: Pre-fetch/Create Process Types ---
+            needed_process_types = set()
+            
+            # First pass to identify needed process types
+            for _, row in df_aggregated.iterrows():
+                order_number_clean = str(row.get(order_col)).strip()
+                material_number_clean = str(row.get('物料')).strip()
+                
+                if not all([order_number_clean, material_number_clean]):
+                    continue
+                    
+                machine_model_obj = parent_scope_map.get(order_number_clean)
+                if not machine_model_obj:
+                    continue # Will be caught as error in main loop
+                    
+                material_prefix = material_number_clean[:10]
+                composite_lookup_key = (material_prefix, machine_model_obj.name)
+                process_type_name = str(process_type_map.get(composite_lookup_key, '其他')).strip()
+                
+                needed_process_types.add((process_type_name, machine_model_obj))
+            
+            process_type_cache = {} # (name, machine_model_id) -> obj
+            
+            if needed_process_types:
+                q_objects = Q()
+                for pt_name, mm_obj in needed_process_types:
+                    q_objects |= Q(name=pt_name, machine_model=mm_obj)
+                
+                existing_pts = ProcessType.objects.filter(q_objects)
+                for pt in existing_pts:
+                    process_type_cache[(pt.name, pt.machine_model_id)] = pt
+                
+                pts_to_create = []
+                for pt_name, mm_obj in needed_process_types:
+                    if (pt_name, mm_obj.id) not in process_type_cache:
+                        pts_to_create.append(ProcessType(name=pt_name, machine_model=mm_obj))
+                
+                if pts_to_create:
+                    # Ignore conflicts just in case of race condition, though atomic block helps
+                    created_pts = ProcessType.objects.bulk_create(pts_to_create, ignore_conflicts=True)
+                    # Re-fetch or manually add to cache. Bulk create with ignore_conflicts might not return objs on some DBs
+                    # Safer to re-fetch all needed again
+                    existing_pts_refresh = ProcessType.objects.filter(q_objects)
+                    for pt in existing_pts_refresh:
+                        process_type_cache[(pt.name, pt.machine_model_id)] = pt
+
             existing_materials_db = WorkOrderMaterial.objects.filter(order_number__in=all_order_numbers_in_upload).exclude(material_number="PARENT_SCOPE").select_related('machine_model')
 
             existing_materials_lookup = {}
@@ -180,27 +361,60 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                 if not all([order_number_clean, material_number_clean]):
                     continue
 
-                parent_scope_entry = WorkOrderMaterial.objects.filter(
-                    order_number=order_number_clean,
-                    material_number="PARENT_SCOPE"
-                ).first()
+                machine_model_obj = parent_scope_map.get(order_number_clean)
 
-                if not parent_scope_entry or not parent_scope_entry.machine_model:
+                if not machine_model_obj:
                     raise ValueError(f"訂單 {order_number_clean}的父階範圍不存在或缺少機型資訊。請先上傳訂單與機型 Excel。")
 
-                machine_model_obj = parent_scope_entry.machine_model
                 machine_model_name_clean = machine_model_obj.name
 
                 material_prefix = material_number_clean[:10]
-                composite_lookup_key = (material_prefix, machine_model_name_clean)
-                process_type_name = str(process_type_map.get(composite_lookup_key, '其他')).strip()
+                parent_desc_val = str(row.get(parent_desc_col, '')).strip() if parent_desc_col else ""
+                
+                # Check for learned rule
+                from requisitions.models import MaterialProcessTypeRule
+                rules = MaterialProcessTypeRule.objects.filter(
+                    material_prefix=material_prefix,
+                    machine_model_name=machine_model_name_clean
+                ).order_by('-parent_material_desc_keyword') # Empty strings last (or first depending on DB, but non-empty usually longer)
+                # Actually, '' is shorter than 'keyword', so '-' length might be better, or just rely on logic
+                # Let's filter in python
+                
+                process_type_name = None
+                
+                # Try to find specific keyword match first
+                for rule in rules:
+                    if rule.parent_material_desc_keyword and rule.parent_material_desc_keyword in parent_desc_val:
+                        process_type_name = rule.process_type_name
+                        break
+                
+                # If no keyword match, look for generic rule (empty keyword)
+                if not process_type_name:
+                    for rule in rules:
+                        if not rule.parent_material_desc_keyword:
+                            process_type_name = rule.process_type_name
+                            break
+                            
+                if not process_type_name:
+                    composite_lookup_key = (material_prefix, machine_model_name_clean)
+                    process_type_name = str(process_type_map.get(composite_lookup_key, '其他')).strip()
 
-                process_type_obj, _ = ProcessType.objects.get_or_create(
-                    name=process_type_name,
-                    machine_model=machine_model_obj
-                )
+                # Use cache
+                process_type_obj = process_type_cache.get((process_type_name, machine_model_obj.id))
+                
+                if not process_type_obj:
+                     # Fallback if somehow missed in pre-fetch (shouldn't happen)
+                     process_type_obj, _ = ProcessType.objects.get_or_create(
+                        name=process_type_name,
+                        machine_model=machine_model_obj
+                    )
 
-                item_name_clean = str(row.get('物料說明', '')).strip()
+                raw_item_name = row.get('物料說明', '')
+                if pd.isna(raw_item_name) or str(raw_item_name).lower() == 'nan':
+                    item_name_clean = ""
+                else:
+                    item_name_clean = str(raw_item_name).strip()
+
                 required_quantity_clean = row.get(required_qty_col, 0)
 
                 current_material_key = (order_number_clean, material_number_clean, machine_model_name_clean)
@@ -208,11 +422,52 @@ def process_material_details_excel(excel_file_path, required_qty_col):
 
                 if current_material_key in existing_materials_lookup:
                     material_instance = existing_materials_lookup[current_material_key]
-                    material_instance.item_name = item_name_clean
-                    material_instance.required_quantity = required_quantity_clean
-                    material_instance.process_type = process_type_obj
-                    materials_to_update.append(material_instance)
-                    updated_count += 1
+                    
+                    is_dirty = False
+                    
+                    # String comparison with handling for None
+                    db_name = str(material_instance.item_name or "").strip()
+                    excel_name = str(item_name_clean).strip()
+                    if db_name != excel_name:
+                        material_instance.item_name = excel_name
+                        is_dirty = True
+                    
+                    # Quantity comparison
+                    db_qty = 0.0
+                    excel_qty = 0.0
+                    try:
+                        db_qty = float(material_instance.required_quantity or 0)
+                        excel_qty = float(required_quantity_clean or 0)
+                        if abs(db_qty - excel_qty) > 0.0001:
+                            material_instance.required_quantity = required_quantity_clean
+                            is_dirty = True
+                            
+                            diff = excel_qty - db_qty
+                            msg_type = "增加" if diff > 0 else "減少"
+                            _update_requisition_alert(
+                                order_number_clean, 
+                                process_type_obj.name, 
+                                f"物料 {material_number_clean} 需求{msg_type}: {db_qty:.2f} -> {excel_qty:.2f}",
+                                is_demand_increase=(diff > 0)
+                            )
+                    except (ValueError, TypeError):
+                        if str(material_instance.required_quantity) != str(required_quantity_clean):
+                             material_instance.required_quantity = required_quantity_clean
+                             is_dirty = True
+                    
+                    # Process Type comparison (ID)
+                    if material_instance.process_type_id != process_type_obj.id:
+                        material_instance.process_type = process_type_obj
+                        is_dirty = True
+                    
+                    # Active status
+                    if not material_instance.is_active:
+                        material_instance.is_active = True
+                        is_dirty = True
+
+                    if is_dirty:
+                        materials_to_update.append(material_instance)
+                        updated_count += 1
                 else:
                     if current_material_key not in created_material_keys:
                         materials_to_create.append(
@@ -222,16 +477,24 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                                 machine_model=machine_model_obj,
                                 item_name=item_name_clean,
                                 required_quantity=required_quantity_clean,
-                                process_type=process_type_obj
+                                process_type=process_type_obj,
+                                is_active=True
                             )
                         )
                         created_material_keys.add(current_material_key)
                         created_count += 1
+                        
+                        _update_requisition_alert(
+                            order_number_clean, 
+                            process_type_obj.name, 
+                            f"新增物料: {material_number_clean} (需求: {required_quantity_clean})",
+                            is_demand_increase=True
+                        )
 
             if materials_to_create:
-                WorkOrderMaterial.objects.bulk_create(materials_to_create)
+                WorkOrderMaterial.objects.bulk_create(materials_to_create, batch_size=2000)
             if materials_to_update:
-                WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type'])
+                WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active'], batch_size=2000)
 
             uploaded_deletion_scopes = set()
             for _, row in df_upload.iterrows():
@@ -252,15 +515,49 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                 existing_materials_in_scope = WorkOrderMaterial.objects.filter(
                     order_number=order_num,
                     machine_model__name=model_name
-                ).exclude(material_number="PARENT_SCOPE")
+                ).exclude(material_number="PARENT_SCOPE").select_related('process_type')
 
+                materials_to_deactivate = []
                 for material in existing_materials_in_scope:
                     db_key = (str(material.order_number).strip(), str(material.material_number).strip(), str(material.machine_model.name).strip())
                     if db_key not in uploaded_material_keys:
-                        material.delete()
-                        deleted_count += 1
+                        material.is_active = False
+                        materials_to_deactivate.append(material)
+                        deactivated_count += 1
+                        
+                        pt_name = material.process_type.name if material.process_type else "Unknown"
+                        _update_requisition_alert(
+                            order_num, 
+                            pt_name, 
+                            f"移除物料: {material.material_number} (原需求: {material.required_quantity})",
+                            is_demand_increase=False
+                        )
+                        
+                        # Sync RequisitionItems
+                        from requisitions.models import RequisitionItem
+                        req_items = RequisitionItem.objects.filter(source_material=material)
+
+                        for item in req_items:
+                            confirmed = item.confirmed_quantity or Decimal('0')
+                            if confirmed > 0:
+                                # Has dispatch: Close the shortage by setting required = confirmed
+                                item.required_quantity = confirmed
+                                if "(已刪除)" not in item.item_name:
+                                    item.item_name += " (已刪除)"
+                                item.dispatch_status = 'dispatched'
+                                item.save()
+                            else:
+                                # No dispatch: Delete item completely
+                                item.delete()
+                
+                if materials_to_deactivate:
+                    WorkOrderMaterial.objects.bulk_update(materials_to_deactivate, ['is_active'])
+                    # Set status message for the corresponding WorkOrder
+                    WorkOrder.objects.filter(order_number=order_num).update(
+                        status_message="部分物料已不存在於最新匯入資料中，請確認"
+                    )
         
-        return created_count, updated_count, deleted_count
+        return created_count, updated_count, deactivated_count
 
     except Exception as e:
         raise e

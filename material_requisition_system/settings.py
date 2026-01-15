@@ -148,3 +148,4 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 LOGIN_URL = '/requisitions/login/'
 LOGIN_REDIRECT_URL = '/'
+SHORTAGE_NOTIFICATION_URL = 'https://httpbin.org/post'

@@ -74,162 +74,29 @@ def upload_material_details_excel(request):
           if form.is_valid():
               excel_file = request.FILES['file']
               required_qty_col = form.cleaned_data['required_quantity_col']
-              demand_date_col = form.cleaned_data['demand_date_col'] # Get demand_date_col from form
+              
+              # Save to temp file because utils function expects a path
+              with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                  for chunk in excel_file.chunks():
+                      temp_file.write(chunk)
+                  temp_file_path = temp_file.name
 
               try:
-                  # Step 1: Read the process type mapping from the local DB file
-                  try:
-                      db_path = os.path.join(settings.BASE_DIR, 'output.xlsx')
-                      excel_sheets = pd.read_excel(db_path, engine='openpyxl',
-  sheet_name=None)
-                      df_db = pd.concat(excel_sheets.values(), ignore_index=True)
-
-                      # Ensure required columns exist in output.xlsx
-                      if '物料' not in df_db.columns or '機型' not in df_db.columns or '投料點' not in df_db.columns:
-                          raise ValueError("output.xlsx 檔案中必須包含 '物料', '機型','投料點' 欄位。")
-
-                      df_db['material_prefix'] = df_db['物料'].astype(str).str[:10]
-                      df_db['machine_model_name'] = df_db['機型'].astype(str).str.strip()
-
-                      # Create a composite key for lookup
-                      df_db['composite_key'] = list(zip(df_db['material_prefix'],
-  df_db['machine_model_name']))
-
-                      # Create the mapping: (material_prefix, machine_model_name) ->process_type_name
-                      process_type_map =df_db.set_index('composite_key')['投料點'].to_dict()
-
-                  except Exception as e:
-                      messages.error(request, f"讀取投料點資料庫 (output.xlsx) 時發生錯誤:{e}")
-                      return redirect('requisitions:upload_material_details_excel') # Redirect to the specific view
-
-                  # Step 2: Read the uploaded Excel file
-                  df_upload = pd.read_excel(excel_file, dtype=str, engine='openpyxl')
-                  df_upload.columns = df_upload.columns.str.strip()
-
-                  # Step 3: Validate required columns
-                  order_col = '訂單單號' if '訂單單號' in df_upload.columns else '訂單'
-                  if order_col not in df_upload.columns:
-                      raise ValueError("上傳的 Excel 檔案中找不到 '訂單單號' 或 '訂單'欄位。")
-                  if '物料' not in df_upload.columns:
-                      raise ValueError("上傳的 Excel 檔案中找不到 '物料' 欄位。")
-                  if required_qty_col not in df_upload.columns: 
-                      raise ValueError(f"在 Excel 中找不到您指定的 '需求數量'欄位：'{required_qty_col}'。")
-                  # New validation for demand_date_col
-                  if demand_date_col and demand_date_col not in df_upload.columns:
-                      raise ValueError(f"在 Excel 中找不到您指定的 '需求日期'欄位：'{demand_date_col}'。")
-
-                  df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
-
-                  # Group by order and material, summing the required quantity
-                  df_aggregated = df_upload.groupby([order_col, '物料']).agg({
-                      required_qty_col: 'sum',
-                      '物料說明': 'first',  # Keep the first item name found
-                      demand_date_col: 'first', # Include demand_date_col in aggregation
-                  }).reset_index()
-
-                  created_count = 0
-                  updated_count = 0
-
-                  with transaction.atomic():
-                      order_numbers_in_upload = df_aggregated[order_col].astype(str).str.strip().unique()
-                      
-                      # Mark existing materials for these orders as inactive. We will reactivate or update them.
-                      WorkOrderMaterial.objects.filter(order_number__in=order_numbers_in_upload).update(is_active=False)
-
-                      # Process each aggregated row
-                      for _, row in df_aggregated.iterrows():
-                          order_number_clean = str(row.get(order_col)).strip()
-                          material_number_clean = str(row.get('物料')).strip()
-
-                          if not all([order_number_clean, material_number_clean]):
-                              continue
-
-                          parent_scope_entry = WorkOrderMaterial.objects.filter(
-                              order_number=order_number_clean,
-                              material_number="PARENT_SCOPE"
-                          ).first()
-
-                          if not parent_scope_entry or not parent_scope_entry.machine_model:
-                              raise ValueError(f"訂單 {order_number_clean} 的父階範圍不存在或缺少機型資訊。請先上傳訂單與機型 Excel。")
-
-                          machine_model_obj = parent_scope_entry.machine_model
-                          machine_model_name_clean = machine_model_obj.name
-
-                          material_prefix = material_number_clean[:10]
-                          composite_lookup_key = (material_prefix, machine_model_name_clean)
-                          process_type_name = str(process_type_map.get(composite_lookup_key, '其他')).strip()
-
-                          process_type_obj, _ = ProcessType.objects.get_or_create(
-                              name=process_type_name,
-                              machine_model=machine_model_obj
-                          )
-
-                          item_name_clean = str(row.get('物料說明', '')).strip()
-                          required_quantity_clean = row.get(required_qty_col, 0)
-
-                          # Parse demand_date
-                          demand_date_clean = None
-                          if demand_date_col:
-                              demand_date_str = row.get(demand_date_col)
-                              if demand_date_str:
-                                  try:
-                                      # Attempt to parse various date formats
-                                      demand_date_clean = pd.to_datetime(demand_date_str).date()
-                                  except ValueError:
-                                      messages.warning(request, f"訂單 {order_number_clean}, 物料 {material_number_clean}: 無效的需求日期格式 '{demand_date_str}'，將跳過此日期。")
-                                  except Exception as e:
-                                      messages.warning(request, f"訂單 {order_number_clean}, 物料 {material_number_clean}: 解析需求日期時發生錯誤 '{demand_date_str}': {e}，將跳過此日期。")
-
-                          # Custom logic to handle potential duplicates and merge them
-                          existing_materials = WorkOrderMaterial.objects.filter(
-                              order_number=order_number_clean,
-                              material_number=material_number_clean,
-                              machine_model=machine_model_obj,
-                              process_type=process_type_obj
-                          )
-
-                          if existing_materials.exists():
-                              # Merge duplicates if they exist
-                              master_record = existing_materials.first()
-                              other_records = existing_materials.exclude(pk=master_record.pk)
-
-                              total_confirmed = master_record.confirmed_quantity or 0
-                              for record in other_records:
-                                  total_confirmed += record.confirmed_quantity or 0
-                                  record.transactions.update(work_order_material=master_record)
-
-                              # Update the master record
-                              master_record.item_name = item_name_clean
-                              master_record.required_quantity = required_quantity_clean
-                              master_record.confirmed_quantity = total_confirmed
-                              master_record.is_active = True
-                              master_record.demand_date = demand_date_clean # Assign demand_date
-                              master_record.save()
-
-                              # Delete the now-redundant records
-                              other_records.delete()
-                              updated_count += 1
-                          else:
-                              # No existing material, create a new one
-                              WorkOrderMaterial.objects.create(
-                                  order_number=order_number_clean,
-                                  material_number=material_number_clean,
-                                  machine_model=machine_model_obj,
-                                  process_type=process_type_obj,
-                                  item_name=item_name_clean,
-                                  required_quantity=required_quantity_clean,
-                                  is_active=True,
-                                  demand_date=demand_date_clean # Assign demand_date
-                              )
-                              created_count += 1
-
-                  messages.success(request, f"物料明細同步成功！新增 {created_count} 筆，更新 {updated_count} 筆物料。")
+                  # Call the optimized utility function
+                  created_count, updated_count, deactivated_count = process_material_details_excel(temp_file_path, required_qty_col)
+                  
+                  messages.success(request, f"物料明細同步成功！新增 {created_count} 筆，更新 {updated_count} 筆，停用 {deactivated_count} 筆。")
                   return redirect('core:homepage')
 
               except Exception as e:
                   messages.error(request, f"上傳檔案時發生錯誤: {e}")
                   import traceback
                   print(traceback.format_exc())
+              finally:
+                  if os.path.exists(temp_file_path):
+                      os.unlink(temp_file_path)
+          else:
+              messages.error(request, "表單驗證失敗。")
 
       # For GET request, render the upload form page
       form = MaterialDetailsUploadForm()

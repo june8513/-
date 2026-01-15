@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}工單 {{ order_number }} 的申請單列表{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">工單 {{ order_number }} 的申請單列表</h2>
+
+    <div class="card">
+        <div class="card-body">
+            <p>此工單包含以下撥料申請單。請選擇您想查看的項目：</p>
+            <div class="list-group">
+                {% for req in requisitions %}
+                    <a href="{% url 'requisitions:requisition_detail' req.pk %}" class="list-group-item list-group-item-action">
+                        <strong>投料點:</strong> {{ req.process_type }} | 
+                        <strong>狀態:</strong> {{ req.get_status_display }} |
+                        <strong>申請人:</strong> {{ req.applicant.username }} |
+                        <strong>需求日期:</strong> {{ req.request_date|date:"Y-m-d" }}
+                    </a>
+                {% empty %}
+                    <div class="list-group-item">
+                        找不到與此工單關聯的撥料申請單。
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card-footer">
+            <a href="{% url 'requisitions:work_order_list' %}" class="btn btn-secondary">返回工單列表</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

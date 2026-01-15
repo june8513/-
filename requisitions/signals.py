@@ -12,6 +12,7 @@ def update_work_order_material_on_requisition_item_delete(sender, instance, **kw
     if instance.source_material and instance.confirmed_quantity is not None:
         work_order_material = instance.source_material
         # Ensure confirmed_quantity doesn't go below zero
-        work_order_material.confirmed_quantity = max(Decimal('0'), work_order_material.confirmed_quantity - instance.confirmed_quantity)
+        current_confirmed = work_order_material.confirmed_quantity if work_order_material.confirmed_quantity is not None else Decimal('0')
+        work_order_material.confirmed_quantity = max(Decimal('0'), current_confirmed - instance.confirmed_quantity)
         work_order_material.save()
         print(f"DEBUG: RequisitionItem (PK: {instance.pk}) deleted. Adjusted WorkOrderMaterial (PK: {work_order_material.pk}) confirmed_quantity to {work_order_material.confirmed_quantity}")
