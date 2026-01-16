@@ -114,3 +114,26 @@ class WorkOrderMaterialImageUploadForm(forms.ModelForm):
         model = WorkOrderMaterialImage
         fields = ['image']
 
+
+class BulkUploadForm(forms.Form):
+    """一鍵更新：同時上傳庫存、訂單機型、物料明細"""
+    inventory_file = forms.FileField(
+        label='庫存資料 (零件庫存.xlsx)',
+        required=False,
+        widget=forms.FileInput(attrs={'accept': '.xlsx,.xls'})
+    )
+    order_model_file = forms.FileField(
+        label='訂單機型 (成品入庫TECO狀態.xlsx)',
+        required=False,
+        widget=forms.FileInput(attrs={'accept': '.xlsx,.xls'})
+    )
+    material_details_file = forms.FileField(
+        label='物料明細 (成品撥料.xlsx)',
+        required=False,
+        widget=forms.FileInput(attrs={'accept': '.xlsx,.xls'})
+    )
+    required_quantity_col = forms.CharField(
+        label='需求數量欄位名稱',
+        initial='需求數量',
+        required=False
+    )

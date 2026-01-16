@@ -41,6 +41,7 @@ urlpatterns = [
     path('<int:pk>/sign_off_item/<int:item_pk>/', views.sign_off_item, name='sign_off_item'),
     path('update_db/', views.update_process_type_db, name='update_process_type_db'),
     path('upload_inventory/', views.upload_inventory_data, name='upload_inventory_data'),
+    path('bulk_upload/', views.bulk_upload, name='bulk_upload'),
 
     path('material_list/', views.work_order_material_list, name='work_order_material_list'),
     path('archived_material_list/', views.archived_work_order_material_list, name='archived_work_order_material_list'),

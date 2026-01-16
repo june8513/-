@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}一鍵更新 - 撥料申請系統{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-cloud-upload"></i> 一鍵更新</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">選擇要上傳的檔案，留空的項目會被跳過。可以一次上傳全部，或只上傳其中幾項。</p>
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label for="{{ form.inventory_file.id_for_label }}" class="form-label fw-bold">
+                                <i class="bi bi-box-seam text-success"></i> {{ form.inventory_file.label }}
+                            </label>
+                            {% render_field form.inventory_file class="form-control" %}
+                            <small class="text-muted">欄位需包含：物料、未限制</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="{{ form.order_model_file.id_for_label }}" class="form-label fw-bold">
+                                <i class="bi bi-truck text-info"></i> {{ form.order_model_file.label }}
+                            </label>
+                            {% render_field form.order_model_file class="form-control" %}
+                            <small class="text-muted">欄位需包含：訂單、機型</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="{{ form.material_details_file.id_for_label }}" class="form-label fw-bold">
+                                <i class="bi bi-list-ul text-warning"></i> {{ form.material_details_file.label }}
+                            </label>
+                            {% render_field form.material_details_file class="form-control" %}
+                            <small class="text-muted">欄位需包含：訂單、物料、品名、需求數量</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="{{ form.required_quantity_col.id_for_label }}" class="form-label">
+                                {{ form.required_quantity_col.label }}
+                            </label>
+                            {% render_field form.required_quantity_col class="form-control" %}
+                            <small class="text-muted">物料明細檔案中，代表需求數量的欄位名稱</small>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-upload"></i> 上傳並更新
+                            </button>
+                            <a href="{% url 'core:homepage' %}" class="btn btn-outline-secondary">
+                                返回首頁
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

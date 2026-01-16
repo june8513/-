@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from ..forms import UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, UpdateProcessTypeDBForm, UploadInventoryFileForm
+from ..forms import UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, UpdateProcessTypeDBForm, UploadInventoryFileForm, BulkUploadForm
 from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType
 from inventory.models import Material
 from django.db import transaction
@@ -23,9 +23,78 @@ import io
 import json
 from decimal import Decimal, InvalidOperation
 import tempfile
-from requisitions.utils import process_order_model_excel, process_material_details_excel
+from requisitions.utils import process_order_model_excel, process_material_details_excel, process_inventory_excel
 import datetime
 
+
+@login_required
+def bulk_upload(request):
+    """一鍵更新：同時處理庫存、訂單機型、物料明細的上傳"""
+    if not request.user.is_superuser:
+        messages.error(request, "您沒有權限執行此操作。")
+        return redirect('core:homepage')
+
+    if request.method == 'POST':
+        form = BulkUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            results = []
+            
+            # Process Inventory File
+            inventory_file = request.FILES.get('inventory_file')
+            if inventory_file:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                        for chunk in inventory_file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    created, updated = process_inventory_excel(temp_file_path)
+                    results.append(f"✅ 庫存資料：新增 {created} 筆，更新 {updated} 筆")
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    results.append(f"❌ 庫存資料錯誤：{str(e)}")
+            
+            # Process Order Model File
+            order_model_file = request.FILES.get('order_model_file')
+            if order_model_file:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                        for chunk in order_model_file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    created, updated = process_order_model_excel(temp_file_path)
+                    results.append(f"✅ 訂單機型：新增 {created} 筆，更新 {updated} 筆")
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    results.append(f"❌ 訂單機型錯誤：{str(e)}")
+            
+            # Process Material Details File
+            material_details_file = request.FILES.get('material_details_file')
+            if material_details_file:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                        for chunk in material_details_file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    required_qty_col = form.cleaned_data.get('required_quantity_col') or '需求數量'
+                    created, updated, deactivated = process_material_details_excel(temp_file_path, required_qty_col)
+                    results.append(f"✅ 物料明細：新增 {created} 筆，更新 {updated} 筆，停用 {deactivated} 筆")
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    results.append(f"❌ 物料明細錯誤：{str(e)}")
+            
+            if not results:
+                messages.warning(request, "請至少選擇一個檔案上傳。")
+            else:
+                for result in results:
+                    if result.startswith("✅"):
+                        messages.success(request, result)
+                    else:
+                        messages.error(request, result)
+                return redirect('requisitions:bulk_upload')
+    else:
+        form = BulkUploadForm()
+    
+    return render(request, 'requisitions/bulk_upload.html', {'form': form})
 
 
 
