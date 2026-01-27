@@ -1,0 +1,72 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}作業說明投料點規則管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">📋 作業說明投料點規則</h4>
+            <span class="badge bg-light text-dark">共 {{ rules.count }} 筆規則</span>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            
+            {% if rules %}
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50%">作業說明</th>
+                        <th style="width:20%">投料點</th>
+                        <th style="width:15%">更新時間</th>
+                        <th style="width:15%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in rules %}
+                    <tr>
+                        <td>{{ rule.operation_description }}</td>
+                        <td>
+                            <form method="post" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update">
+                                <input type="hidden" name="rule_id" value="{{ rule.pk }}">
+                                <select name="process_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                                    {% for pt in process_types %}
+                                    <option value="{{ pt }}" {% if rule.process_type == pt %}selected{% endif %}>{{ pt }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td class="text-muted small">{{ rule.updated_at|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <form method="post" class="d-inline" onsubmit="return confirm('確定要刪除此規則嗎？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="rule_id" value="{{ rule.pk }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <p class="mb-0">目前沒有任何規則。匯入含有「作業說明」欄位的物料明細後，系統會自動詢問您設定規則。</p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer text-muted">
+            <a href="{% url 'core:homepage' %}" class="btn btn-secondary">返回首頁</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

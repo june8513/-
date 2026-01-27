@@ -47,10 +47,15 @@ urlpatterns = [
     path('history/', views.requisition_history, name='requisition_history'),
     path('login/', views.user_login, name='login'),
     path('logout/', views.user_logout, name='logout'),
+    path('register/', views.user_register, name='register'),
     path('<int:pk>/sign_off_item/<int:item_pk>/', views.sign_off_item, name='sign_off_item'),
     path('update_db/', views.update_process_type_db, name='update_process_type_db'),
     path('upload_inventory/', views.upload_inventory_data, name='upload_inventory_data'),
     path('bulk_upload/', views.bulk_upload, name='bulk_upload'),
+    
+    # 作業說明投料點規則
+    path('classify_operations/', views.classify_operations, name='classify_operations'),
+    path('operation_rules/', views.operation_rules_list, name='operation_rules_list'),
 
     path('material_list/', views.work_order_material_list, name='work_order_material_list'),
     path('archived_material_list/', views.archived_work_order_material_list, name='archived_work_order_material_list'),

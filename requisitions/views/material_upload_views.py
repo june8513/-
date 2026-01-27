@@ -76,8 +76,15 @@ def bulk_upload(request):
                             temp_file.write(chunk)
                         temp_file_path = temp_file.name
                     required_qty_col = form.cleaned_data.get('required_quantity_col') or '需求數量'
-                    created, updated, deactivated = process_material_details_excel(temp_file_path, required_qty_col)
+                    result = process_material_details_excel(temp_file_path, required_qty_col)
+                    created = result['created_count']
+                    updated = result['updated_count']
+                    deactivated = result['deactivated_count']
+                    unknown_ops = result.get('unknown_operations', [])
                     results.append(f"✅ 物料明細：新增 {created} 筆，更新 {updated} 筆，停用 {deactivated} 筆")
+                    if unknown_ops:
+                        request.session['unknown_operations'] = unknown_ops
+                        results.append(f"⚠️ 發現 {len(unknown_ops)} 個未知的作業說明，需設定投料點")
                     os.unlink(temp_file_path)
                 except Exception as e:
                     results.append(f"❌ 物料明細錯誤：{str(e)}")
@@ -152,9 +159,18 @@ def upload_material_details_excel(request):
 
               try:
                   # Call the optimized utility function
-                  created_count, updated_count, deactivated_count = process_material_details_excel(temp_file_path, required_qty_col)
+                  result = process_material_details_excel(temp_file_path, required_qty_col)
+                  created_count = result['created_count']
+                  updated_count = result['updated_count']
+                  deactivated_count = result['deactivated_count']
+                  unknown_ops = result.get('unknown_operations', [])
                   
                   messages.success(request, f"物料明細同步成功！新增 {created_count} 筆，更新 {updated_count} 筆，停用 {deactivated_count} 筆。")
+                  
+                  if unknown_ops:
+                      request.session['unknown_operations'] = unknown_ops
+                      return redirect('requisitions:classify_operations')
+                  
                   return redirect('core:homepage')
 
               except Exception as e:

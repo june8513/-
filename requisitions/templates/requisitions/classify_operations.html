@@ -1,0 +1,51 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}設定作業說明投料點{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-warning text-dark">
+            <h4 class="mb-0">⚠️ 發現未知的作業說明</h4>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-4">
+                以下作業說明尚未設定對應的投料點。請為每個作業說明選擇正確的投料點，
+                系統將記住您的選擇，下次匯入相同作業說明時會自動分類。
+            </p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th style="width:60%">作業說明</th>
+                            <th style="width:40%">選擇投料點</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for op in unknown_operations %}
+                        <tr>
+                            <td>{{ op }}</td>
+                            <td>
+                                <select name="process_type_{{ op }}" class="form-control" required>
+                                    <option value="">-- 請選擇 --</option>
+                                    {% for pt in process_types %}
+                                    <option value="{{ pt }}">{{ pt }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'core:homepage' %}" class="btn btn-secondary">稍後處理</a>
+                    <button type="submit" class="btn btn-primary">儲存設定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

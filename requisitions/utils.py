@@ -3,7 +3,7 @@ import pandas as pd
 import requests # Added requests
 from django.db import transaction
 from django.db.models import Q # Added Q
-from requisitions.models import WorkOrder, WorkOrderMaterial, MachineModel, ProcessType, Requisition
+from requisitions.models import WorkOrder, WorkOrderMaterial, MachineModel, ProcessType, Requisition, OperationProcessRule
 from inventory.models import Material, MaterialTransaction
 from decimal import Decimal
 from django.conf import settings
@@ -262,17 +262,27 @@ def process_material_details_excel(excel_file_path, required_qty_col):
 
         # Determine parent description column
         parent_desc_col = '上層物料說明' if '上層物料說明' in df_upload.columns else None
+        
+        # 新增：讀取作業說明欄位
+        operation_desc_col = '作業說明' if '作業說明' in df_upload.columns else None
 
         # --- START of FIX: Aggregate data before processing ---
         group_cols = [order_col, '物料']
         if parent_desc_col:
             group_cols.append(parent_desc_col)
-
-        df_aggregated = df_upload.groupby(group_cols).agg({
+        # 保留作業說明欄位進行聚合
+        agg_dict = {
             required_qty_col: 'sum',
             '物料說明': 'first'  # Keep the first item name found
-        }).reset_index()
+        }
+        if operation_desc_col:
+            agg_dict[operation_desc_col] = 'first'  # Keep the first operation description
+
+        df_aggregated = df_upload.groupby(group_cols).agg(agg_dict).reset_index()
         # --- END of FIX ---
+        
+        # 收集未知的作業說明（需要用戶選擇投料點）
+        unknown_operations = set()
 
         updated_count = 0
         created_count = 0
@@ -371,30 +381,43 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                 material_prefix = material_number_clean[:10]
                 parent_desc_val = str(row.get(parent_desc_col, '')).strip() if parent_desc_col else ""
                 
-                # Check for learned rule
-                from requisitions.models import MaterialProcessTypeRule
-                rules = MaterialProcessTypeRule.objects.filter(
-                    material_prefix=material_prefix,
-                    machine_model_name=machine_model_name_clean
-                ).order_by('-parent_material_desc_keyword') # Empty strings last (or first depending on DB, but non-empty usually longer)
-                # Actually, '' is shorter than 'keyword', so '-' length might be better, or just rely on logic
-                # Let's filter in python
-                
+                # 新邏輯：優先使用作業說明規則
+                operation_desc_val = str(row.get(operation_desc_col, '')).strip() if operation_desc_col else ""
                 process_type_name = None
                 
-                # Try to find specific keyword match first
-                for rule in rules:
-                    if rule.parent_material_desc_keyword and rule.parent_material_desc_keyword in parent_desc_val:
-                        process_type_name = rule.process_type_name
-                        break
+                # 1. 首先檢查作業說明規則 (OperationProcessRule)
+                if operation_desc_val:
+                    op_rule = OperationProcessRule.objects.filter(
+                        operation_description=operation_desc_val
+                    ).first()
+                    if op_rule:
+                        process_type_name = op_rule.process_type
+                    else:
+                        # 未知的作業說明，收集起來供後續處理
+                        unknown_operations.add(operation_desc_val)
                 
-                # If no keyword match, look for generic rule (empty keyword)
+                # 2. 如果作業說明沒有匹配，檢查舊的 MaterialProcessTypeRule
                 if not process_type_name:
+                    from requisitions.models import MaterialProcessTypeRule
+                    rules = MaterialProcessTypeRule.objects.filter(
+                        material_prefix=material_prefix,
+                        machine_model_name=machine_model_name_clean
+                    ).order_by('-parent_material_desc_keyword')
+                    
+                    # Try to find specific keyword match first
                     for rule in rules:
-                        if not rule.parent_material_desc_keyword:
+                        if rule.parent_material_desc_keyword and rule.parent_material_desc_keyword in parent_desc_val:
                             process_type_name = rule.process_type_name
                             break
-                            
+                    
+                    # If no keyword match, look for generic rule (empty keyword)
+                    if not process_type_name:
+                        for rule in rules:
+                            if not rule.parent_material_desc_keyword:
+                                process_type_name = rule.process_type_name
+                                break
+                
+                # 3. 使用舊的 output.xlsx 對照表
                 if not process_type_name:
                     composite_lookup_key = (material_prefix, machine_model_name_clean)
                     process_type_name = str(process_type_map.get(composite_lookup_key, '其他')).strip()
@@ -557,7 +580,13 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                         status_message="部分物料已不存在於最新匯入資料中，請確認"
                     )
         
-        return created_count, updated_count, deactivated_count
+        # 返回結果，包含未知作業說明供後續處理
+        return {
+            'created_count': created_count,
+            'updated_count': updated_count,
+            'deactivated_count': deactivated_count,
+            'unknown_operations': list(unknown_operations)
+        }
 
     except Exception as e:
         raise e

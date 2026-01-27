@@ -66,3 +66,15 @@ class MaterialProcessTypeRuleAdmin(admin.ModelAdmin):
     search_fields = ('material_prefix', 'machine_model_name', 'process_type_name', 'parent_material_desc_keyword')
     raw_id_fields = ('updated_by',)
     list_editable = ('parent_material_desc_keyword', 'process_type_name')
+
+
+from .models import OperationProcessRule
+
+@admin.register(OperationProcessRule)
+class OperationProcessRuleAdmin(admin.ModelAdmin):
+    list_display = ('operation_description', 'process_type', 'updated_by', 'updated_at')
+    list_filter = ('process_type',)
+    search_fields = ('operation_description',)
+    list_editable = ('process_type',)
+    raw_id_fields = ('updated_by',)
+

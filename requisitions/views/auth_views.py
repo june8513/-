@@ -29,3 +29,73 @@ def user_logout(request):
     logout(request)
     messages.info(request, "您已成功登出。")
     return redirect('requisitions:login')
+
+
+from django.contrib.auth.forms import UserCreationForm
+from django import forms
+
+# 可直接分配的角色
+ALLOWED_ROLES = ['撥料人員', '申請人員']
+# 需要審核的角色
+APPROVAL_REQUIRED_ROLES = ['管理員', '申請人員主管', '撥料人員主管']
+
+class UserRegistrationForm(UserCreationForm):
+    """自訂註冊表單，包含角色選擇"""
+    role = forms.ChoiceField(
+        label='角色',
+        choices=[
+            ('申請人員', '申請人員'),
+            ('撥料人員', '撥料人員'),
+            ('申請人員主管', '申請人員主管（需審核）'),
+            ('撥料人員主管', '撥料人員主管（需審核）'),
+            ('管理員', '管理員（需審核）'),
+        ],
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = UserCreationForm.Meta.fields + ('role',)
+
+
+def user_register(request):
+    """用戶註冊頁面 - 支援角色選擇"""
+    if request.user.is_authenticated:
+        return redirect('core:homepage')
+    
+    if request.method == 'POST':
+        form = UserRegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            username = form.cleaned_data.get('username')
+            selected_role = form.cleaned_data.get('role')
+            
+            try:
+                group = Group.objects.get(name=selected_role)
+                
+                if selected_role in ALLOWED_ROLES:
+                    # 直接分配角色
+                    user.groups.add(group)
+                    user.is_active = True
+                    user.save()
+                    messages.success(request, f"帳號 {username} 已成功建立，角色為「{selected_role}」！請登入。")
+                else:
+                    # 需要審核：設為非活動狀態
+                    user.is_active = False
+                    user.save()
+                    # 儲存待審核角色資訊到 user profile 或其他方式
+                    # 暫時使用 first_name 欄位儲存待審核角色
+                    user.first_name = f"待審核:{selected_role}"
+                    user.save()
+                    messages.info(request, f"帳號 {username} 已建立，角色「{selected_role}」需管理員審核後才能使用。")
+                    
+            except Group.DoesNotExist:
+                messages.warning(request, f"角色「{selected_role}」不存在，請聯繫管理員。")
+            
+            return redirect('requisitions:login')
+        else:
+            messages.error(request, "註冊失敗，請檢查輸入資料。")
+    else:
+        form = UserRegistrationForm()
+    
+    return render(request, 'requisitions/register.html', {'form': form})

@@ -248,3 +248,20 @@ class MaterialProcessTypeRule(models.Model):
 
     def __str__(self):
         return f"{self.material_prefix} + {self.machine_model_name} -> {self.process_type_name}"
+
+
+class OperationProcessRule(models.Model):
+    """作業說明對應投料點規則 - 學習型分類"""
+    operation_description = models.CharField(max_length=255, unique=True, verbose_name="作業說明", db_index=True)
+    process_type = models.CharField(max_length=50, verbose_name="投料點")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="最後更新時間")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="設定人員")
+
+    class Meta:
+        verbose_name = "作業說明投料點規則"
+        verbose_name_plural = "作業說明投料點規則"
+        ordering = ['operation_description']
+
+    def __str__(self):
+        return f"{self.operation_description} -> {self.process_type}"
