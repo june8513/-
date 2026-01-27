@@ -1,12 +1,21 @@
 from django.urls import path
 from . import views
-from .views import api_views, assistant_views # Import assistant_views
+from .views import api_views, assistant_views, simple_views  # Import simple_views
 from .views.requisition_management_views import dismiss_requisition_alert
 
 app_name = 'requisitions'
 
 urlpatterns = [
-        path('work_orders/', views.work_order_list, name='work_order_list'),
+    # Simple interface URLs - 簡易介面路由
+    path('simple/applicant/', simple_views.simple_applicant_home, name='simple_applicant_home'),
+    path('simple/applicant/create/', simple_views.simple_applicant_create, name='simple_applicant_create'),
+    path('simple/applicant/<int:pk>/', simple_views.simple_applicant_detail, name='simple_applicant_detail'),
+    path('simple/applicant/<int:pk>/sign-off/', simple_views.simple_applicant_sign_off, name='simple_applicant_sign_off'),
+    path('simple/dispatcher/', simple_views.simple_dispatcher_home, name='simple_dispatcher_home'),
+    path('simple/dispatcher/<str:category>/', simple_views.simple_dispatcher_category, name='simple_dispatcher_category'),
+    path('simple/dispatcher/<str:category>/<int:pk>/', simple_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
+
+    path('work_orders/', views.work_order_list, name='work_order_list'),
     path('work_orders/<str:order_number>/toggle_archive/', views.toggle_work_order_archive, name='toggle_work_order_archive'),
     path('work_orders/<str:order_number>/requisitions/', views.work_order_requisitions_list, name='work_order_requisitions_list'),
     path('assistant/', assistant_views.assistant_view, name='assistant'),

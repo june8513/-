@@ -1,0 +1,9 @@
+{
+    "editor.formatOnSave": false,
+    "[html]": {
+        "editor.formatOnSave": false
+    },
+    "[django-html]": {
+        "editor.formatOnSave": false
+    }
+}

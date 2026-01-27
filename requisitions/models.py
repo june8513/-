@@ -135,6 +135,10 @@ class RequisitionItem(models.Model):
     sign_off_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisition_items_signed_off', verbose_name="簽收人員")
     sign_off_date = models.DateTimeField(null=True, blank=True, verbose_name="簽收日期")
     dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, null=True, blank=True, verbose_name="撥料狀態")
+    
+    # 補撥相關欄位
+    is_supplementary = models.BooleanField(default=False, verbose_name="是否為補撥")
+    parent_item = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='supplementary_items', verbose_name="原始項目")
 
     class Meta:
         verbose_name = "撥料物料明細"

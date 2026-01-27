@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}撥料操作 - {{ requisition.order_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.simple-container { max-width: 800px; margin: 0 auto; padding: 1rem; }
+.page-header { display: flex; align-items: center; margin-bottom: 1.5rem; }
+.back-btn { width: 40px; height: 40px; border-radius: 12px; background: #F3F4F6; border: none; display: flex; align-items: center; justify-content: center; margin-right: 1rem; text-decoration: none; color: #374151; }
+.back-btn:hover { background: #E5E7EB; }
+.page-title { font-size: 1.25rem; font-weight: 700; color: #1F2937; }
+.info-card { background: white; border-radius: 16px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
+.progress-section { text-align: center; margin-bottom: 1rem; }
+.progress-bar-large { width: 100%; height: 12px; background: #E5E7EB; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%); border-radius: 6px; }
+.progress-text { font-size: 1.1rem; font-weight: 600; color: #374151; }
+.info-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #F3F4F6; }
+.info-row:last-child { border-bottom: none; }
+.info-label { color: #6B7280; }
+.info-value { font-weight: 600; color: #1F2937; }
+.material-card { background: white; border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+.material-card.dispatched { background: #ECFDF5; border: 1px solid #A7F3D0; }
+.material-card.backordered { background: #FEF2F2; border: 1px solid #FECACA; }
+.material-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+.material-info h4 { font-size: 1rem; font-weight: 600; color: #1F2937; margin: 0 0 0.25rem 0; }
+.material-info p { font-size: 0.85rem; color: #6B7280; margin: 0; }
+.material-qty-info { text-align: right; font-size: 0.9rem; }
+.qty-label { color: #6B7280; }
+.qty-value { font-weight: 600; color: #1F2937; }
+.material-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.action-btn { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.9rem; font-weight: 500; border: none; cursor: pointer; }
+.action-btn.dispatch { background: #3B82F6; color: white; }
+.action-btn.backorder { background: #FEF3C7; color: #92400E; }
+.action-btn.undo { background: #FEE2E2; color: #DC2626; }
+.qty-input { width: 80px; padding: 0.5rem; border: 1px solid #D1D5DB; border-radius: 6px; text-align: center; }
+.status-badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; }
+.status-badge.dispatched { background: #D1FAE5; color: #065F46; }
+.status-badge.backordered { background: #FEE2E2; color: #DC2626; }
+.storage-bin { font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem; }
+.backlog-alert { display: inline-block; background: #FEE2E2; color: #DC2626; padding: 0.1rem 0.4rem; border-radius: 6px; font-size: 0.7rem; font-weight: 600; margin-top: 0.25rem; }
+.warning-icon { color: #DC2626; }
+.action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.toast-message { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1F2937; color: white; padding: 12px 24px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.toast-message.success { background: #059669; }
+.toast-message.error { background: #DC2626; }
+/* 補撥相關樣式 */
+.action-btn.supplementary { background: #8B5CF6; color: white; }
+.supplementary-section { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #E5E7EB; }
+.supplementary-toggle { color: #6B7280; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem; }
+.supplementary-toggle:hover { color: #374151; }
+.supplementary-list { margin-top: 0.5rem; padding-left: 1rem; display: none; }
+.supplementary-list.show { display: block; }
+.supp-item { background: #F9FAFB; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; border-left: 3px solid #8B5CF6; }
+.supp-item.dispatched { background: #F0FDF4; border-left-color: #10B981; }
+.supp-item-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 0.5rem; }
+.supp-item-header .supp-label { color: #8B5CF6; font-weight: 600; }
+.supp-item-header .supp-status { font-size: 0.75rem; }
+.add-supplementary-form { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+{% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>{% endfor %}{% endif %}
+
+<div class="page-header">
+<a href="{% url 'requisitions:simple_dispatcher_category' category=category %}" class="back-btn">←</a>
+<h1 class="page-title">{{ requisition.order_number }}</h1>
+</div>
+
+{% if requisition.has_alert %}
+<div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert" style="border-radius: 12px;">
+<div>
+<strong>🚨 需求變更警示</strong>
+<pre style="white-space: pre-wrap; font-family: inherit; margin: 0.5rem 0 0;">{{ requisition.alert_message }}</pre>
+</div>
+<form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post" onsubmit="return confirm('確定要解除此警示嗎？');" style="flex-shrink: 0; margin-left: 1rem;">
+{% csrf_token %}
+<input type="hidden" name="next" value="{% url 'requisitions:simple_dispatcher_detail' category=category pk=requisition.pk %}">
+<button type="submit" class="btn btn-danger btn-sm">解除警示</button>
+</form>
+</div>
+{% endif %}
+
+<div class="info-card">
+<div class="progress-section">
+<div class="progress-bar-large">
+<div class="progress-bar-fill" style="width: {{ progress }}%;"></div>
+</div>
+<div class="progress-text">{{ dispatched_count }}/{{ total_count }} 已撥料 ({{ progress }}%)</div>
+</div>
+<div class="info-row"><span class="info-label">投料點</span><span class="info-value">{{ requisition.process_type }}</span></div>
+<div class="info-row"><span class="info-label">申請人</span><span class="info-value">{{ requisition.applicant.username }}</span></div>
+<div class="info-row"><span class="info-label">申請日期</span><span class="info-value">{{ requisition.created_at|date:"Y-m-d" }}</span></div>
+</div>
+
+<h3 style="margin: 1.5rem 0 1rem; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
+
+{% for item in items %}
+<div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
+<div class="material-header">
+<div class="material-info">
+<h4>{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收</span>{% endif %}</h4>
+<p>{{ item.item_name }}</p>
+{% if item.storage_bin %}<p class="storage-bin">儲格: {{ item.storage_bin }}</p>{% endif %}
+{% if item.has_backlog %}<div class="backlog-alert">⚠ 有更早工單需先撥料</div>{% endif %}
+</div>
+<div class="material-qty-info">
+<div><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></div>
+<div><span class="qty-label">庫存:</span> <span class="qty-value">{{ item.stock_quantity }}</span></div>
+{% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
+</div>
+</div>
+<form method="post" class="material-actions">
+{% csrf_token %}
+<input type="hidden" name="item_pk" value="{{ item.pk }}">
+{% if item.is_actionable %}
+<input type="number" name="dispatched_qty" value="{{ item.required_quantity }}" class="qty-input" min="0" step="1">
+<button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
+<button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>
+{% elif not item.is_signed_off %}
+<button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
+{% endif %}
+</form>
+
+{% if item.supplementary_list or item.needs_supplementary %}
+<div class="supplementary-section">
+{% if item.supplementary_list %}
+<div class="supplementary-toggle" onclick="this.nextElementSibling.classList.toggle('show')">
+▶ 補撥項目 ({{ item.supplementary_list|length }})
+</div>
+<div class="supplementary-list">
+{% for supp in item.supplementary_list %}
+<div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}">
+<div class="supp-item-header">
+<span class="supp-label">補撥 #{{ forloop.counter }}</span>
+<span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% endif %}</span>
+</div>
+<form method="post" class="material-actions">
+{% csrf_token %}
+<input type="hidden" name="item_pk" value="{{ supp.pk }}">
+{% if supp.is_actionable %}
+<span style="font-size:0.85rem;color:#6B7280;">補撥數量: {{ supp.required_quantity }}</span>
+<input type="number" name="dispatched_qty" value="{{ supp.required_quantity }}" class="qty-input" min="0" step="1">
+<button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
+{% elif not supp.is_signed_off %}
+<button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
+{% endif %}
+</form>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if item.needs_supplementary %}
+<form method="post" class="add-supplementary-form">
+{% csrf_token %}
+<input type="hidden" name="item_pk" value="{{ item.pk }}">
+<span style="font-size:0.85rem;color:#6B7280;">剩餘: {{ item.remaining_quantity }}</span>
+<input type="number" name="supplementary_qty" value="{{ item.remaining_quantity }}" class="qty-input" min="0.01" max="{{ item.remaining_quantity }}" step="0.01">
+<button type="submit" name="action" value="supplementary" class="action-btn supplementary">補撥</button>
+</form>
+{% endif %}
+</div>
+{% endif %}
+</div>
+{% empty %}
+<p class="text-muted text-center">沒有物料項目</p>
+{% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const csrfToken = '{{ csrf_token }}';
+    
+    function showToast(message, isSuccess) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-message ' + (isSuccess ? 'success' : 'error');
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
+    
+    function updateProgress(data) {
+        const progressFill = document.querySelector('.progress-bar-fill');
+        const progressText = document.querySelector('.progress-text');
+        if (progressFill && progressText) {
+            progressFill.style.width = data.progress + '%';
+            progressText.textContent = data.dispatched_count + '/' + data.total_count + ' 已撥料 (' + data.progress + '%)';
+        }
+    }
+    
+    function updateCardUI(card, newStatus, dispatchedQty) {
+        const actionsForm = card.querySelector('.material-actions');
+        const statusBadge = card.querySelector('.status-badge');
+        const qtyInfo = card.querySelector('.material-qty-info');
+        
+        // 更新卡片樣式
+        card.classList.remove('dispatched', 'backordered');
+        
+        if (newStatus === 'dispatched') {
+            card.classList.add('dispatched');
+            const statusText = dispatchedQty ? '已撥 ' + dispatchedQty : '已撥';
+            // 更新狀態徽章
+            if (statusBadge) {
+                statusBadge.className = 'status-badge dispatched';
+                statusBadge.textContent = statusText;
+            } else {
+                const newBadge = document.createElement('span');
+                newBadge.className = 'status-badge dispatched';
+                newBadge.textContent = statusText;
+                qtyInfo.appendChild(newBadge);
+            }
+            // 更新按鈕為撤銷
+            actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
+        } else if (newStatus === 'backordered') {
+            card.classList.add('backordered');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge backordered';
+                statusBadge.textContent = '缺料';
+            } else {
+                const newBadge = document.createElement('span');
+                newBadge.className = 'status-badge backordered';
+                newBadge.textContent = '缺料';
+                qtyInfo.appendChild(newBadge);
+            }
+            actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
+        } else if (newStatus === 'pending') {
+            if (statusBadge) statusBadge.remove();
+            const reqQty = card.querySelector('.qty-value').textContent;
+            actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><input type="number" name="dispatched_qty" value="' + reqQty + '" class="qty-input" min="0" step="1"><button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button><button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>';
+        }
+        
+        // 重新綁定事件
+        bindFormEvents(actionsForm);
+    }
+    
+    function handleFormSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const card = form.closest('.material-card');
+        const submitBtn = e.submitter;
+        const action = submitBtn.value;
+        
+        // 禁用按鈕防止重複提交
+        const buttons = form.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = true);
+        
+        const formData = new FormData(form);
+        formData.append('action', action);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            showToast(data.message, data.success);
+            if (data.success) {
+                if (action === 'supplementary') {
+                    // 補撥成功後刷新頁面以顯示新項目，但保持滾動位置
+                    const scrollPos = window.scrollY;
+                    sessionStorage.setItem('scroll_pos', scrollPos);
+                    window.location.reload();
+                } else {
+                    updateCardUI(card, data.new_status, data.dispatched_qty);
+                    updateProgress(data);
+                }
+            } else {
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        })
+        .catch(error => {
+            showToast('操作失敗，請重試', false);
+            buttons.forEach(btn => btn.disabled = false);
+        });
+    }
+    
+    function bindFormEvents(form) {
+        form.addEventListener('submit', handleFormSubmit);
+    }
+    
+    // 綁定所有表單 (撥料、補撥等)
+    document.querySelectorAll('form.material-actions, form.add-supplementary-form').forEach(bindFormEvents);
+    
+    // 恢復滾動位置
+    const savedScroll = sessionStorage.getItem('scroll_pos');
+    if (savedScroll) {
+        window.scrollTo(0, parseInt(savedScroll, 10));
+        sessionStorage.removeItem('scroll_pos');
+    }
+})();
+</script>
+{% endblock %}

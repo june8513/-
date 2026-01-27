@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}撥料人員 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .user-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #F3F4F6;
+        border-radius: 20px;
+        font-size: 0.9rem;
+    }
+
+    .categories-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    @media (min-width: 768px) {
+        .categories-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    .category-card {
+        position: relative;
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        text-decoration: none;
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .category-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        color: white;
+    }
+
+    .category-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.1) 100%);
+        pointer-events: none;
+    }
+
+    .category-name {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .pending-badge {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        background: rgba(255, 255, 255, 0.9);
+        color: #374151;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        z-index: 1;
+    }
+
+    .pending-badge.has-pending {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="page-header">
+        <h1 class="page-title">撥料人員</h1>
+        <div class="user-badge">
+            {{ user.username }}
+        </div>
+    </div>
+
+    <div class="categories-grid">
+        {% for cat in categories %}
+        <a href="{% url 'requisitions:simple_dispatcher_category' category=cat.name %}" class="category-card"
+            style="background: {{ cat.color }};">
+            <span class="pending-badge {% if cat.pending_count > 0 %}has-pending{% endif %}">
+                待撥: {{ cat.pending_count }}
+            </span>
+            <span class="category-name">{{ cat.name }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

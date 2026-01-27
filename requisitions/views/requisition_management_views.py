@@ -730,4 +730,9 @@ def dismiss_requisition_alert(request, pk):
         
         requisition.save()
         messages.success(request, "警示已解除。")
+    
+    # 支援返回原頁面
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if next_url:
+        return redirect(next_url)
     return redirect('requisitions:requisition_detail', pk=pk)

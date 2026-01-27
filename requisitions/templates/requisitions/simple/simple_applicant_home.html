@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}我的申請單 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .create-btn {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+        border: none;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+    }
+
+    .create-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+        background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
+    }
+
+    .requisition-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .requisition-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    .order-number {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #1F2937;
+        margin-bottom: 0.5rem;
+    }
+
+    .process-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        background: #E0E7FF;
+        color: #3730A3;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 0.75rem;
+    }
+
+    .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .status-dot.pending {
+        background: #FCD34D;
+    }
+
+    .status-dot.in-progress {
+        background: #60A5FA;
+    }
+
+    .status-dot.completed {
+        background: #34D399;
+    }
+
+    .status-dot.signed-off {
+        background: #10B981;
+    }
+
+    .date-text {
+        color: #9CA3AF;
+        font-size: 0.85rem;
+    }
+
+    .progress-bar-container {
+        width: 100%;
+        height: 6px;
+        background: #E5E7EB;
+        border-radius: 3px;
+        margin-top: 0.75rem;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%);
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .progress-text {
+        font-size: 0.8rem;
+        color: #6B7280;
+        margin-top: 0.25rem;
+        text-align: right;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #9CA3AF;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .user-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #F3F4F6;
+        border-radius: 20px;
+        font-size: 0.9rem;
+    }
+
+    .alert-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+    }
+
+    .alert-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .alert-badge.overdue {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+
+    .alert-badge.change {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="page-header">
+        <h1 class="page-title">我的申請單</h1>
+        <div class="user-badge">
+            {{ user.username }}
+        </div>
+    </div>
+
+    <a href="{% url 'requisitions:simple_applicant_create' %}" class="btn create-btn">建立申請單</a>
+
+    {% if requisitions %}
+    {% for req in requisitions %}
+    <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
+        {% if req.has_alert or req.is_overdue %}
+        <div class="alert-badges">
+            {% if req.is_overdue %}
+            <span class="alert-badge overdue">⚠ 逾期</span>
+            {% endif %}
+            {% if req.has_alert %}
+            <span class="alert-badge change">🚨 需求變更</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="order-number">{{ req.order_number }}</div>
+        <span class="process-badge">{{ req.process_type }}</span>
+        <div class="status-row">
+            <div class="status-indicator">
+                {% if req.status == 'signed_off' %}
+                <span class="status-dot signed-off"></span>
+                <span>已簽收</span>
+                {% elif req.status == 'dispatch_completed' %}
+                <span class="status-dot completed"></span>
+                <span>已撥料</span>
+                {% elif req.status == 'dispatch_in_progress' %}
+                <span class="status-dot in-progress"></span>
+                <span>撥料中</span>
+                {% else %}
+                <span class="status-dot pending"></span>
+                <span>待處理</span>
+                {% endif %}
+            </div>
+            <span class="date-text">{{ req.created_at|date:"Y-m-d" }}</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+        </div>
+        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <p>目前沒有申請單</p>
+        <p>點擊上方按鈕建立第一張申請單</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ category }} - 撥料人員{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: #374151;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: white;
+        margin-left: 0.5rem;
+    }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #374151;
+        margin: 1.5rem 0 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-title .count {
+        background: #E5E7EB;
+        color: #374151;
+        padding: 0.15rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+    }
+
+    .section-title.pending .count {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    .requisition-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .requisition-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .req-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .order-number {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1F2937;
+    }
+
+    .date-text {
+        font-size: 0.85rem;
+        color: #9CA3AF;
+    }
+
+    .req-info {
+        font-size: 0.9rem;
+        color: #6B7280;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #9CA3AF;
+        background: #F9FAFB;
+        border-radius: 12px;
+    }
+
+    .alert-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+
+    .alert-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 8px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .alert-badge.overdue {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+
+    .alert-badge.change {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_dispatcher_home' %}" class="back-btn">←</a>
+        <h1 class="page-title">
+            <span class="category-badge" style="background: {{ category_color }};">{{ category }}</span>
+        </h1>
+    </div>
+
+    <!-- 待撥料申請單 -->
+    <h2 class="section-title pending">待撥料 <span class="count">{{ pending_requisitions|length }}</span></h2>
+
+    {% if pending_requisitions %}
+    {% for req in pending_requisitions %}
+    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}" class="requisition-card">
+        <div class="req-header">
+            <span class="order-number">{{ req.order_number }}</span>
+            <span class="date-text">{{ req.created_at|date:"m/d" }}</span>
+        </div>
+        <div class="req-info">
+            {{ req.process_type }} · 申請人: {{ req.applicant.username }}
+            {% if req.has_alert or req.is_overdue %}
+            <div class="alert-badges">
+                {% if req.is_overdue %}
+                <span class="alert-badge overdue">⚠ 逾期</span>
+                {% endif %}
+                {% if req.has_alert %}
+                <span class="alert-badge change">🚨 變更</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">沒有待撥料申請單</div>
+    {% endif %}
+
+    <!-- 已撥料申請單 -->
+    <h2 class="section-title">已撥料 <span class="count">{{ completed_requisitions|length }}</span></h2>
+
+    {% if completed_requisitions %}
+    {% for req in completed_requisitions %}
+    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}" class="requisition-card">
+        <div class="req-header">
+            <span class="order-number">{{ req.order_number }}</span>
+            <span class="date-text">{{ req.updated_at|date:"m/d" }}</span>
+        </div>
+        <div class="req-info">
+            {{ req.process_type }} · {% if req.status == 'signed_off' %}已簽收{% else %}待簽收{% endif %}
+        </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        暫無已撥料申請單
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

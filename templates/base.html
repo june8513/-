@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="{% static 'requisitions/css/custom_styles.css' %}">
     <link rel="stylesheet" href="{% static 'requisitions/css/circular_progress.css' %}">
     <script src="{% static 'js/flatpickr.min.js' %}"></script>
-    {% block extra_js %}{% endblock %}
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body class="d-flex flex-column min-vh-100">
@@ -144,6 +144,7 @@
     </div>
     <!-- Bootstrap JS (Local) -->
     <script src="{% static 'vendor/js/bootstrap.bundle.min.js' %}"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>

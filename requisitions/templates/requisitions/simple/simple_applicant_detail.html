@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}申請單詳情 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: #374151;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .info-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .progress-section {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .progress-bar-large {
+        width: 100%;
+        height: 12px;
+        background: #E5E7EB;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%);
+        border-radius: 6px;
+        transition: width 0.5s ease;
+    }
+
+    .progress-text {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #F3F4F6;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        color: #6B7280;
+        font-size: 0.9rem;
+    }
+
+    .info-value {
+        font-weight: 600;
+        color: #1F2937;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .status-pending {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    .status-in-progress {
+        background: #DBEAFE;
+        color: #1E40AF;
+    }
+
+    .status-completed {
+        background: #D1FAE5;
+        color: #065F46;
+    }
+
+    .status-signed-off {
+        background: #ECFDF5;
+        color: #047857;
+    }
+
+    .materials-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .materials-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1F2937;
+        margin-bottom: 1rem;
+    }
+
+    .material-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        border-radius: 12px;
+        margin-bottom: 0.5rem;
+        background: #F9FAFB;
+    }
+
+    .material-item.dispatched {
+        background: #ECFDF5;
+    }
+
+    .material-item.shortage {
+        background: #FEF2F2;
+    }
+
+    .material-info {
+        flex: 1;
+    }
+
+    .material-number {
+        font-weight: 600;
+        color: #1F2937;
+        font-size: 0.95rem;
+    }
+
+    .material-name {
+        color: #6B7280;
+        font-size: 0.85rem;
+    }
+
+    .material-qty {
+        text-align: right;
+    }
+
+    .qty-text {
+        font-size: 0.9rem;
+        color: #374151;
+    }
+
+    .status-icon {
+        margin-left: 0.75rem;
+        font-size: 1.2rem;
+    }
+
+    .status-icon.success {
+        color: #10B981;
+    }
+
+    .status-icon.pending {
+        color: #F59E0B;
+    }
+
+    .status-icon.shortage {
+        color: #EF4444;
+    }
+
+    .shortage-badge {
+        display: inline-block;
+        background: #FEE2E2;
+        color: #DC2626;
+        padding: 0.15rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .sign-off-btn {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        border: none;
+        border-radius: 12px;
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+    }
+
+    .sign-off-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .sign-off-btn:disabled {
+        background: #9CA3AF;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .item-sign-off-btn {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+        background: #10B981;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        margin-left: 0.5rem;
+    }
+    .item-sign-off-btn:hover {
+        background: #059669;
+    }
+    .signed-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: #D1FAE5;
+        color: #065F46;
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_applicant_home' %}" class="back-btn">←</a>
+        <h1 class="page-title">申請單詳情</h1>
+    </div>
+
+    {% if requisition.has_alert %}
+    <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert"
+        style="border-radius: 12px;">
+        <div>
+            <strong>🚨 需求變更警示</strong>
+            <pre
+                style="white-space: pre-wrap; font-family: inherit; margin: 0.5rem 0 0;">{{ requisition.alert_message }}</pre>
+        </div>
+        <form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post"
+            onsubmit="return confirm('確定要解除此警示嗎？');" style="flex-shrink: 0; margin-left: 1rem;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'requisitions:simple_applicant_detail' pk=requisition.pk %}">
+            <button type="submit" class="btn btn-danger btn-sm">解除警示</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Progress Section -->
+    <div class="info-card">
+        <div class="progress-section">
+            <div class="progress-bar-large">
+                <div class="progress-bar-fill" style="width: {{ progress }}%;"></div>
+            </div>
+            <div class="progress-text">{{ progress }}% 已撥料</div>
+        </div>
+
+        <div class="info-row">
+            <span class="info-label">工單單號</span>
+            <span class="info-value">{{ requisition.order_number }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">投料點</span>
+            <span class="info-value">{{ requisition.process_type }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">申請日期</span>
+            <span class="info-value">{{ requisition.created_at|date:"Y-m-d" }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">狀態</span>
+            <span class="info-value">
+                {% if requisition.status == 'signed_off' %}
+                <span class="status-badge status-signed-off">已簽收</span>
+                {% elif requisition.status == 'dispatch_completed' %}
+                <span class="status-badge status-completed">已撥料</span>
+                {% elif requisition.status == 'dispatch_in_progress' %}
+                <span class="status-badge status-in-progress">撥料中</span>
+                {% else %}
+                <span class="status-badge status-pending">待處理</span>
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Materials List -->
+    <div class="materials-card">
+        <h3 class="materials-title">物料清單 ({{ total_count }} 項)</h3>
+
+        {% for item in items %}
+        <div
+            class="material-item {% if item.dispatch_status == 'dispatched' %}dispatched{% elif item.is_shortage %}shortage{% endif %}">
+            <div class="material-info">
+                <div class="material-number">{{ item.material_number }}</div>
+                <div class="material-name">{{ item.item_name }}</div>
+                {% if item.is_shortage and item.expected_date %}
+                <span class="shortage-badge">預計入料: {{ item.expected_date|date:"m/d" }}</span>
+                {% endif %}
+            </div>
+            <div class="material-qty">
+                <div class="qty-text">
+                    {% if item.dispatch_status == 'dispatched' %}
+                    {{ item.confirmed_quantity|floatformat:0 }}/{{ item.required_quantity|floatformat:0 }}
+                    {% else %}
+                    0/{{ item.required_quantity|floatformat:0 }}
+                    {% endif %}
+                </div>
+            </div>
+            <div class="status-icon {% if item.dispatch_status == 'dispatched' %}success{% elif item.is_shortage %}shortage{% else %}pending{% endif %}">
+                {% if item.dispatch_status == 'dispatched' %}✓{% elif item.is_shortage %}!{% else %}○{% endif %}
+            </div>
+            {% if item.dispatch_status == 'dispatched' and not item.is_signed_off %}
+            <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}" style="display:inline;" class="sign-off-form">
+                {% csrf_token %}
+                <input type="hidden" name="sign_off_item_{{ item.pk }}" value="1">
+                <button type="submit" class="item-sign-off-btn">簽收</button>
+            </form>
+            {% elif item.is_signed_off %}
+            <span class="signed-badge">已簽收</span>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p class="text-muted text-center">沒有物料項目</p>
+        {% endfor %}
+    </div>
+
+    <!-- Sign Off Button -->
+    {% if requisition.status != 'signed_off' %}
+    <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}" class="sign-off-form">
+        {% csrf_token %}
+        <input type="hidden" name="confirm_all_sign_off" value="1">
+        <button type="submit" class="sign-off-btn" {% if dispatched_count == 0 %}disabled{% endif %}>簽收已撥料物料 ({{
+            dispatched_count }} 項)</button>
+    </form>
+    {% else %}
+    <div class="alert alert-success text-center">此申請單已完成簽收</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    function showToast(message, success) {
+        const toast = document.createElement('div');
+        toast.className = 'alert ' + (success ? 'alert-success' : 'alert-danger');
+        toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;padding:12px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    function handleSignOff(e) {
+        e.preventDefault();
+        const form = e.target;
+        const btn = form.querySelector('button');
+        const itemRow = form.closest('.material-item');
+        
+        btn.disabled = true;
+        btn.textContent = '處理中...';
+        
+        const formData = new FormData(form);
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            showToast(data.message, data.success);
+            if (data.success) {
+                // 更新 UI - 替換按鈕為已簽收標籤
+                if (itemRow) {
+                    form.remove();
+                    const badge = document.createElement('span');
+                    badge.className = 'signed-badge';
+                    badge.textContent = '已簽收';
+                    itemRow.appendChild(badge);
+                }
+                
+                // 如果全部簽收完成，刷新頁面顯示完成狀態
+                if (data.requisition_completed) {
+                    setTimeout(() => window.location.reload(), 1000);
+                }
+            } else {
+                btn.disabled = false;
+                btn.textContent = '簽收';
+            }
+        })
+        .catch(error => {
+            showToast('操作失敗，請重試', false);
+            btn.disabled = false;
+            btn.textContent = '簽收';
+        });
+    }
+    
+    // 綁定所有簽收表單
+    document.querySelectorAll('form.sign-off-form').forEach(form => {
+        form.addEventListener('submit', handleSignOff);
+    });
+})();
+</script>
+{% endblock %}

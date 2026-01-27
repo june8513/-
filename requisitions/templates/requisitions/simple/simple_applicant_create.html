@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}建立申請單 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        transition: all 0.2s ease;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+        border-color: #3B82F6;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .submit-btn {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+        border: none;
+        border-radius: 12px;
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+    }
+
+    .submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .submit-btn:disabled {
+        background: #9CA3AF;
+        box-shadow: none;
+        transform: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_applicant_home' %}" class="back-btn">←</a>
+        <h1 class="page-title">建立申請單</h1>
+    </div>
+
+    <div class="form-card">
+        <form method="post" id="createForm">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label class="form-label" for="order_number">工單單號</label>
+                <input type="text" class="form-control" id="order_number" name="order_number" placeholder="請輸入工單單號"
+                    required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="process_type">投料點</label>
+                <select class="form-control" id="process_type" name="process_type" required disabled>
+                    <option value="">請先輸入工單單號</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="request_date">需求日期</label>
+                <input type="date" class="form-control" id="request_date" name="request_date" value="{{ today }}"
+                    required>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn" disabled>建立申請單</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const orderNumberInput = document.getElementById('order_number');
+        const processTypeSelect = document.getElementById('process_type');
+        const submitBtn = document.getElementById('submitBtn');
+
+        let debounceTimer;
+
+        orderNumberInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            const orderNumber = this.value.trim();
+
+            if (orderNumber.length < 2) {
+                processTypeSelect.innerHTML = '<option value="">請輸入完整工單單號</option>';
+                processTypeSelect.disabled = true;
+                submitBtn.disabled = true;
+                return;
+            }
+
+            debounceTimer = setTimeout(function () {
+                fetch(`{% url 'requisitions:get_available_process_types' %}?order_number=${encodeURIComponent(orderNumber)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        processTypeSelect.innerHTML = '';
+
+                        if (data.process_types && data.process_types.length > 0) {
+                            processTypeSelect.innerHTML = '<option value="">請選擇投料點</option>';
+                            data.process_types.forEach(pt => {
+                                const option = document.createElement('option');
+                                option.value = pt.id;
+                                option.textContent = pt.name;
+                                processTypeSelect.appendChild(option);
+                            });
+                            processTypeSelect.disabled = false;
+                        } else {
+                            processTypeSelect.innerHTML = '<option value="">無可用投料點</option>';
+                            processTypeSelect.disabled = true;
+                        }
+                        updateSubmitButton();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        processTypeSelect.innerHTML = '<option value="">載入失敗</option>';
+                        processTypeSelect.disabled = true;
+                    });
+            }, 500);
+        });
+
+        processTypeSelect.addEventListener('change', updateSubmitButton);
+
+        function updateSubmitButton() {
+            submitBtn.disabled = !orderNumberInput.value.trim() || !processTypeSelect.value;
+        }
+    });
+</script>
+{% endblock %}
