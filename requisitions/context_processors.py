@@ -36,6 +36,9 @@ def role_context(request):
         is_material_handler = is_dispatcher_supervisor or is_simple_dispatcher or \
                               request.user.groups.filter(name='撥料人員').exists()
 
+    # 是否為任意主管
+    is_supervisor = is_applicant_supervisor or is_dispatcher_supervisor
+
     return {
         'is_admin': is_admin,
         'is_applicant': is_applicant,
@@ -44,4 +47,6 @@ def role_context(request):
         'is_dispatcher_supervisor': is_dispatcher_supervisor,
         'is_simple_applicant': is_simple_applicant,
         'is_simple_dispatcher': is_simple_dispatcher,
+        'is_supervisor': is_supervisor,
     }
+

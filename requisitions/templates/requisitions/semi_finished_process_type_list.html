@@ -1,0 +1,142 @@
+{% extends 'requisitions/base.html' %}
+
+{% block title %}半成品投料點管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">🏭 半成品投料點管理</h4>
+            <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
+                ➕ 新增投料點
+            </button>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            
+            {% if process_types %}
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:10%">顏色</th>
+                        <th style="width:40%">投料點名稱</th>
+                        <th style="width:15%">狀態</th>
+                        <th style="width:20%">建立時間</th>
+                        <th style="width:15%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pt in process_types %}
+                    <tr>
+                        <td>
+                            <span style="display:inline-block;width:24px;height:24px;border-radius:4px;background-color:{{ pt.color }};"></span>
+                        </td>
+                        <td><strong>{{ pt.name }}</strong></td>
+                        <td>
+                            {% if pt.is_active %}
+                            <span class="badge bg-success">啟用</span>
+                            {% else %}
+                            <span class="badge bg-secondary">停用</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ pt.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                data-bs-toggle="modal" data-bs-target="#editModal{{ pt.pk }}">
+                                ✏️
+                            </button>
+                            <form method="post" class="d-inline" onsubmit="return confirm('確定要刪除此投料點嗎？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="pt_id" value="{{ pt.pk }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                    
+                    <!-- Edit Modal -->
+                    <div class="modal fade" id="editModal{{ pt.pk }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="update">
+                                    <input type="hidden" name="pt_id" value="{{ pt.pk }}">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">編輯投料點</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">投料點名稱</label>
+                                            <input type="text" name="name" class="form-control" value="{{ pt.name }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">顯示顏色</label>
+                                            <input type="color" name="color" class="form-control form-control-color" value="{{ pt.color }}">
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="is_active" class="form-check-input" id="active{{ pt.pk }}" {% if pt.is_active %}checked{% endif %}>
+                                            <label class="form-check-label" for="active{{ pt.pk }}">啟用</label>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                        <button type="submit" class="btn btn-primary">儲存</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <p class="mb-0">目前沒有任何半成品投料點。點擊右上角「新增投料點」開始設定。</p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer text-muted">
+            <a href="{% url 'core:homepage' %}" class="btn btn-secondary">返回首頁</a>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">新增半成品投料點</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">投料點名稱</label>
+                        <input type="text" name="name" class="form-control" placeholder="例如：組裝線A" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">顯示顏色</label>
+                        <input type="color" name="color" class="form-control form-control-color" value="#6366F1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success">新增</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

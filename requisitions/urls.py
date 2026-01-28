@@ -56,6 +56,9 @@ urlpatterns = [
     # 作業說明投料點規則
     path('classify_operations/', views.classify_operations, name='classify_operations'),
     path('operation_rules/', views.operation_rules_list, name='operation_rules_list'),
+    
+    # 半成品投料點管理
+    path('semi_finished/process_types/', views.semi_finished_process_type_list, name='semi_finished_process_type_list'),
 
     path('material_list/', views.work_order_material_list, name='work_order_material_list'),
     path('archived_material_list/', views.archived_work_order_material_list, name='archived_work_order_material_list'),

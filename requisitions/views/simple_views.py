@@ -43,9 +43,17 @@ def simple_applicant_home(request):
     if not is_simple_applicant(request.user) and not request.user.is_superuser:
         return redirect('requisitions:requisition_list')
     
+    # 取得類型參數（成品/半成品）
+    current_type = request.GET.get('type', 'finished')
+    if current_type not in ['finished', 'semi_finished']:
+        current_type = 'finished'
+    
     requisitions = Requisition.objects.filter(
         applicant=request.user
     ).order_by('-created_at')
+    
+    # TODO: 未來可根據 current_type 過濾不同類型的申請單
+    # 目前先顯示所有申請單，待申請單有 material_type 欄位後再過濾
     
     # 計算每個申請單的撥料進度
     today = timezone.now().date()
@@ -65,6 +73,7 @@ def simple_applicant_home(request):
     context = {
         'requisitions': requisitions,
         'user': request.user,
+        'current_type': current_type,
     }
     return render(request, 'requisitions/simple/simple_applicant_home.html', context)
 
@@ -311,23 +320,46 @@ def simple_dispatcher_home(request):
     if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
         return redirect('requisitions:requisition_list')
     
-    # 計算每個分類的待撥數量
+    # 取得類型參數（成品/半成品）
+    current_type = request.GET.get('type', 'finished')
+    if current_type not in ['finished', 'semi_finished']:
+        current_type = 'finished'
+    
     categories = []
-    for category_name in PROCESS_CATEGORY_NAMES:
-        pending_count = Requisition.objects.filter(
-            process_type__icontains=category_name,
-            status__in=['demand_submitted', 'dispatch_in_progress']
-        ).count()
+    
+    if current_type == 'semi_finished':
+        # 載入半成品投料點
+        from ..models import SemiFinishedProcessType
+        semi_process_types = SemiFinishedProcessType.objects.filter(is_active=True).order_by('order', 'name')
         
-        categories.append({
-            'name': category_name,
-            'color': PROCESS_CATEGORY_COLORS.get(category_name, '#6B7280'),
-            'pending_count': pending_count,
-        })
+        for pt in semi_process_types:
+            # TODO: 計算半成品申請單待撥數量
+            # 目前先顯示 0，待申請單有 material_type 欄位後再實作
+            pending_count = 0
+            
+            categories.append({
+                'name': pt.name,
+                'color': pt.color,
+                'pending_count': pending_count,
+            })
+    else:
+        # 載入成品投料點（原有邏輯）
+        for category_name in PROCESS_CATEGORY_NAMES:
+            pending_count = Requisition.objects.filter(
+                process_type__icontains=category_name,
+                status__in=['demand_submitted', 'dispatch_in_progress']
+            ).count()
+            
+            categories.append({
+                'name': category_name,
+                'color': PROCESS_CATEGORY_COLORS.get(category_name, '#6B7280'),
+                'pending_count': pending_count,
+            })
     
     context = {
         'categories': categories,
         'user': request.user,
+        'current_type': current_type,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_home.html', context)
 

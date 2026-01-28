@@ -189,6 +189,44 @@
         background: #FEF3C7;
         color: #92400E;
     }
+
+    /* 標籤切換樣式 */
+    .type-tabs {
+        display: flex;
+        background: #F3F4F6;
+        border-radius: 12px;
+        padding: 4px;
+        margin-bottom: 1.5rem;
+    }
+
+    .type-tab {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        text-align: center;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        color: #6B7280;
+        transition: all 0.3s ease;
+    }
+
+    .type-tab:hover {
+        color: #374151;
+    }
+
+    .type-tab.active {
+        background: white;
+        color: #1F2937;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .type-tab.finished.active {
+        color: #3B82F6;
+    }
+
+    .type-tab.semi-finished.active {
+        color: #10B981;
+    }
 </style>
 {% endblock %}
 
@@ -210,7 +248,23 @@
         </div>
     </div>
 
+    <!-- 成品/半成品標籤切換 -->
+    <div class="type-tabs">
+        <a href="{% url 'requisitions:simple_applicant_home' %}" 
+           class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
+            📦 成品撥料
+        </a>
+        <a href="{% url 'requisitions:simple_applicant_home' %}?type=semi_finished" 
+           class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
+            🔧 半成品撥料
+        </a>
+    </div>
+
+    {% if current_type == 'finished' %}
     <a href="{% url 'requisitions:simple_applicant_create' %}" class="btn create-btn">建立申請單</a>
+    {% else %}
+    <a href="{% url 'requisitions:simple_applicant_create' %}?type=semi_finished" class="btn create-btn" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);">建立半成品申請單</a>
+    {% endif %}
 
     {% if requisitions %}
     {% for req in requisitions %}

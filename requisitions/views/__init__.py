@@ -9,3 +9,5 @@ from .material_upload_views import *
 from .material_demand_views import *
 from .work_order_views import *
 from .operation_rule_views import *
+from .semi_finished_views import *
+

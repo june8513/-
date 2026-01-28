@@ -642,3 +642,134 @@ def process_inventory_excel(excel_file_path):
     except Exception as e:
         tb_str = traceback.format_exc()
         raise type(e)(f"處理庫存 Excel 內容時發生未預期的錯誤: {e}\n{tb_str}")
+
+
+def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_name=None):
+    """
+    處理半成品 Excel 匯入。
+    結構與成品相似，但標記為 semi_finished。
+    如果指定 process_type_name，使用該投料點；否則需要用戶後續指定。
+    Returns a dict with created_count, updated_count, deactivated_count.
+    """
+    try:
+        from requisitions.models import SemiFinishedProcessType
+        
+        # 讀取 Excel
+        df_upload = pd.read_excel(excel_file_path, dtype=str, engine='openpyxl')
+        df_upload.columns = df_upload.columns.str.strip()
+
+        # 驗證必要欄位
+        order_col = '訂單單號' if '訂單單號' in df_upload.columns else '訂單'
+        if order_col not in df_upload.columns:
+            raise ValueError("上傳的 Excel 檔案中找不到 '訂單單號' 或 '訂單' 欄位。")
+        if '物料' not in df_upload.columns:
+            raise ValueError("上傳的 Excel 檔案中找不到 '物料' 欄位。")
+        if required_qty_col not in df_upload.columns:
+            raise ValueError(f"在 Excel 中找不到您指定的 '需求數量' 欄位：'{required_qty_col}'。")
+
+        df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
+
+        # 聚合資料
+        group_cols = [order_col, '物料']
+        df_aggregated = df_upload.groupby(group_cols).agg({
+            required_qty_col: 'sum',
+            '物料說明': 'first'
+        }).reset_index()
+
+        created_count = 0
+        updated_count = 0
+        deactivated_count = 0
+
+        with transaction.atomic():
+            all_order_numbers_in_upload = df_upload[order_col].astype(str).str.strip().unique()
+            
+            # 確保 WorkOrder 存在
+            for order_number in all_order_numbers_in_upload:
+                WorkOrder.objects.get_or_create(order_number=order_number)
+
+            uploaded_material_keys = set()
+
+            for _, row in df_aggregated.iterrows():
+                order_number_clean = str(row.get(order_col)).strip()
+                material_number_clean = str(row.get('物料')).strip()
+
+                if not all([order_number_clean, material_number_clean]):
+                    continue
+
+                raw_item_name = row.get('物料說明', '')
+                if pd.isna(raw_item_name) or str(raw_item_name).lower() == 'nan':
+                    item_name_clean = ""
+                else:
+                    item_name_clean = str(raw_item_name).strip()
+
+                required_quantity_clean = row.get(required_qty_col, 0)
+
+                current_material_key = (order_number_clean, material_number_clean)
+                uploaded_material_keys.add(current_material_key)
+
+                # 查找或建立半成品物料
+                existing = WorkOrderMaterial.objects.filter(
+                    order_number=order_number_clean,
+                    material_number=material_number_clean,
+                    material_type='semi_finished'
+                ).first()
+
+                if existing:
+                    is_dirty = False
+                    db_name = str(existing.item_name or "").strip()
+                    if db_name != item_name_clean:
+                        existing.item_name = item_name_clean
+                        is_dirty = True
+                    
+                    try:
+                        db_qty = float(existing.required_quantity or 0)
+                        excel_qty = float(required_quantity_clean or 0)
+                        if abs(db_qty - excel_qty) > 0.0001:
+                            existing.required_quantity = required_quantity_clean
+                            is_dirty = True
+                    except (ValueError, TypeError):
+                        if str(existing.required_quantity) != str(required_quantity_clean):
+                            existing.required_quantity = required_quantity_clean
+                            is_dirty = True
+                    
+                    if not existing.is_active:
+                        existing.is_active = True
+                        is_dirty = True
+
+                    if is_dirty:
+                        existing.save()
+                        updated_count += 1
+                else:
+                    WorkOrderMaterial.objects.create(
+                        order_number=order_number_clean,
+                        material_number=material_number_clean,
+                        item_name=item_name_clean,
+                        required_quantity=required_quantity_clean,
+                        material_type='semi_finished',
+                        is_active=True
+                    )
+                    created_count += 1
+
+            # 停用不在上傳資料中的半成品
+            for order_num in all_order_numbers_in_upload:
+                existing_semi = WorkOrderMaterial.objects.filter(
+                    order_number=order_num,
+                    material_type='semi_finished',
+                    is_active=True
+                )
+                for material in existing_semi:
+                    key = (str(material.order_number).strip(), str(material.material_number).strip())
+                    if key not in uploaded_material_keys:
+                        material.is_active = False
+                        material.save()
+                        deactivated_count += 1
+
+        return {
+            'created_count': created_count,
+            'updated_count': updated_count,
+            'deactivated_count': deactivated_count
+        }
+
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        raise type(e)(f"處理半成品 Excel 內容時發生錯誤: {e}\n{tb_str}")

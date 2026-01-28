@@ -1,11 +1,28 @@
 {% extends "requisitions/base.html" %}
 
-{% block title %}成品撥料{% endblock %}
+{% block title %}撥料管理{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">成品撥料</h2>
-    <p>此頁面用於管理成品撥料相關功能。</p>
+    <!-- 頂部標籤切換 -->
+    <ul class="nav nav-tabs mb-4" id="dispatchTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="finished-tab" data-bs-toggle="tab" data-bs-target="#finished" type="button" role="tab" aria-controls="finished" aria-selected="true">
+                <span class="badge bg-primary me-1">成品</span> 成品撥料
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="semi-finished-tab" data-bs-toggle="tab" data-bs-target="#semi-finished" type="button" role="tab" aria-controls="semi-finished" aria-selected="false">
+                <span class="badge bg-success me-1">半成品</span> 半成品撥料
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="dispatchTabsContent">
+        <!-- 成品撥料 Tab -->
+        <div class="tab-pane fade show active" id="finished" role="tabpanel" aria-labelledby="finished-tab">
+            <h2 class="mb-4">成品撥料</h2>
+            <p>此頁面用於管理成品撥料相關功能。</p>
 
     {% if user.is_authenticated %}
         {% if is_admin or is_material_handler %}
@@ -124,5 +141,53 @@
             </div>
         </div>
     </div>
+</div>
+        </div><!-- 關閉成品 tab-pane -->
+        
+        <!-- 半成品撥料 Tab -->
+        <div class="tab-pane fade" id="semi-finished" role="tabpanel" aria-labelledby="semi-finished-tab">
+            <h2 class="mb-4">半成品撥料</h2>
+            <p>此頁面用於管理半成品撥料相關功能。</p>
+
+            {% if user.is_authenticated %}
+                {% if is_admin or is_supervisor %}
+                <div class="d-flex justify-content-end mb-3">
+                    <a href="{% url 'requisitions:semi_finished_process_type_list' %}" class="btn btn-success">
+                        🏭 管理投料點
+                    </a>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4 shadow-sm border-success">
+                        <div class="card-body">
+                            <h5 class="card-title">🏭 投料點管理</h5>
+                            <p class="card-text">管理半成品投料點設定。</p>
+                            <a href="{% url 'requisitions:semi_finished_process_type_list' %}" class="btn btn-success">前往</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4 shadow-sm border-success">
+                        <div class="card-body">
+                            <h5 class="card-title">📋 半成品物料清單</h5>
+                            <p class="card-text">查看所有半成品的物料清單。</p>
+                            <a href="{% url 'requisitions:work_order_material_list' %}?type=semi_finished" class="btn btn-success">前往</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-body text-muted">
+                            <h5 class="card-title">更多功能</h5>
+                            <p class="card-text">更多半成品撥料功能開發中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- 關閉半成品 tab-pane -->
+    </div><!-- 關閉 tab-content -->
 </div>
 {% endblock %}

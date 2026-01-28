@@ -81,13 +81,32 @@ def bulk_upload(request):
                     updated = result['updated_count']
                     deactivated = result['deactivated_count']
                     unknown_ops = result.get('unknown_operations', [])
-                    results.append(f"✅ 物料明細：新增 {created} 筆，更新 {updated} 筆，停用 {deactivated} 筆")
+                    results.append(f"✅ 成品物料明細：新增 {created} 筆，更新 {updated} 筆，停用 {deactivated} 筆")
                     if unknown_ops:
                         request.session['unknown_operations'] = unknown_ops
                         results.append(f"⚠️ 發現 {len(unknown_ops)} 個未知的作業說明，需設定投料點")
                     os.unlink(temp_file_path)
                 except Exception as e:
-                    results.append(f"❌ 物料明細錯誤：{str(e)}")
+                    results.append(f"❌ 成品物料明細錯誤：{str(e)}")
+            
+            # Process Semi-Finished Material File
+            semi_finished_file = request.FILES.get('semi_finished_file')
+            if semi_finished_file:
+                try:
+                    from requisitions.utils import process_semi_finished_excel
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                        for chunk in semi_finished_file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    required_qty_col = form.cleaned_data.get('required_quantity_col') or '需求數量'
+                    result = process_semi_finished_excel(temp_file_path, required_qty_col)
+                    created = result['created_count']
+                    updated = result['updated_count']
+                    deactivated = result['deactivated_count']
+                    results.append(f"✅ 半成品物料明細：新增 {created} 筆，更新 {updated} 筆，停用 {deactivated} 筆")
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    results.append(f"❌ 半成品物料明細錯誤：{str(e)}")
             
             if not results:
                 messages.warning(request, "請至少選擇一個檔案上傳。")

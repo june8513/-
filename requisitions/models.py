@@ -90,12 +90,20 @@ class Requisition(models.Model):
 
 
 class WorkOrderMaterial(models.Model):
+    MATERIAL_TYPE_CHOICES = [
+        ('finished', '成品'),
+        ('semi_finished', '半成品'),
+    ]
+    
     machine_model = models.ForeignKey(MachineModel, on_delete=models.CASCADE, verbose_name="機型", related_name="work_order_materials", null=True, blank=True)
     order_number = models.CharField(max_length=100, db_index=True, verbose_name="訂單單號")
     material_number = models.CharField(max_length=100, db_index=True, verbose_name="物料", null=True, blank=True)
     item_name = models.CharField(max_length=255, verbose_name="品名", null=True, blank=True)
     required_quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="需求數量")
     process_type = models.ForeignKey(ProcessType, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="投料點")
+    
+    # 新增：區分成品/半成品
+    material_type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES, default='finished', verbose_name="物料類型", db_index=True)
     
     confirmed_quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="已撥料數量")
     is_signed_off = models.BooleanField(default=False, verbose_name="已簽收")
@@ -265,3 +273,23 @@ class OperationProcessRule(models.Model):
 
     def __str__(self):
         return f"{self.operation_description} -> {self.process_type}"
+
+
+class SemiFinishedProcessType(models.Model):
+    """半成品投料點 - 由主管動態管理"""
+    name = models.CharField(max_length=100, unique=True, verbose_name="投料點名稱")
+    color = models.CharField(max_length=20, default='#6366F1', verbose_name="顯示顏色")
+    order = models.IntegerField(default=0, verbose_name="排序順序")
+    is_active = models.BooleanField(default=True, verbose_name="是否啟用")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_semi_process_types', verbose_name="建立人員")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="最後更新時間")
+
+    class Meta:
+        verbose_name = "半成品投料點"
+        verbose_name_plural = "半成品投料點"
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+

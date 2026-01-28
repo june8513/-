@@ -71,6 +71,22 @@
                             </li>
 
                             <li class="dropend">
+                                <a class="dropdown-item dropdown-toggle" href="#" id="semiFinishedDispatchDropdown"
+                                    role="button">
+                                    半成品撥料
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="semiFinishedDispatchDropdown">
+                                    {% if user.is_authenticated %}
+                                    {% if is_admin or is_supervisor %}
+                                    <li><a class="dropdown-item"
+                                            href="{% url 'requisitions:semi_finished_process_type_list' %}">🏭 投料點管理</a></li>
+                                    {% endif %}
+                                    {% endif %}
+                                    <li><a class="dropdown-item text-muted" href="#">（更多功能開發中...）</a></li>
+                                </ul>
+                            </li>
+
+                            <li class="dropend">
                                 <a class="dropdown-item dropdown-toggle" href="#" id="inventoryStocktakeDropdown"
                                     role="button">
                                     庫存盤點
