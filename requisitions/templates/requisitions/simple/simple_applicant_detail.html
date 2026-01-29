@@ -258,6 +258,41 @@
         color: #065F46;
         margin-left: 0.5rem;
     }
+    .edit-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        padding: 0.15rem 0.3rem;
+        margin-left: 0.5rem;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    .edit-btn:hover {
+        opacity: 1;
+    }
+    .save-btn, .cancel-btn {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        margin-left: 0.25rem;
+    }
+    .save-btn {
+        background: #3B82F6;
+        color: white;
+    }
+    .save-btn:hover {
+        background: #2563EB;
+    }
+    .cancel-btn {
+        background: #E5E7EB;
+        color: #374151;
+    }
+    .cancel-btn:hover {
+        background: #D1D5DB;
+    }
 </style>
 {% endblock %}
 
@@ -298,7 +333,7 @@
     <div class="info-card">
         <div class="progress-section">
             <div class="progress-bar-large">
-                <div class="progress-bar-fill" style="width: {{ progress }}%;"></div>
+                <div class="progress-bar-fill" data-progress="{{ progress }}"></div>
             </div>
             <div class="progress-text">{{ progress }}% 已撥料</div>
         </div>
@@ -307,9 +342,23 @@
             <span class="info-label">工單單號</span>
             <span class="info-value">{{ requisition.order_number }}</span>
         </div>
-        <div class="info-row">
+        <div class="info-row" id="process-type-row">
             <span class="info-label">投料點</span>
-            <span class="info-value">{{ requisition.process_type }}</span>
+            <span class="info-value" id="process-type-display">
+                {{ requisition.process_type }}
+                {% if requisition.status == 'demand_submitted' %}
+                <button type="button" class="edit-btn" id="edit-process-type-btn" title="編輯投料點">✏️</button>
+                {% endif %}
+            </span>
+            {% if requisition.status == 'demand_submitted' %}
+            <div id="process-type-edit" style="display: none; flex: 1;">
+                <select id="process-type-select" class="form-control form-control-sm" style="display: inline-block; width: auto; min-width: 150px;">
+                    <option value="">載入中...</option>
+                </select>
+                <button type="button" class="save-btn" id="save-process-type-btn">儲存</button>
+                <button type="button" class="cancel-btn" id="cancel-process-type-btn">取消</button>
+            </div>
+            {% endif %}
         </div>
         <div class="info-row">
             <span class="info-label">申請日期</span>
@@ -448,10 +497,105 @@
         });
     }
     
+    // 設定進度條寬度
+    document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function(el) {
+        el.style.width = el.dataset.progress + '%';
+    });
+    
     // 綁定所有簽收表單
     document.querySelectorAll('form.sign-off-form').forEach(form => {
         form.addEventListener('submit', handleSignOff);
     });
+    
+    // 投料點編輯功能
+    const editBtn = document.getElementById('edit-process-type-btn');
+    const processTypeDisplay = document.getElementById('process-type-display');
+    const processTypeEdit = document.getElementById('process-type-edit');
+    const processTypeSelect = document.getElementById('process-type-select');
+    const saveBtn = document.getElementById('save-process-type-btn');
+    const cancelBtn = document.getElementById('cancel-process-type-btn');
+    
+    if (editBtn) {
+        const orderNumber = '{{ requisition.order_number }}';
+        const requisitionType = '{{ requisition.requisition_type|default:"finished" }}';
+        const currentProcessType = '{{ requisition.process_type }}';
+        const updateUrl = '{% url "requisitions:simple_applicant_update_process_type" pk=requisition.pk %}';
+        const getProcessTypesUrl = '{% url "requisitions:get_available_process_types" %}';
+        
+        editBtn.addEventListener('click', function() {
+            processTypeDisplay.style.display = 'none';
+            processTypeEdit.style.display = 'flex';
+            
+            // 載入可用投料點
+            const typeParam = requisitionType === 'semi_finished' ? 'semi_finished' : 'finished';
+            fetch(`${getProcessTypesUrl}?order_number=${encodeURIComponent(orderNumber)}&type=${typeParam}`)
+            .then(response => response.json())
+            .then(data => {
+                processTypeSelect.innerHTML = '';
+                const pts = data.process_types || data.available_process_types || [];
+                
+                if (pts.length === 0) {
+                    processTypeSelect.innerHTML = '<option value="">無可用投料點</option>';
+                } else {
+                    // 加入目前的投料點作為第一選項
+                    processTypeSelect.innerHTML = `<option value="" disabled selected>選擇投料點（目前: ${currentProcessType}）</option>`;
+                    pts.forEach(pt => {
+                        const option = document.createElement('option');
+                        option.value = pt.id || pt.value;
+                        option.textContent = pt.name || pt.label;
+                        processTypeSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                processTypeSelect.innerHTML = '<option value="">載入失敗</option>';
+            });
+        });
+        
+        cancelBtn.addEventListener('click', function() {
+            processTypeDisplay.style.display = '';
+            processTypeEdit.style.display = 'none';
+        });
+        
+        saveBtn.addEventListener('click', function() {
+            const selectedId = processTypeSelect.value;
+            if (!selectedId) {
+                showToast('請選擇投料點', false);
+                return;
+            }
+            
+            saveBtn.disabled = true;
+            saveBtn.textContent = '儲存中...';
+            
+            const formData = new FormData();
+            formData.append('process_type', selectedId);
+            
+            fetch(updateUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showToast(data.message, data.success);
+                if (data.success) {
+                    // 更新顯示的投料點
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '儲存';
+                }
+            })
+            .catch(error => {
+                showToast('更新失敗，請重試', false);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '儲存';
+            });
+        });
+    }
 })();
 </script>
 {% endblock %}

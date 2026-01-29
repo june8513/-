@@ -75,12 +75,12 @@
             </div>
         </div>
         
-        {% if is_admin or is_material_handler %}
+        {% if is_admin or is_material_handler or is_applicant %}
             <form method="post" action="{% url 'requisitions:update_work_order_quantities' %}">
                 {% csrf_token %}
                 <input type="hidden" name="order_number" value="{{ selected_order }}">
                 <input type="hidden" name="process_type_filter" value="{{ selected_process_type|default_if_none:'' }}">
-                {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True is_admin=is_admin is_material_handler=is_material_handler all_process_type_names=all_process_type_names %}
+                {% include 'requisitions/_material_table.html' with materials=materials show_change_input=True is_admin=is_admin is_material_handler=is_material_handler is_applicant=is_applicant all_process_type_names=all_process_type_names %}
                 <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="btn btn-primary" id="originalSubmitBtn">確認本頁所有變更</button>
                 </div>

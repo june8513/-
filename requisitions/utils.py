@@ -644,37 +644,86 @@ def process_inventory_excel(excel_file_path):
         raise type(e)(f"處理庫存 Excel 內容時發生未預期的錯誤: {e}\n{tb_str}")
 
 
-def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_name=None):
+def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_type_name=None):
     """
     處理半成品 Excel 匯入。
-    結構與成品相似，但標記為 semi_finished。
-    如果指定 process_type_name，使用該投料點；否則需要用戶後續指定。
+    支援格式：
+    - 格式A: 訂單、物料、訂單數量 (GMEIN)、已交貨數量 (GMEIN)、基本開始日期
+    - 格式B: 訂單、物料、需求數量 (EINHEIT)、領料數量 (EINHEIT)、未結數量、作業說明
     Returns a dict with created_count, updated_count, deactivated_count.
     """
     try:
         from requisitions.models import SemiFinishedProcessType
         
         # 讀取 Excel
-        df_upload = pd.read_excel(excel_file_path, dtype=str, engine='openpyxl')
+        df_upload = pd.read_excel(excel_file_path, engine='openpyxl')
         df_upload.columns = df_upload.columns.str.strip()
 
-        # 驗證必要欄位
-        order_col = '訂單單號' if '訂單單號' in df_upload.columns else '訂單'
-        if order_col not in df_upload.columns:
+        # 驗證必要欄位 - 訂單
+        order_col = None
+        for col_name in ['訂單單號', '訂單']:
+            if col_name in df_upload.columns:
+                order_col = col_name
+                break
+        if not order_col:
             raise ValueError("上傳的 Excel 檔案中找不到 '訂單單號' 或 '訂單' 欄位。")
+        
+        # 驗證必要欄位 - 物料
         if '物料' not in df_upload.columns:
             raise ValueError("上傳的 Excel 檔案中找不到 '物料' 欄位。")
-        if required_qty_col not in df_upload.columns:
-            raise ValueError(f"在 Excel 中找不到您指定的 '需求數量' 欄位：'{required_qty_col}'。")
+        
+        # 需求數量欄位 - 自動偵測或使用指定值
+        qty_col = None
+        if required_qty_col and required_qty_col in df_upload.columns:
+            qty_col = required_qty_col
+        else:
+            # 自動偵測常見欄位名稱
+            for col_name in ['需求數量 (EINHEIT)', '需求數量(EINHEIT)', '訂單數量 (GMEIN)', '訂單數量(GMEIN)', '訂單數量', '需求數量', '數量']:
+                if col_name in df_upload.columns:
+                    qty_col = col_name
+                    break
+        
+        if not qty_col:
+            raise ValueError("在 Excel 中找不到需求數量欄位。請確認有 '需求數量 (EINHEIT)' 或 '訂單數量 (GMEIN)' 欄位。")
+        
+        # 已交貨/領料數量欄位（可選）
+        delivered_col = None
+        for col_name in ['領料數量 (EINHEIT)', '領料數量(EINHEIT)', '領料數量', '已交貨數量 (GMEIN)', '已交貨數量(GMEIN)', '已交貨數量']:
+            if col_name in df_upload.columns:
+                delivered_col = col_name
+                break
+        
+        # 需求日期欄位（可選）
+        demand_date_col = None
+        for col_name in ['需求日期', '基本開始日期', '基本完成日期']:
+            if col_name in df_upload.columns:
+                demand_date_col = col_name
+                break
 
-        df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
+        # 物料說明欄位
+        item_name_col = '物料說明' if '物料說明' in df_upload.columns else None
+        
+        # 作業說明欄位（可用於識別投料點）
+        operation_col = '作業說明' if '作業說明' in df_upload.columns else None
 
-        # 聚合資料
+        # 轉換數值
+        df_upload[qty_col] = pd.to_numeric(df_upload[qty_col], errors='coerce').fillna(0)
+        if delivered_col:
+            df_upload[delivered_col] = pd.to_numeric(df_upload[delivered_col], errors='coerce').fillna(0)
+
+        # 聚合資料 (相同訂單+物料合併)
         group_cols = [order_col, '物料']
-        df_aggregated = df_upload.groupby(group_cols).agg({
-            required_qty_col: 'sum',
-            '物料說明': 'first'
-        }).reset_index()
+        agg_dict = {qty_col: 'sum'}
+        if delivered_col:
+            agg_dict[delivered_col] = 'sum'
+        if item_name_col:
+            agg_dict[item_name_col] = 'first'
+        if demand_date_col:
+            agg_dict[demand_date_col] = 'first'
+        if operation_col:
+            agg_dict[operation_col] = 'first'
+            
+        df_aggregated = df_upload.groupby(group_cols).agg(agg_dict).reset_index()
 
         created_count = 0
         updated_count = 0
@@ -685,7 +734,7 @@ def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_
             
             # 確保 WorkOrder 存在
             for order_number in all_order_numbers_in_upload:
-                WorkOrder.objects.get_or_create(order_number=order_number)
+                WorkOrder.objects.get_or_create(order_number=str(order_number).strip())
 
             uploaded_material_keys = set()
 
@@ -696,13 +745,31 @@ def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_
                 if not all([order_number_clean, material_number_clean]):
                     continue
 
-                raw_item_name = row.get('物料說明', '')
+                # 物料說明
+                raw_item_name = row.get(item_name_col, '') if item_name_col else ''
                 if pd.isna(raw_item_name) or str(raw_item_name).lower() == 'nan':
                     item_name_clean = ""
                 else:
                     item_name_clean = str(raw_item_name).strip()
 
-                required_quantity_clean = row.get(required_qty_col, 0)
+                # 需求數量
+                required_quantity_clean = Decimal(str(row.get(qty_col, 0)))
+                
+                # 已交貨數量（計算為欠料數量 = 訂單數量 - 已交貨）
+                confirmed_quantity = None
+                if delivered_col:
+                    delivered_qty = Decimal(str(row.get(delivered_col, 0)))
+                    confirmed_quantity = delivered_qty
+                
+                # 需求日期
+                demand_date = None
+                if demand_date_col:
+                    date_val = row.get(demand_date_col)
+                    if pd.notna(date_val):
+                        try:
+                            demand_date = pd.to_datetime(date_val).date()
+                        except:
+                            demand_date = None
 
                 current_material_key = (order_number_clean, material_number_clean)
                 uploaded_material_keys.add(current_material_key)
@@ -732,6 +799,17 @@ def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_
                             existing.required_quantity = required_quantity_clean
                             is_dirty = True
                     
+                    # 更新已交貨數量
+                    if confirmed_quantity is not None:
+                        if existing.confirmed_quantity != confirmed_quantity:
+                            existing.confirmed_quantity = confirmed_quantity
+                            is_dirty = True
+                    
+                    # 更新需求日期
+                    if demand_date and existing.demand_date != demand_date:
+                        existing.demand_date = demand_date
+                        is_dirty = True
+                    
                     if not existing.is_active:
                         existing.is_active = True
                         is_dirty = True
@@ -745,6 +823,8 @@ def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_
                         material_number=material_number_clean,
                         item_name=item_name_clean,
                         required_quantity=required_quantity_clean,
+                        confirmed_quantity=confirmed_quantity,
+                        demand_date=demand_date,
                         material_type='semi_finished',
                         is_active=True
                     )
@@ -753,7 +833,7 @@ def process_semi_finished_excel(excel_file_path, required_qty_col, process_type_
             # 停用不在上傳資料中的半成品
             for order_num in all_order_numbers_in_upload:
                 existing_semi = WorkOrderMaterial.objects.filter(
-                    order_number=order_num,
+                    order_number=str(order_num).strip(),
                     material_type='semi_finished',
                     is_active=True
                 )

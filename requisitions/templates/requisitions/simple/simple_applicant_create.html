@@ -111,13 +111,14 @@
     {% endif %}
 
     <div class="page-header">
-        <a href="{% url 'requisitions:simple_applicant_home' %}" class="back-btn">←</a>
-        <h1 class="page-title">建立申請單</h1>
+        <a href="{% url 'requisitions:simple_applicant_home' %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="back-btn">←</a>
+        <h1 class="page-title">{% if current_type == 'semi_finished' %}建立半成品申請單{% else %}建立申請單{% endif %}</h1>
     </div>
 
     <div class="form-card">
         <form method="post" id="createForm">
             {% csrf_token %}
+            <input type="hidden" name="type" value="{{ current_type|default:'finished' }}">
 
             <div class="form-group">
                 <label class="form-label" for="order_number">工單單號</label>
@@ -150,6 +151,7 @@
         const orderNumberInput = document.getElementById('order_number');
         const processTypeSelect = document.getElementById('process_type');
         const submitBtn = document.getElementById('submitBtn');
+        const currentType = '{{ current_type|default:"finished" }}';
 
         let debounceTimer;
 
@@ -165,7 +167,12 @@
             }
 
             debounceTimer = setTimeout(function () {
-                fetch(`{% url 'requisitions:get_available_process_types' %}?order_number=${encodeURIComponent(orderNumber)}`)
+                let apiUrl = `{% url 'requisitions:get_available_process_types' %}?order_number=${encodeURIComponent(orderNumber)}`;
+                if (currentType === 'semi_finished') {
+                    apiUrl += '&type=semi_finished';
+                }
+                
+                fetch(apiUrl)
                     .then(response => response.json())
                     .then(data => {
                         processTypeSelect.innerHTML = '';

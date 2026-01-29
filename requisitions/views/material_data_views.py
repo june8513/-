@@ -312,6 +312,7 @@ def work_order_material_list(request):
         'show_inactive': show_inactive, # New context variable
         'is_admin': is_admin, # Pass to context
         'is_material_handler': is_material_handler, # Pass to context
+        'is_applicant': is_applicant, # Pass to context
         'all_process_type_names': all_process_type_names,
     }
     return render(request, 'requisitions/work_order_material_list.html', context)
@@ -422,6 +423,11 @@ def update_work_order_quantities(request):
       if '?' in redirect_url:
           query_string = '?' + redirect_url.split('?', 1)[1]
           redirect_url = redirect_url.split('?', 1)[0]
+
+      # Check if process_type_filter is valid
+      if not process_type_filter:
+          messages.error(request, "請先選擇投料點再進行操作。")
+          return redirect(f'{redirect_url}{query_string}')
 
       # Find the ProcessType object by its ID
       process_type_obj = get_object_or_404(ProcessType, pk=process_type_filter)

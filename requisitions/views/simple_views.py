@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models import Q, Count, Sum, Case, When, Value, IntegerField
 from django.http import JsonResponse
 from decimal import Decimal
+from datetime import date
 
 from ..models import (
     Requisition, RequisitionItem, WorkOrderMaterial, ProcessType, 
@@ -84,78 +85,66 @@ def simple_applicant_create(request):
     if not is_simple_applicant(request.user) and not request.user.is_superuser:
         return redirect('requisitions:requisition_list')
     
+    # 讀取類型參數
+    current_type = request.GET.get('type', 'finished')
+    if request.method == 'POST':
+        current_type = request.POST.get('type', 'finished')
+    
     if request.method == 'POST':
         order_number = request.POST.get('order_number')
+        process_type_id = request.POST.get('process_type')
+        request_date = request.POST.get('request_date')
         
         # Check if the work order is archived
         try:
             work_order = WorkOrder.objects.get(order_number=order_number)
             if work_order.is_archived:
                 messages.error(request, f"工單 {order_number} 已被歸檔，無法為其建立新的撥料申請單。")
-                form = RequisitionForm(request.POST)
-                return render(request, 'requisitions/simple/simple_applicant_create.html', {'form': form})
+                return render(request, 'requisitions/simple/simple_applicant_create.html', {
+                    'current_type': current_type,
+                    'today': date.today().isoformat()
+                })
         except WorkOrder.DoesNotExist:
             pass
         
-        # Re-generate choices for process_type based on the submitted order_number
-        material_process_type_ids = WorkOrderMaterial.objects.filter(
-            order_number=order_number,
-            is_active=True
-        ).values_list('process_type__id', flat=True).distinct()
-
-        used_requisition_process_type_names = Requisition.objects.filter(
-            order_number=order_number
-        ).values_list('process_type', flat=True)
-
-        available_process_types_query = ProcessType.objects.filter(
-            id__in=material_process_type_ids
-        ).exclude(
-            name__in=used_requisition_process_type_names
-        ).order_by('name')
-        
-        form_process_type_choices = [(pt.id, pt.name) for pt in available_process_types_query]
-        form = RequisitionForm(request.POST, process_type_choices=form_process_type_choices)
-        
-        if form.is_valid():
-            try:
+        try:
+            if current_type == 'semi_finished':
+                # 半成品申請單
+                from requisitions.models import SemiFinishedProcessType
+                
+                process_type_obj = get_object_or_404(SemiFinishedProcessType, id=process_type_id)
+                
+                # 檢查是否已存在
                 existing_requisition = Requisition.objects.filter(
                     order_number=order_number,
-                    process_type=form.cleaned_data['process_type']
+                    process_type=process_type_obj.name,
+                    requisition_type='semi_finished'
                 ).first()
-
+                
                 if existing_requisition:
-                    messages.error(request, "此訂單單號在該需求流程中已存在。")
-                    return render(request, 'requisitions/simple/simple_applicant_create.html', {'form': form})
-
-                selected_process_type_id = form.cleaned_data['process_type']
-                selected_process_type_obj = get_object_or_404(ProcessType, id=selected_process_type_id)
-
-                requisition = form.save(commit=False)
-                requisition.applicant = request.user
-                requisition.order_number = order_number
-                requisition.process_type = selected_process_type_obj.name
-                requisition.status = 'demand_submitted'
-                requisition.save()
-
-                # Find related process types (including children for Kits)
-                related_process_types = [requisition.process_type]
-                try:
-                    parent_pt = ProcessType.objects.filter(
-                        name=requisition.process_type, 
-                        machine_model__work_order_materials__order_number=requisition.order_number
-                    ).distinct().get()
-                    
-                    children_pts = ProcessType.objects.filter(parent=parent_pt).values_list('name', flat=True)
-                    related_process_types.extend(children_pts)
-                except Exception:
-                    pass
-
+                    messages.error(request, "此訂單單號在該投料點已存在半成品申請單。")
+                    return render(request, 'requisitions/simple/simple_applicant_create.html', {
+                        'current_type': current_type,
+                        'today': date.today().isoformat()
+                    })
+                
+                # 建立申請單
+                requisition = Requisition.objects.create(
+                    applicant=request.user,
+                    order_number=order_number,
+                    process_type=process_type_obj.name,
+                    status='demand_submitted',
+                    requisition_type='semi_finished',
+                    request_date=request_date or date.today()
+                )
+                
+                # 新增物料項目 - 從半成品 WorkOrderMaterial
                 materials_to_add = WorkOrderMaterial.objects.filter(
-                    order_number=requisition.order_number,
-                    process_type__name__in=related_process_types,
+                    order_number=order_number,
+                    material_type='semi_finished',
                     is_active=True
                 )
-
+                
                 items_to_create = []
                 for material in materials_to_add:
                     main_material = Material.objects.filter(material_code=material.material_number).first()
@@ -177,15 +166,107 @@ def simple_applicant_create(request):
                 
                 if items_to_create:
                     RequisitionItem.objects.bulk_create(items_to_create)
-
-                messages.success(request, "撥料申請單建立成功！")
+                
+                messages.success(request, "半成品撥料申請單建立成功！")
                 return redirect('requisitions:simple_applicant_home')
-            except Exception as e:
-                messages.error(request, f"建立申請單時發生錯誤：{str(e)}")
+            else:
+                # 成品申請單 - 原有邏輯
+                # Re-generate choices for process_type based on the submitted order_number
+                material_process_type_ids = WorkOrderMaterial.objects.filter(
+                    order_number=order_number,
+                    is_active=True
+                ).values_list('process_type__id', flat=True).distinct()
+
+                used_requisition_process_type_names = Requisition.objects.filter(
+                    order_number=order_number
+                ).values_list('process_type', flat=True)
+
+                available_process_types_query = ProcessType.objects.filter(
+                    id__in=material_process_type_ids
+                ).exclude(
+                    name__in=used_requisition_process_type_names
+                ).order_by('name')
+                
+                form_process_type_choices = [(pt.id, pt.name) for pt in available_process_types_query]
+                form = RequisitionForm(request.POST, process_type_choices=form_process_type_choices)
+                
+                if form.is_valid():
+                    existing_requisition = Requisition.objects.filter(
+                        order_number=order_number,
+                        process_type=form.cleaned_data['process_type']
+                    ).first()
+
+                    if existing_requisition:
+                        messages.error(request, "此訂單單號在該需求流程中已存在。")
+                        return render(request, 'requisitions/simple/simple_applicant_create.html', {
+                            'form': form,
+                            'current_type': current_type,
+                            'today': date.today().isoformat()
+                        })
+
+                    selected_process_type_id = form.cleaned_data['process_type']
+                    selected_process_type_obj = get_object_or_404(ProcessType, id=selected_process_type_id)
+
+                    requisition = form.save(commit=False)
+                    requisition.applicant = request.user
+                    requisition.order_number = order_number
+                    requisition.process_type = selected_process_type_obj.name
+                    requisition.status = 'demand_submitted'
+                    requisition.save()
+
+                    # Find related process types (including children for Kits)
+                    related_process_types = [requisition.process_type]
+                    try:
+                        parent_pt = ProcessType.objects.filter(
+                            name=requisition.process_type, 
+                            machine_model__work_order_materials__order_number=requisition.order_number
+                        ).distinct().get()
+                        
+                        children_pts = ProcessType.objects.filter(parent=parent_pt).values_list('name', flat=True)
+                        related_process_types.extend(children_pts)
+                    except Exception:
+                        pass
+
+                    materials_to_add = WorkOrderMaterial.objects.filter(
+                        order_number=requisition.order_number,
+                        process_type__name__in=related_process_types,
+                        is_active=True
+                    )
+
+                    items_to_create = []
+                    for material in materials_to_add:
+                        main_material = Material.objects.filter(material_code=material.material_number).first()
+                        stock_quantity = main_material.system_quantity if main_material else Decimal('0')
+                        storage_bin = main_material.bin if main_material else ''
+
+                        items_to_create.append(
+                            RequisitionItem(
+                                requisition=requisition,
+                                source_material=material,
+                                order_number=material.order_number,
+                                material_number=material.material_number,
+                                item_name=material.item_name,
+                                required_quantity=material.required_quantity,
+                                stock_quantity=stock_quantity,
+                                storage_bin=storage_bin,
+                            )
+                        )
+                    
+                    if items_to_create:
+                        RequisitionItem.objects.bulk_create(items_to_create)
+
+                    messages.success(request, "撥料申請單建立成功！")
+                    return redirect('requisitions:simple_applicant_home')
+        except Exception as e:
+            messages.error(request, f"建立申請單時發生錯誤：{str(e)}")
     else:
         form = RequisitionForm()
     
-    context = {'form': form}
+    context = {
+        'form': form if 'form' in dir() else RequisitionForm(),
+        'current_type': current_type,
+        'today': date.today().isoformat()
+    }
     return render(request, 'requisitions/simple/simple_applicant_create.html', context)
 
 
@@ -226,6 +307,85 @@ def simple_applicant_detail(request, pk):
         'total_count': total,
     }
     return render(request, 'requisitions/simple/simple_applicant_detail.html', context)
+
+
+@login_required
+def simple_applicant_update_process_type(request, pk):
+    """申請人員修改投料點"""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    
+    # 檢查是否為申請人本人或管理員
+    if requisition.applicant != request.user and not request.user.is_superuser:
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': '您沒有權限修改此申請單。'})
+        messages.error(request, "您沒有權限修改此申請單。")
+        return redirect('requisitions:simple_applicant_home')
+    
+    # 只允許尚未開始撥料的申請單修改投料點
+    if requisition.status not in ['demand_submitted']:
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': '已開始撥料的申請單無法修改投料點。'})
+        messages.error(request, "已開始撥料的申請單無法修改投料點。")
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
+    
+    if request.method == 'POST':
+        new_process_type_id = request.POST.get('process_type')
+        
+        if not new_process_type_id:
+            if is_ajax:
+                return JsonResponse({'success': False, 'message': '請選擇投料點。'})
+            messages.error(request, "請選擇投料點。")
+            return redirect('requisitions:simple_applicant_detail', pk=pk)
+        
+        try:
+            # 根據申請單類型取得投料點
+            if requisition.requisition_type == 'semi_finished':
+                from requisitions.models import SemiFinishedProcessType
+                process_type_obj = get_object_or_404(SemiFinishedProcessType, id=new_process_type_id)
+                new_process_type_name = process_type_obj.name
+                
+                # 檢查是否與其他申請單重複
+                existing = Requisition.objects.filter(
+                    order_number=requisition.order_number,
+                    process_type=new_process_type_name,
+                    requisition_type='semi_finished'
+                ).exclude(pk=pk).exists()
+            else:
+                process_type_obj = get_object_or_404(ProcessType, id=new_process_type_id)
+                new_process_type_name = process_type_obj.name
+                
+                # 檢查是否與其他申請單重複
+                existing = Requisition.objects.filter(
+                    order_number=requisition.order_number,
+                    process_type=new_process_type_name
+                ).exclude(pk=pk).exists()
+            
+            if existing:
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': f'該工單已有「{new_process_type_name}」的申請單。'})
+                messages.error(request, f"該工單已有「{new_process_type_name}」的申請單。")
+                return redirect('requisitions:simple_applicant_detail', pk=pk)
+            
+            # 更新投料點
+            old_process_type = requisition.process_type
+            requisition.process_type = new_process_type_name
+            requisition.save()
+            
+            if is_ajax:
+                return JsonResponse({
+                    'success': True, 
+                    'message': f'投料點已從「{old_process_type}」更新為「{new_process_type_name}」。',
+                    'new_process_type': new_process_type_name
+                })
+            messages.success(request, f"投料點已從「{old_process_type}」更新為「{new_process_type_name}」。")
+            
+        except Exception as e:
+            if is_ajax:
+                return JsonResponse({'success': False, 'message': f'更新失敗：{str(e)}'})
+            messages.error(request, f"更新失敗：{str(e)}")
+    
+    return redirect('requisitions:simple_applicant_detail', pk=pk)
 
 
 @login_required
@@ -333,9 +493,12 @@ def simple_dispatcher_home(request):
         semi_process_types = SemiFinishedProcessType.objects.filter(is_active=True).order_by('order', 'name')
         
         for pt in semi_process_types:
-            # TODO: 計算半成品申請單待撥數量
-            # 目前先顯示 0，待申請單有 material_type 欄位後再實作
-            pending_count = 0
+            # 計算該投料點的待撥申請單數量
+            pending_count = Requisition.objects.filter(
+                process_type=pt.name,
+                requisition_type='semi_finished',
+                status__in=['demand_submitted', 'dispatch_in_progress']
+            ).count()
             
             categories.append({
                 'name': pt.name,
@@ -370,32 +533,69 @@ def simple_dispatcher_category(request, category):
     if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
         return redirect('requisitions:requisition_list')
     
-    if category not in PROCESS_CATEGORY_NAMES:
-        messages.error(request, "無效的投料點分類。")
-        return redirect('requisitions:simple_dispatcher_home')
+    # 取得類型參數（成品/半成品）
+    current_type = request.GET.get('type', 'finished')
+    if current_type not in ['finished', 'semi_finished']:
+        current_type = 'finished'
     
-    # 待撥料申請單
     today = timezone.now().date()
-    pending_requisitions = Requisition.objects.filter(
-        process_type__icontains=category,
-        status__in=['demand_submitted', 'dispatch_in_progress']
-    ).order_by('-created_at')
     
-    # 計算每個申請單的逾期和警示狀態
+    if current_type == 'semi_finished':
+        # 半成品投料點
+        from ..models import SemiFinishedProcessType
+        
+        # 驗證投料點存在
+        if not SemiFinishedProcessType.objects.filter(name=category, is_active=True).exists():
+            messages.error(request, "無效的半成品投料點。")
+            return redirect('requisitions:simple_dispatcher_home')
+        
+        # 取得投料點顏色
+        pt = SemiFinishedProcessType.objects.filter(name=category).first()
+        category_color = pt.color if pt else '#6B7280'
+        
+        # 待撥料申請單
+        pending_requisitions = Requisition.objects.filter(
+            process_type=category,
+            requisition_type='semi_finished',
+            status__in=['demand_submitted', 'dispatch_in_progress']
+        ).order_by('-created_at')
+        
+        # 已撥料申請單
+        completed_requisitions = Requisition.objects.filter(
+            process_type=category,
+            requisition_type='semi_finished',
+            status__in=['dispatch_completed', 'signed_off']
+        ).order_by('-updated_at')[:20]
+    else:
+        # 成品投料點（原有邏輯）
+        if category not in PROCESS_CATEGORY_NAMES:
+            messages.error(request, "無效的投料點分類。")
+            return redirect('requisitions:simple_dispatcher_home')
+        
+        category_color = PROCESS_CATEGORY_COLORS.get(category, '#6B7280')
+        
+        # 待撥料申請單
+        pending_requisitions = Requisition.objects.filter(
+            process_type__icontains=category,
+            status__in=['demand_submitted', 'dispatch_in_progress']
+        ).order_by('-created_at')
+        
+        # 已撥料申請單
+        completed_requisitions = Requisition.objects.filter(
+            process_type__icontains=category,
+            status__in=['dispatch_completed', 'signed_off']
+        ).order_by('-updated_at')[:20]
+    
+    # 計算每個申請單的逾期狀態
     for req in pending_requisitions:
         req.is_overdue = req.request_date < today
     
-    # 已撥料申請單
-    completed_requisitions = Requisition.objects.filter(
-        process_type__icontains=category,
-        status__in=['dispatch_completed', 'signed_off']
-    ).order_by('-updated_at')[:20]  # 只顯示最近20筆
-    
     context = {
         'category': category,
-        'category_color': PROCESS_CATEGORY_COLORS.get(category, '#6B7280'),
+        'category_color': category_color,
         'pending_requisitions': pending_requisitions,
         'completed_requisitions': completed_requisitions,
+        'current_type': current_type,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_category.html', context)
 
@@ -488,22 +688,21 @@ def simple_dispatcher_detail(request, category, pk):
                             stock_quantity=stock_quantity,
                             storage_bin=item.storage_bin,
                             is_supplementary=True,
-                            parent_item=item,
+                            parent_item=item
                         )
-                        result = {
-                            'success': True, 
-                            'message': f'物料 {item.material_number} 補撥項目已建立，數量 {supplementary_qty}。',
-                            'supplementary_item_pk': supplementary_item.pk
-                        }
+                        
+                        result = {'success': True, 'message': f'已為物料 {item.material_number} 建立 {supplementary_qty} 單位的補撥項目。'}
                         if not is_ajax:
                             messages.success(request, result['message'])
+                            return redirect('requisitions:simple_dispatcher_detail', category=category, pk=pk)
+                            
                     except Exception as e:
-                        result = {'success': False, 'message': f'建立補撥失敗：{str(e)}'}
+                        result = {'success': False, 'message': f'補撥失敗：{str(e)}'}
                         if not is_ajax:
                             messages.error(request, result['message'])
                 
             except RequisitionItem.DoesNotExist:
-                result = {'success': False, 'message': '物料項目不存在。'}
+                result = {'success': False, 'message': '找不到指定的物料項目。'}
                 if not is_ajax:
                     messages.error(request, result['message'])
         
@@ -656,6 +855,11 @@ def simple_dispatcher_detail(request, category, pk):
                 supp.status_text = '待撥'
             supp.is_actionable = supp.dispatch_status not in ['dispatched', 'backordered']
     
+    # 取得類型參數
+    current_type = request.GET.get('type', 'finished')
+    if current_type not in ['finished', 'semi_finished']:
+        current_type = 'finished'
+    
     context = {
         'requisition': requisition,
         'items': items_list,
@@ -664,5 +868,7 @@ def simple_dispatcher_detail(request, category, pk):
         'progress': progress,
         'dispatched_count': dispatched,
         'total_count': total,
+        'is_completed': requisition.status in ['dispatch_completed', 'signed_off'],
+        'current_type': current_type,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_detail.html', context)

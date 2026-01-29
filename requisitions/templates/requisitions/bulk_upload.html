@@ -50,6 +50,17 @@
                         </div>
 
                         <hr>
+                        <h5 class="text-success mb-3">🔧 半成品資料</h5>
+
+                        <div class="mb-4">
+                            <label for="{{ form.semi_finished_file.id_for_label }}" class="form-label fw-bold">
+                                <i class="bi bi-gear text-success"></i> {{ form.semi_finished_file.label }}
+                            </label>
+                            {% render_field form.semi_finished_file class="form-control" %}
+                            <small class="text-muted">欄位格式與成品相同：訂單、物料、品名、需求數量</small>
+                        </div>
+
+                        <hr>
 
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary btn-lg">

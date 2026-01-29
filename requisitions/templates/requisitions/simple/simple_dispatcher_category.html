@@ -152,6 +152,14 @@
 </style>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+document.querySelectorAll('.category-badge[data-color]').forEach(function(el) {
+    el.style.background = el.dataset.color;
+});
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="simple-container">
     {% if messages %}
@@ -164,9 +172,9 @@
     {% endif %}
 
     <div class="page-header">
-        <a href="{% url 'requisitions:simple_dispatcher_home' %}" class="back-btn">←</a>
+        <a href="{% url 'requisitions:simple_dispatcher_home' %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="back-btn">←</a>
         <h1 class="page-title">
-            <span class="category-badge" style="background: {{ category_color }};">{{ category }}</span>
+            <span class="category-badge" data-color="{{ category_color }}">{{ category }}</span>
         </h1>
     </div>
 
@@ -175,7 +183,7 @@
 
     {% if pending_requisitions %}
     {% for req in pending_requisitions %}
-    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}" class="requisition-card">
+    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="requisition-card">
         <div class="req-header">
             <span class="order-number">{{ req.order_number }}</span>
             <span class="date-text">{{ req.created_at|date:"m/d" }}</span>
@@ -204,7 +212,7 @@
 
     {% if completed_requisitions %}
     {% for req in completed_requisitions %}
-    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}" class="requisition-card">
+    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="requisition-card">
         <div class="req-header">
             <span class="order-number">{{ req.order_number }}</span>
             <span class="date-text">{{ req.updated_at|date:"m/d" }}</span>

@@ -77,7 +77,8 @@ def _filter_requisitions(request, sort_by='created_at', order='desc', material_s
         if combination not in seen_combinations:
             # Fetch unique machine models for this requisition based on order number
             machine_model_names = list(WorkOrderMaterial.objects.filter(
-                order_number=req.order_number
+                order_number=req.order_number,
+                machine_model__isnull=False
             ).values_list('machine_model__name', flat=True).distinct().order_by('machine_model__name'))
             
             req.machine_models_display = ", ".join(machine_model_names)
@@ -300,7 +301,8 @@ def archived_requisition_list(request):
         combination = (req.order_number, req.process_type)
         if combination not in seen_combinations:
             machine_model_names = list(WorkOrderMaterial.objects.filter(
-                order_number=req.order_number
+                order_number=req.order_number,
+                machine_model__isnull=False
             ).values_list('machine_model__name', flat=True).distinct().order_by('machine_model__name'))
             
             req.machine_models_display = ", ".join(machine_model_names)
@@ -523,7 +525,8 @@ def requisition_history(request):
 
     for req in requisitions_page:
         machine_model_names = list(WorkOrderMaterial.objects.filter(
-            order_number=req.order_number
+            order_number=req.order_number,
+            machine_model__isnull=False
         ).values_list('machine_model__name', flat=True).distinct().order_by('machine_model__name'))
         req.machine_models_display = ", ".join(machine_model_names)
 
@@ -610,35 +613,76 @@ def requisition_sign_off(request, pk):
 
 def get_available_process_types(request):
     order_number = request.GET.get('order_number')
+    material_type = request.GET.get('type', 'finished')  # 'finished' 或 'semi_finished'
+    
     if not order_number:
         return JsonResponse({'error': 'No order number provided'}, status=400)
 
-    # Get process types associated with materials for this order number
-    material_process_type_ids = WorkOrderMaterial.objects.filter(
-        order_number=order_number
-    ).values_list('process_type__id', flat=True).distinct()
+    if material_type == 'semi_finished':
+        # 半成品投料點 - 從 SemiFinishedProcessType 取得
+        from requisitions.models import SemiFinishedProcessType
+        
+        # 取得所有啟用的半成品投料點
+        available_process_types = SemiFinishedProcessType.objects.filter(
+            is_active=True
+        ).order_by('order', 'name')
+        
+        # 過濾掉該工單已建立申請單的投料點
+        used_process_type_names = Requisition.objects.filter(
+            order_number=order_number,
+            requisition_type='semi_finished'
+        ).values_list('process_type', flat=True)
+        
+        available_process_types_list = []
+        for pt in available_process_types:
+            if pt.name not in used_process_type_names:
+                available_process_types_list.append({
+                    'id': pt.id,
+                    'name': pt.name,
+                    'value': pt.id,
+                    'label': pt.name
+                })
+        
+        return JsonResponse({
+            'available_process_types': available_process_types_list,
+            'process_types': available_process_types_list  # 相容舊格式
+        })
+    else:
+        # 成品投料點 - 原有邏輯
+        # Get process types associated with materials for this order number
+        material_process_type_ids = WorkOrderMaterial.objects.filter(
+            order_number=order_number
+        ).values_list('process_type__id', flat=True).distinct()
 
-    # Get process types already used for this order number in existing requisitions
-    used_requisition_process_type_names = Requisition.objects.filter(
-        order_number=order_number
-    ).values_list('process_type', flat=True) # This stores the name of the process type
+        # Get process types already used for this order number in existing requisitions
+        used_requisition_process_type_names = Requisition.objects.filter(
+            order_number=order_number
+        ).values_list('process_type', flat=True) # This stores the name of the process type
 
-    # Get all available process types from the database that are linked to materials for this order
-    # and are not already used in existing requisitions for this order
-    available_process_types_query = ProcessType.objects.filter(
-        id__in=material_process_type_ids
-    ).exclude(
-        name__in=used_requisition_process_type_names
-    ).order_by('name')
-    
-    available_process_types_list = []
-    seen_names = set()
-    for pt in available_process_types_query:
-        if pt.name not in seen_names:
-            available_process_types_list.append({'value': pt.id, 'label': pt.name})
-            seen_names.add(pt.name)
-    
-    return JsonResponse({'available_process_types': available_process_types_list})
+        # Get all available process types from the database that are linked to materials for this order
+        # and are not already used in existing requisitions for this order
+        available_process_types_query = ProcessType.objects.filter(
+            id__in=material_process_type_ids
+        ).exclude(
+            name__in=used_requisition_process_type_names
+        ).order_by('name')
+        
+        available_process_types_list = []
+        seen_names = set()
+        for pt in available_process_types_query:
+            if pt.name not in seen_names:
+                available_process_types_list.append({
+                    'id': pt.id,
+                    'name': pt.name,
+                    'value': pt.id,
+                    'label': pt.name
+                })
+                seen_names.add(pt.name)
+        
+        return JsonResponse({
+            'available_process_types': available_process_types_list,
+            'process_types': available_process_types_list  # 相容舊格式
+        })
 
 
 @login_required

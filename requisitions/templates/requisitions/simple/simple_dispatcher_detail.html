@@ -64,10 +64,10 @@
 <div class="simple-container">
 {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>{% endfor %}{% endif %}
 
-<div class="page-header">
-<a href="{% url 'requisitions:simple_dispatcher_category' category=category %}" class="back-btn">←</a>
-<h1 class="page-title">{{ requisition.order_number }}</h1>
-</div>
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="back-btn">←</a>
+        <h1 class="page-title">{{ requisition.order_number }}</h1>
+    </div>
 
 {% if requisition.has_alert %}
 <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert" style="border-radius: 12px;">
@@ -86,7 +86,7 @@
 <div class="info-card">
 <div class="progress-section">
 <div class="progress-bar-large">
-<div class="progress-bar-fill" style="width: {{ progress }}%;"></div>
+<div class="progress-bar-fill" data-progress="{{ progress }}"></div>
 </div>
 <div class="progress-text">{{ dispatched_count }}/{{ total_count }} 已撥料 ({{ progress }}%)</div>
 </div>
@@ -286,6 +286,11 @@
     function bindFormEvents(form) {
         form.addEventListener('submit', handleFormSubmit);
     }
+    
+    // 設定進度條寬度
+    document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function(el) {
+        el.style.width = el.dataset.progress + '%';
+    });
     
     // 綁定所有表單 (撥料、補撥等)
     document.querySelectorAll('form.material-actions, form.add-supplementary-form').forEach(bindFormEvents);

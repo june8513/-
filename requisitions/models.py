@@ -52,11 +52,17 @@ class Requisition(models.Model):
         ('signed_off', '已簽收'),
         ('archived', '已歸檔'),
     ]
+    
+    REQUISITION_TYPE_CHOICES = [
+        ('finished', '成品'),
+        ('semi_finished', '半成品'),
+    ]
 
     order_number = models.CharField(max_length=100, verbose_name="訂單單號")
     applicant = models.ForeignKey(User, on_delete=models.CASCADE, related_name='requisitions_applied', verbose_name="申請人")
     request_date = models.DateField(verbose_name="需求日期", db_index=True)
     process_type = models.CharField(max_length=100, verbose_name="需求流程", db_index=True, null=True, blank=True)
+    requisition_type = models.CharField(max_length=20, choices=REQUISITION_TYPE_CHOICES, default='finished', verbose_name="申請單類型", db_index=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='demand_submitted', verbose_name="狀態", db_index=True)
     dispatch_performed = models.BooleanField(default=False, verbose_name="已執行撥料")
     is_archived = models.BooleanField(default=False, verbose_name="是否已歸檔")
@@ -81,7 +87,7 @@ class Requisition(models.Model):
         verbose_name_plural = "撥料申請單"
         ordering = ['-created_at']
         constraints = [
-            UniqueConstraint(fields=['order_number', 'process_type'], name='unique_order_per_process')
+            UniqueConstraint(fields=['order_number', 'process_type', 'requisition_type'], name='unique_order_per_process_type')
         ]
 
     def __str__(self):

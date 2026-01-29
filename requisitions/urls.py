@@ -11,6 +11,7 @@ urlpatterns = [
     path('simple/applicant/create/', simple_views.simple_applicant_create, name='simple_applicant_create'),
     path('simple/applicant/<int:pk>/', simple_views.simple_applicant_detail, name='simple_applicant_detail'),
     path('simple/applicant/<int:pk>/sign-off/', simple_views.simple_applicant_sign_off, name='simple_applicant_sign_off'),
+    path('simple/applicant/<int:pk>/update-process-type/', simple_views.simple_applicant_update_process_type, name='simple_applicant_update_process_type'),
     path('simple/dispatcher/', simple_views.simple_dispatcher_home, name='simple_dispatcher_home'),
     path('simple/dispatcher/<str:category>/', simple_views.simple_dispatcher_category, name='simple_dispatcher_category'),
     path('simple/dispatcher/<str:category>/<int:pk>/', simple_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
