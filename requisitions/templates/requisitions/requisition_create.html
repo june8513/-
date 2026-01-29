@@ -8,6 +8,7 @@
     <h2 class="mb-4">建立撥料申請單</h2>
     <form method="post" id="requisition-form" data-get-process-types-url="{% url 'requisitions:get_available_process_types' %}">
         {% csrf_token %}
+        <input type="hidden" id="id_requisition_type" name="requisition_type" value="{{ requisition_type }}">
         <div class="mb-3">
             <label for="{{ form.order_number.id_for_label }}" class="form-label">{{ form.order_number.label }}</label>
             {{ form.order_number|add_class:"form-control"|attr:"id:id_order_number" }}
@@ -76,7 +77,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (orderNumber) {
             // Use the URL from the data attribute
-            fetch(`${getProcessTypesUrl}?order_number=${orderNumber}`)
+            const requisitionType = document.getElementById('id_requisition_type').value || 'finished';
+            fetch(`${getProcessTypesUrl}?order_number=${orderNumber}&type=${requisitionType}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');

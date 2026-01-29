@@ -340,8 +340,11 @@ def requisition_create(request):
         messages.error(request, "您沒有權限建立撥料申請單。")
         return redirect('requisitions:requisition_list')
 
+    requisition_type = request.GET.get('type', 'finished')
+    
     if request.method == 'POST':
         order_number = request.POST.get('order_number') # Get order_number from POST data
+        requisition_type = request.POST.get('requisition_type', 'finished') # Update from form if POST
 
         # Check if the work order is archived
         try:
@@ -353,95 +356,132 @@ def requisition_create(request):
         except WorkOrder.DoesNotExist:
             # This case might be handled by other logic, but it's good to be explicit.
             # If the work order doesn't exist at all, the process type query will be empty anyway.
+            # For semi-finished, we might care less about WorkOrder existence if we only care about ProcessType availability? 
+            # But normally we still need a valid order number.
             pass
 
-        # Re-generate choices for process_type based on the submitted order_number
-        material_process_type_ids = WorkOrderMaterial.objects.filter(
-            order_number=order_number,
-            is_active=True # Only consider active materials
-        ).values_list('process_type__id', flat=True).distinct()
+        if requisition_type == 'semi_finished':
+             # Logic for semi-finished process selection
+             # The get_available_process_types API handles the filtering logic, here we just need to validate/populate form
+             
+             # Re-generate choices for validation
+            from requisitions.models import SemiFinishedProcessType
+            available_pts = SemiFinishedProcessType.objects.filter(is_active=True)
+            # We still need to filter out already used ones? 
+            # The original logic (get_available_process_types) did:
+            used_process_type_names = Requisition.objects.filter(
+                order_number=order_number,
+                requisition_type='semi_finished'
+            ).values_list('process_type', flat=True)
+            
+            form_process_type_choices = []
+            for pt in available_pts:
+                if pt.name not in used_process_type_names:
+                    form_process_type_choices.append((pt.id, pt.name))
+        else:
+            # Re-generate choices for process_type based on the submitted order_number (Finished Goods logic)
+            material_process_type_ids = WorkOrderMaterial.objects.filter(
+                order_number=order_number,
+                is_active=True # Only consider active materials
+            ).values_list('process_type__id', flat=True).distinct()
 
-        used_requisition_process_type_names = Requisition.objects.filter(
-            order_number=order_number
-        ).values_list('process_type', flat=True)
+            used_requisition_process_type_names = Requisition.objects.filter(
+                order_number=order_number
+            ).values_list('process_type', flat=True)
 
-        available_process_types_query = ProcessType.objects.filter(
-            id__in=material_process_type_ids
-        ).exclude(
-            name__in=used_requisition_process_type_names
-        ).order_by('name')
-        
-        # Format choices for Django form: [(value, label), ...]
-        form_process_type_choices = [(pt.id, pt.name) for pt in available_process_types_query]
+            available_process_types_query = ProcessType.objects.filter(
+                id__in=material_process_type_ids
+            ).exclude(
+                name__in=used_requisition_process_type_names
+            ).order_by('name')
+            
+            # Format choices for Django form: [(value, label), ...]
+            form_process_type_choices = [(pt.id, pt.name) for pt in available_process_types_query]
 
         form = RequisitionForm(request.POST, process_type_choices=form_process_type_choices)
         if form.is_valid():
             try:
+                selected_process_type_id = form.cleaned_data['process_type']
+                
+                if requisition_type == 'semi_finished':
+                     from requisitions.models import SemiFinishedProcessType
+                     selected_process_type_obj = get_object_or_404(SemiFinishedProcessType, id=selected_process_type_id)
+                     process_type_name = selected_process_type_obj.name
+                else:
+                    selected_process_type_obj = get_object_or_404(ProcessType, id=selected_process_type_id)
+                    process_type_name = selected_process_type_obj.name
+
                 existing_requisition = Requisition.objects.filter(
                     order_number=order_number,
-                    process_type=form.cleaned_data['process_type']
+                    process_type=process_type_name,
+                    requisition_type=requisition_type
                 ).first()
 
                 if existing_requisition:
                     messages.error(request, "此訂單單號在該需求流程中已存在，請選擇不同的訂單單號或需求流程，或修改現有申請單。")
-                    return render(request, 'requisitions/requisition_create.html', {'form': form})
-
-                selected_process_type_id = form.cleaned_data['process_type']
-                selected_process_type_obj = get_object_or_404(ProcessType, id=selected_process_type_id)
+                    return render(request, 'requisitions/requisition_create.html', {'form': form, 'requisition_type': requisition_type})
 
                 requisition = form.save(commit=False)
                 requisition.applicant = request.user
                 requisition.order_number = order_number
-                requisition.process_type = selected_process_type_obj.name
+                requisition.process_type = process_type_name
                 requisition.status = 'demand_submitted'
+                requisition.requisition_type = requisition_type
                 requisition.save()
 
-                # Find related process types (including children for Kits)
-                related_process_types = [requisition.process_type]
-                try:
-                    parent_pt = ProcessType.objects.filter(
-                        name=requisition.process_type, 
-                        machine_model__work_order_materials__order_number=requisition.order_number
-                    ).distinct().get()
-                    
-                    children_pts = ProcessType.objects.filter(parent=parent_pt).values_list('name', flat=True)
-                    related_process_types.extend(children_pts)
-                except Exception:
-                    pass
+                if requisition_type == 'finished':
+                    # Find related process types (including children for Kits)
+                    related_process_types = [requisition.process_type]
+                    try:
+                        parent_pt = ProcessType.objects.filter(
+                            name=requisition.process_type, 
+                            machine_model__work_order_materials__order_number=requisition.order_number
+                        ).distinct().get()
+                        
+                        children_pts = ProcessType.objects.filter(parent=parent_pt).values_list('name', flat=True)
+                        related_process_types.extend(children_pts)
+                    except Exception:
+                        pass
 
-                materials_to_add = WorkOrderMaterial.objects.filter(
-                    order_number=requisition.order_number,
-                    process_type__name__in=related_process_types,
-                    is_active=True
-                )
-
-                items_to_create = []
-                for material in materials_to_add:
-                    main_material = Material.objects.filter(material_code=material.material_number).first()
-                    stock_quantity = main_material.system_quantity if main_material else Decimal('0')
-                    storage_bin = main_material.bin if main_material else ''
-
-                    items_to_create.append(
-                        RequisitionItem(
-                            requisition=requisition,
-                            source_material=material,
-                            order_number=material.order_number,
-                            material_number=material.material_number,
-                            item_name=material.item_name,
-                            required_quantity=material.required_quantity,
-                            stock_quantity=stock_quantity,
-                            storage_bin=storage_bin,
-                            confirmed_quantity=Decimal('0'),
-                        )
+                    materials_to_add = WorkOrderMaterial.objects.filter(
+                        order_number=requisition.order_number,
+                        process_type__name__in=related_process_types,
+                        is_active=True
                     )
-                
-                RequisitionItem.objects.bulk_create(items_to_create)
-                items_created_count = len(items_to_create)
 
-                if items_created_count > 0:
-                    messages.info(request, f"已自動為此申請單加入 {items_created_count} 筆物料項目。")
-                else:
-                    messages.warning(request, "警告：此申請單在對應的需求流程中沒有找到任何有效的物料項目。")
+                    items_to_create = []
+                    for material in materials_to_add:
+                        main_material = Material.objects.filter(material_code=material.material_number).first()
+                        stock_quantity = main_material.system_quantity if main_material else Decimal('0')
+                        storage_bin = main_material.bin if main_material else ''
+
+                        items_to_create.append(
+                            RequisitionItem(
+                                requisition=requisition,
+                                source_material=material,
+                                order_number=material.order_number,
+                                material_number=material.material_number,
+                                item_name=material.item_name,
+                                required_quantity=material.required_quantity,
+                                stock_quantity=stock_quantity,
+                                storage_bin=storage_bin,
+                                confirmed_quantity=Decimal('0'),
+                            )
+                        )
+                    
+                    RequisitionItem.objects.bulk_create(items_to_create)
+                    items_created_count = len(items_to_create)
+
+                    if items_created_count > 0:
+                        messages.info(request, f"已自動為此申請單加入 {items_created_count} 筆物料項目。")
+                    else:
+                        messages.warning(request, "警告：此申請單在對應的需求流程中沒有找到任何有效的物料項目。")
+                
+                # For semi-finished, we typically don't auto-add items OR we add from BOM?
+                # Based on current context/rules, semi-finished might be manual entry or different logic.
+                # Assuming no auto-add for semi-finished unless specified.
+                if requisition_type == 'semi_finished':
+                    messages.info(request, "半成品申請單已建立，請手動加入物料或確認相關流程。")
 
                 messages.success(request, "撥料申請單建立成功！")
                 return redirect('requisitions:requisition_list')
@@ -453,9 +493,10 @@ def requisition_create(request):
                 print(traceback.format_exc())
         else:
             pass
+            pass
     else:
         form = RequisitionForm()
-    return render(request, 'requisitions/requisition_create.html', {'form': form})
+    return render(request, 'requisitions/requisition_create.html', {'form': form, 'requisition_type': requisition_type})
 
 
 @login_required
