@@ -1,13 +1,18 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
-from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule
+from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, UserProfile
 
 class RequisitionItemInline(admin.TabularInline):
     model = RequisitionItem
     fields = ('item_name', 'required_quantity', 'material_number', 'confirmed_quantity', 'is_signed_off', 'dispatch_status')
     readonly_fields = ('is_signed_off',) # confirmed_quantity is editable via material_confirmation view
     extra = 0
+
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    verbose_name_plural = '使用者設定檔'
 
 @admin.register(Requisition)
 class RequisitionAdmin(admin.ModelAdmin):
@@ -46,18 +51,100 @@ class CustomUserAdmin(UserAdmin):
         ('角色', {'fields': ('groups',)}), # Add groups here
     )
 
-    # Customize list_display to show group membership
-    list_display = UserAdmin.list_display + ('get_groups',)
+    inlines = (UserProfileInline, )
+
+    # Customize list_display to show group membership and requested role
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_active', 'get_groups', 'get_requested_role')
+    list_filter = UserAdmin.list_filter + ('groups', 'profile__requested_role')
+    actions = ['approve_users']
 
     def get_groups(self, obj):
         return ", ".join([g.name for g in obj.groups.all()])
     get_groups.short_description = '所屬角色'
 
+    def get_requested_role(self, obj):
+        if hasattr(obj, 'profile') and obj.profile.requested_role:
+            return obj.profile.requested_role
+        return '-'
+    get_requested_role.short_description = '申請角色 (待審核)'
+
+    def approve_users(self, request, queryset):
+        success_count = 0
+        fail_count = 0
+        
+        for user in queryset:
+            if hasattr(user, 'profile') and user.profile.requested_role:
+                role_name = user.profile.requested_role
+                try:
+                    group = Group.objects.get(name=role_name)
+                    user.groups.add(group)
+                    user.is_active = True
+                    user.save()
+                    success_count += 1
+                except Group.DoesNotExist:
+                    self.message_user(request, f"使用者 {user.username} 申請的角色「{role_name}」在系統中不存在。", level='ERROR')
+                    fail_count += 1
+            else:
+                # 如果沒有申請角色，但被選中審核，可以直接啟用嗎？
+                # 保守起見，僅啟用，不分配角色，並提示
+                user.is_active = True
+                user.save()
+                self.message_user(request, f"使用者 {user.username} 沒有申請角色，已僅將其啟用。", level='WARNING')
+                success_count += 1
+        
+        self.message_user(request, f"已成功審核並啟用 {success_count} 位使用者。")
+    approve_users.short_description = "審核通過並分配角色"
+
 @admin.register(AutoUploadConfig)
 class AutoUploadConfigAdmin(admin.ModelAdmin):
     list_display = ('priority', 'get_upload_type_display', 'file_path', 'is_active', 'last_run', 'last_status')
-    list_editable = ('is_active', 'file_path') # Removed 'priority' from list_editable
+    list_editable = ('is_active', 'file_path') 
     ordering = ('priority',)
+    actions = ['run_upload_now']
+
+    def run_upload_now(self, request, queryset):
+        import io
+        from django.core.management import call_command
+        from django.utils import timezone
+        
+        success_count = 0
+        
+        for config in queryset:
+            if not config.file_path:
+                self.message_user(request, f"設定 {config} 沒有檔案路徑，跳過。", level='WARNING')
+                continue
+                
+            command_map = {
+                'inventory': 'auto_upload_inventory',
+                'order_model': 'auto_upload_order_models',
+                'material_details': 'auto_upload_material_details',
+                'semi_finished': 'auto_upload_semi_finished',
+            }
+            
+            cmd_name = command_map.get(config.upload_type)
+            if not cmd_name:
+                self.message_user(request, f"未知的上傳類型: {config.upload_type}", level='ERROR')
+                continue
+                
+            try:
+                out = io.StringIO()
+                call_command(cmd_name, path=config.file_path, stdout=out)
+                
+                output_msg = out.getvalue()
+                self.message_user(request, f"[{config.get_upload_type_display()}] 執行成功：{output_msg}")
+                success_count += 1
+                
+                # 更新狀態
+                config.last_run = timezone.now()
+                config.last_status = "Manual Run: Success"
+                config.save()
+                    
+            except Exception as e:
+                self.message_user(request, f"執行 {config.get_upload_type_display()} 時發生錯誤: {e}", level='ERROR')
+                config.last_status = f"Manual Run Error: {e}"
+                config.save()
+                
+    run_upload_now.short_description = "立即執行自動上傳 (Run Now)"
 
 @admin.register(MaterialProcessTypeRule)
 class MaterialProcessTypeRuleAdmin(admin.ModelAdmin):

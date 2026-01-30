@@ -426,8 +426,7 @@
     <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}" class="sign-off-form">
         {% csrf_token %}
         <input type="hidden" name="confirm_all_sign_off" value="1">
-        <button type="submit" class="sign-off-btn" {% if dispatched_count == 0 %}disabled{% endif %}>簽收已撥料物料 ({{
-            dispatched_count }} 項)</button>
+            <button type="submit" class="sign-off-btn" {% if dispatched_count == 0 %}disabled{% endif %}>簽收已撥料物料 ({{ dispatched_count }} 項)</button>
     </form>
     {% else %}
     <div class="alert alert-success text-center">此申請單已完成簽收</div>

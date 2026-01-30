@@ -4,7 +4,7 @@ import requests # Added requests
 from django.db import transaction
 from django.db.models import Q # Added Q
 from requisitions.models import WorkOrder, WorkOrderMaterial, MachineModel, ProcessType, Requisition, OperationProcessRule
-from inventory.models import Material, MaterialTransaction
+from inventory.models import Material, MaterialTransaction, StorageLocation
 from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone # Added timezone
@@ -220,7 +220,7 @@ def _update_requisition_alert(order_number, process_type_name, message, is_deman
     except Exception as e:
         print(f"Error updating alert for {order_number}: {e}")
 
-def process_material_details_excel(excel_file_path, required_qty_col):
+def process_material_details_excel(excel_file_path, required_qty_col=None):
     """
     Processes an Excel file to upload material details.
     Returns a tuple (created_count, updated_count, deactivated_count).
@@ -255,8 +255,19 @@ def process_material_details_excel(excel_file_path, required_qty_col):
             raise ValueError("上傳的 Excel 檔案中找不到 '訂單單號' 或 '訂單'欄位。")
         if '物料' not in df_upload.columns:
             raise ValueError("上傳的 Excel 檔案中找不到 '物料' 欄位。")
-        if required_qty_col not in df_upload.columns:
-            raise ValueError(f"在 Excel 中找不到您指定的 '需求數量'欄位：'{required_qty_col}'。")
+        if required_qty_col:
+            if required_qty_col not in df_upload.columns:
+                raise ValueError(f"在 Excel 中找不到您指定的 '需求數量'欄位：'{required_qty_col}'。")
+        else:
+            # Auto-detect quantity column
+            possible_qty_cols = ['需求數量 (EINHEIT)', '需求數量(EINHEIT)', '訂單數量 (GMEIN)', '訂單數量(GMEIN)', '訂單數量', '需求數量', '數量']
+            for col in possible_qty_cols:
+                if col in df_upload.columns:
+                    required_qty_col = col
+                    break
+            
+            if not required_qty_col:
+                 raise ValueError("無法自動偵測 '需求數量' 欄位。請確認 Excel 包含 '需求數量 (EINHEIT)' 或類似標題。")
 
         df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
 
@@ -623,19 +634,31 @@ def process_inventory_excel(excel_file_path):
                     'material_description': row.get('物料說明', ''),
                     'system_quantity': pd.to_numeric(row.get('未限制'), errors='coerce') or 0,
                 }
-
-                material, created = Material.objects.update_or_create(
-                    material_code=material_code,
-                    defaults=defaults
-                )
+                
+                # Retrieve default location and bin (ensure they exist or use placeholders)
+                default_loc, _ = StorageLocation.objects.get_or_create(name='預設儲位')
+                
+                # Check if material exists
+                try:
+                    material = Material.objects.get(material_code=material_code)
+                    # Update existing material (only description and quantity)
+                    material.material_description = defaults['material_description']
+                    material.system_quantity = defaults['system_quantity']
+                    material.save()
+                    updated_count += 1
+                except Material.DoesNotExist:
+                    # Create new material with default location and bin
+                    material = Material.objects.create(
+                        material_code=material_code,
+                        material_description=defaults['material_description'],
+                        system_quantity=defaults['system_quantity'],
+                        location=default_loc,
+                        bin='預設'
+                    )
+                    created_count += 1
                 
                 # Note: Creating a MaterialTransaction is omitted here because there is no
                 # 'user' in an automated context.
-
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
         
         return created_count, updated_count
 

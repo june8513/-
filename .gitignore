@@ -11,6 +11,9 @@ permission_analysis.xlsx
 generate_permission_excel.py
 ~$*.xlsx
 
+# Data directories
+Newdata/
+
 # Media files
 media/
 
@@ -20,6 +23,8 @@ API key.txt
 # Auto-generated files
 auto_upload/material_details/last_processed_timestamps.json
 auto_upload/order_models/last_processed_timestamps.json
+auto_upload/semi_finished/last_processed_timestamps.json
+auto_upload/inventory/last_processed_timestamps.json
 使用說明書.md
 操作手冊.md
 # Virtual environment
