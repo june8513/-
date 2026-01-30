@@ -9,6 +9,7 @@ sys.path.append(project_path)
 from monitor_order_models import run_monitor_order_models
 from monitor_material_details import run_monitor_material_details
 from monitor_inventory import run_monitor_inventory
+from monitor_semi_finished import run_monitor_semi_finished
 
 def main():
     """
@@ -41,6 +42,15 @@ def main():
         run_monitor_inventory()
     except Exception as e:
         print("\nAn error occurred during the Inventory upload:")
+        print(f"Error: {e}\n")
+
+    print("\n-----------------------------------------\n")
+
+    # 4. Semi-Finished
+    try:
+        run_monitor_semi_finished()
+    except Exception as e:
+        print("\nAn error occurred during the Semi-Finished upload:")
         print(f"Error: {e}\n")
 
     print("=========================================")

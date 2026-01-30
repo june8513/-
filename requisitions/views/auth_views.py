@@ -39,8 +39,13 @@ ALLOWED_ROLES = ['撥料人員', '申請人員']
 # 需要審核的角色
 APPROVAL_REQUIRED_ROLES = ['管理員', '申請人員主管', '撥料人員主管']
 
+from requisitions.models import UserProfile
+
 class UserRegistrationForm(UserCreationForm):
     """自訂註冊表單，包含角色選擇"""
+    surname = forms.CharField(label='姓 (Surname)', max_length=30, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    given_name = forms.CharField(label='名 (Given Name)', max_length=30, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    
     role = forms.ChoiceField(
         label='角色',
         choices=[
@@ -55,7 +60,7 @@ class UserRegistrationForm(UserCreationForm):
     
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = UserCreationForm.Meta.fields + ('role',)
+        fields = UserCreationForm.Meta.fields + ('surname', 'given_name', 'role',)
 
 
 def user_register(request):
@@ -66,7 +71,12 @@ def user_register(request):
     if request.method == 'POST':
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
-            user = form.save()
+            user = form.save(commit=False)
+            # 依照用戶要求：First Name 存「姓」，Last Name 存「名」
+            user.first_name = form.cleaned_data.get('surname')
+            user.last_name = form.cleaned_data.get('given_name')
+            user.save()
+            
             username = form.cleaned_data.get('username')
             selected_role = form.cleaned_data.get('role')
             
@@ -83,10 +93,10 @@ def user_register(request):
                     # 需要審核：設為非活動狀態
                     user.is_active = False
                     user.save()
-                    # 儲存待審核角色資訊到 user profile 或其他方式
-                    # 暫時使用 first_name 欄位儲存待審核角色
-                    user.first_name = f"待審核:{selected_role}"
-                    user.save()
+                    
+                    # 使用 UserProfile 儲存待審核角色
+                    UserProfile.objects.create(user=user, requested_role=selected_role)
+                    
                     messages.info(request, f"帳號 {username} 已建立，角色「{selected_role}」需管理員審核後才能使用。")
                     
             except Group.DoesNotExist:

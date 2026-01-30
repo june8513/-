@@ -4,7 +4,7 @@ import requests # Added requests
 from django.db import transaction
 from django.db.models import Q # Added Q
 from requisitions.models import WorkOrder, WorkOrderMaterial, MachineModel, ProcessType, Requisition, OperationProcessRule
-from inventory.models import Material, MaterialTransaction
+from inventory.models import Material, MaterialTransaction, StorageLocation
 from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone # Added timezone
@@ -220,7 +220,7 @@ def _update_requisition_alert(order_number, process_type_name, message, is_deman
     except Exception as e:
         print(f"Error updating alert for {order_number}: {e}")
 
-def process_material_details_excel(excel_file_path, required_qty_col):
+def process_material_details_excel(excel_file_path, required_qty_col=None):
     """
     Processes an Excel file to upload material details.
     Returns a tuple (created_count, updated_count, deactivated_count).
@@ -255,13 +255,35 @@ def process_material_details_excel(excel_file_path, required_qty_col):
             raise ValueError("上傳的 Excel 檔案中找不到 '訂單單號' 或 '訂單'欄位。")
         if '物料' not in df_upload.columns:
             raise ValueError("上傳的 Excel 檔案中找不到 '物料' 欄位。")
-        if required_qty_col not in df_upload.columns:
-            raise ValueError(f"在 Excel 中找不到您指定的 '需求數量'欄位：'{required_qty_col}'。")
+        if required_qty_col:
+            if required_qty_col not in df_upload.columns:
+                raise ValueError(f"在 Excel 中找不到您指定的 '需求數量'欄位：'{required_qty_col}'。")
+        else:
+            # Auto-detect quantity column
+            possible_qty_cols = ['需求數量 (EINHEIT)', '需求數量(EINHEIT)', '訂單數量 (GMEIN)', '訂單數量(GMEIN)', '訂單數量', '需求數量', '數量']
+            for col in possible_qty_cols:
+                if col in df_upload.columns:
+                    required_qty_col = col
+                    break
+            
+            if not required_qty_col:
+                 raise ValueError("無法自動偵測 '需求數量' 欄位。請確認 Excel 包含 '需求數量 (EINHEIT)' 或類似標題。")
 
         df_upload[required_qty_col] = pd.to_numeric(df_upload[required_qty_col], errors='coerce').fillna(0)
 
         # Determine parent description column
         parent_desc_col = '上層物料說明' if '上層物料說明' in df_upload.columns else None
+
+        if parent_desc_col is None:
+            # Fallback for parent_desc_col if needed
+            parent_desc_col = next((col for col in ['上層物料說明', 'Parent Material Description'] if col in df_upload.columns), None)
+
+        # 偵測需求日期欄位
+        demand_date_col = None
+        for col_name in ['需求日期', '基本開始日期', '需求日', 'Requirement Date', 'BDTER']:
+            if col_name in df_upload.columns:
+                demand_date_col = col_name
+                break
         
         # 新增：讀取作業說明欄位
         operation_desc_col = '作業說明' if '作業說明' in df_upload.columns else None
@@ -277,6 +299,8 @@ def process_material_details_excel(excel_file_path, required_qty_col):
         }
         if operation_desc_col:
             agg_dict[operation_desc_col] = 'first'  # Keep the first operation description
+        if demand_date_col:
+            agg_dict[demand_date_col] = 'first' # Keep the first demand date
 
         df_aggregated = df_upload.groupby(group_cols).agg(agg_dict).reset_index()
         # --- END of FIX ---
@@ -440,6 +464,16 @@ def process_material_details_excel(excel_file_path, required_qty_col):
 
                 required_quantity_clean = row.get(required_qty_col, 0)
 
+                # Parse demand date
+                demand_date = None
+                if demand_date_col:
+                    date_val = row.get(demand_date_col)
+                    if pd.notna(date_val):
+                        try:
+                            demand_date = pd.to_datetime(date_val).date()
+                        except (ValueError, TypeError):
+                            demand_date = None
+
                 current_material_key = (order_number_clean, material_number_clean, machine_model_name_clean)
                 uploaded_material_keys.add(current_material_key)
 
@@ -487,6 +521,11 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                     if not material_instance.is_active:
                         material_instance.is_active = True
                         is_dirty = True
+                    
+                    # Demand Date
+                    if material_instance.demand_date != demand_date:
+                        material_instance.demand_date = demand_date
+                        is_dirty = True
 
                     if is_dirty:
                         materials_to_update.append(material_instance)
@@ -501,7 +540,8 @@ def process_material_details_excel(excel_file_path, required_qty_col):
                                 item_name=item_name_clean,
                                 required_quantity=required_quantity_clean,
                                 process_type=process_type_obj,
-                                is_active=True
+                                is_active=True,
+                                demand_date=demand_date
                             )
                         )
                         created_material_keys.add(current_material_key)
@@ -517,7 +557,7 @@ def process_material_details_excel(excel_file_path, required_qty_col):
             if materials_to_create:
                 WorkOrderMaterial.objects.bulk_create(materials_to_create, batch_size=2000)
             if materials_to_update:
-                WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active'], batch_size=2000)
+                WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active', 'demand_date'], batch_size=2000)
 
             uploaded_deletion_scopes = set()
             for _, row in df_upload.iterrows():
@@ -623,19 +663,31 @@ def process_inventory_excel(excel_file_path):
                     'material_description': row.get('物料說明', ''),
                     'system_quantity': pd.to_numeric(row.get('未限制'), errors='coerce') or 0,
                 }
-
-                material, created = Material.objects.update_or_create(
-                    material_code=material_code,
-                    defaults=defaults
-                )
+                
+                # Retrieve default location and bin (ensure they exist or use placeholders)
+                default_loc, _ = StorageLocation.objects.get_or_create(name='預設儲位')
+                
+                # Check if material exists
+                try:
+                    material = Material.objects.get(material_code=material_code)
+                    # Update existing material (only description and quantity)
+                    material.material_description = defaults['material_description']
+                    material.system_quantity = defaults['system_quantity']
+                    material.save()
+                    updated_count += 1
+                except Material.DoesNotExist:
+                    # Create new material with default location and bin
+                    material = Material.objects.create(
+                        material_code=material_code,
+                        material_description=defaults['material_description'],
+                        system_quantity=defaults['system_quantity'],
+                        location=default_loc,
+                        bin='預設'
+                    )
+                    created_count += 1
                 
                 # Note: Creating a MaterialTransaction is omitted here because there is no
                 # 'user' in an automated context.
-
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
         
         return created_count, updated_count
 

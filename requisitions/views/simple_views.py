@@ -18,6 +18,8 @@ from ..models import (
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
+from ..analysis import fetch_delivery_api
+
 
 
 def is_simple_applicant(user):
@@ -287,17 +289,39 @@ def simple_applicant_detail(request, pk):
     dispatched = items.filter(dispatch_status='dispatched').count()
     progress = int((dispatched / total * 100) if total > 0 else 0)
     
-    # 標記缺料物料
+    
+    # 取得外部 API 的預計交期
+    external_api_dates = fetch_delivery_api()
+
+    # 標記缺料物料 (根據用戶定義：需求 > 庫存)
     for item in items:
-        if item.dispatch_status == 'backordered':
-            item.is_shortage = True
-            # 嘗試取得預計入料日期
-            if item.source_material:
-                item.expected_date = item.source_material.demand_date
+        # 計算是否缺料 (需求 > 庫存)
+        # 注意：stock_quantity 是快照，建立時的庫存。
+        # 用戶希望能即時看到缺料狀況，所以這裡的邏輯是:
+        # 如果尚未撥料 (pending)，顯示缺料提示
+        
+        is_qty_shortage = item.required_quantity > item.stock_quantity
+        
+        # 用戶要求：當下將需求數量大於庫存的物料增加一個缺料的圖示
+        if is_qty_shortage:
+            item.show_shortage_icon = True
+            
+            # 嘗試取得預計入料日期 (API > DB)
+            api_date_str = external_api_dates.get(item.material_number)
+            if api_date_str:
+                try:
+                    item.estimated_arrival_date_display = api_date_str
+                except:
+                    item.estimated_arrival_date_display = None
             else:
-                item.expected_date = None
+                # Fallback to DB if available
+                if item.source_material and item.source_material.estimated_arrival_date:
+                    item.estimated_arrival_date_display = item.source_material.estimated_arrival_date.strftime('%Y-%m-%d')
+                else:
+                    item.estimated_arrival_date_display = None
         else:
-            item.is_shortage = False
+            item.show_shortage_icon = False
+
     
     context = {
         'requisition': requisition,

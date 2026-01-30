@@ -230,6 +230,7 @@ class AutoUploadConfig(models.Model):
         ('inventory', '庫存資料 (Inventory)'),
         ('order_model', '訂單機型 (Order Models)'),
         ('material_details', '物料明細 (Material Details)'),
+        ('semi_finished', '半成品資料 (Semi-Finished)'),
     ]
     upload_type = models.CharField(max_length=50, choices=UPLOAD_TYPES, unique=True, verbose_name="上傳類型")
     file_path = models.CharField(max_length=255, verbose_name="檔案路徑", help_text="請輸入完整檔案路徑，例如 C:\\SAP\\inventory.xlsx")
@@ -298,4 +299,17 @@ class SemiFinishedProcessType(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class UserProfile(models.Model):
+    """使用者額外資訊，用於儲存申請角色等狀態"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="使用者")
+    requested_role = models.CharField(max_length=50, blank=True, null=True, verbose_name="申請角色")
+    
+    class Meta:
+        verbose_name = "使用者設定檔"
+        verbose_name_plural = "使用者設定檔"
+
+    def __str__(self):
+        return f"{self.user.username} 的設定檔"
 

@@ -5,6 +5,7 @@ from django.db import models # Import models for models.DateField
 from django.db.models.functions import Coalesce
 from decimal import Decimal
 import datetime
+import requests # Added for API integration
 
 def get_material_demand_analysis():
     """
@@ -87,9 +88,23 @@ def get_material_demand_analysis():
             mat.material_code: mat.purchaser 
             for mat in Material.objects.filter(material_code__in=material_keys)
         }
+        
+        # Fetch external API data for delivery dates
+        external_api_dates = fetch_delivery_api()
 
         for material_key, data in final_aggregated_data.items():
-            data['estimated_arrival_date'] = date_map.get(material_key)
+            # Priority: 1. API Date, 2. DB Estimated Arrival Date
+            api_date_str = external_api_dates.get(material_key)
+            db_date = date_map.get(material_key)
+            
+            if api_date_str:
+                try:
+                    data['estimated_arrival_date'] = datetime.datetime.strptime(api_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    data['estimated_arrival_date'] = db_date # Fallback if API date format is wrong
+            else:
+                data['estimated_arrival_date'] = db_date
+                
             data['purchaser'] = purchaser_map.get(material_key)
 
     # Pre-fetch all WorkOrderMaterial data needed for first_shortage_shipping_date calculation
@@ -165,4 +180,31 @@ def get_material_demand_analysis():
             if data['shortage_date'] is None and detail['is_running_shortage']:
                 data['shortage_date'] = detail['demand_date']
 
+
+    # --- API Integration End ---
+
     return final_aggregated_data
+
+def fetch_delivery_api():
+    """
+    Fetches the nearest delivery dates from the external API.
+    Returns a dictionary mapping material_number to date strings (YYYY-MM-DD).
+    """
+    api_url = "http://192.168.6.119:5002/api/delivery/nearest"
+    try:
+        response = requests.get(api_url, timeout=3) # Short timeout to prevent page lag
+        if response.status_code == 200:
+            data = response.json()
+            # Transform structure: { "Material_ID": { "date": "..." } } -> { "Material_ID": "date" }
+            result = {}
+            if 'data' in data:
+                for mat_id, info in data['data'].items():
+                    if info.get('date'):
+                        result[mat_id] = info['date']
+            return result
+        else:
+            print(f"API Error: {response.status_code} - {response.text}")
+            return {}
+    except Exception as e:
+        print(f"API Fetch Failed: {e}")
+        return {}

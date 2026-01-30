@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Material Requisition Monitor every 10 minutes
+
+[Timer]
+# Run 1 minute after boot
+OnBootSec=1min
+# Then run every 10 minutes
+OnUnitActiveSec=10min
+Unit=mr_monitor.service
+
+[Install]
+WantedBy=timers.target
