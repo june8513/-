@@ -336,7 +336,15 @@ def archived_requisition_list(request):
 
 @login_required
 def requisition_create(request):
-    if not request.user.groups.filter(name='申請人員').exists() and not request.user.is_superuser:
+    # Determine user role
+    is_simple_applicant_role = request.user.groups.filter(name='申請人員').exists()
+    is_applicant_supervisor = request.user.groups.filter(name='申請人員主管').exists()
+    
+    # If user is a Simple Applicant or Supervisor, redirect to the Simple Interface
+    if is_simple_applicant_role or is_applicant_supervisor:
+         return redirect('requisitions:simple_applicant_create')
+
+    if not request.user.is_superuser:
         messages.error(request, "您沒有權限建立撥料申請單。")
         return redirect('requisitions:requisition_list')
 

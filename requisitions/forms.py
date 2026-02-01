@@ -133,7 +133,12 @@ class BulkUploadForm(forms.Form):
         widget=forms.FileInput(attrs={'accept': '.xlsx,.xls'})
     )
     semi_finished_file = forms.FileField(
-        label='半成品物料明細',
+        label='半成品物料明細 (semi_finished.xlsx)',
+        required=False,
+        widget=forms.FileInput(attrs={'accept': '.xlsx,.xls'})
+    )
+    semi_finished_model_file = forms.FileField(
+        label='半成品機型資料庫對照表 (訂單-機型)',
         required=False,
         widget=forms.FileInput(attrs={'accept': '.xlsx,.xls'})
     )

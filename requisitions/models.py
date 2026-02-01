@@ -231,6 +231,7 @@ class AutoUploadConfig(models.Model):
         ('order_model', '訂單機型 (Order Models)'),
         ('material_details', '物料明細 (Material Details)'),
         ('semi_finished', '半成品資料 (Semi-Finished)'),
+        ('semi_finished_model_db', '半成品機型資料庫 (Semi-Finished Model DB)'),
     ]
     upload_type = models.CharField(max_length=50, choices=UPLOAD_TYPES, unique=True, verbose_name="上傳類型")
     file_path = models.CharField(max_length=255, verbose_name="檔案路徑", help_text="請輸入完整檔案路徑，例如 C:\\SAP\\inventory.xlsx")

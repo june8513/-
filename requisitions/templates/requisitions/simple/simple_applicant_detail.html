@@ -346,23 +346,28 @@
             <span class="info-label">投料點</span>
             <span class="info-value" id="process-type-display">
                 {{ requisition.process_type }}
-                {% if requisition.status == 'demand_submitted' %}
-                <button type="button" class="edit-btn" id="edit-process-type-btn" title="編輯投料點">✏️</button>
-                {% endif %}
             </span>
-            {% if requisition.status == 'demand_submitted' %}
-            <div id="process-type-edit" style="display: none; flex: 1;">
-                <select id="process-type-select" class="form-control form-control-sm" style="display: inline-block; width: auto; min-width: 150px;">
-                    <option value="">載入中...</option>
-                </select>
-                <button type="button" class="save-btn" id="save-process-type-btn">儲存</button>
-                <button type="button" class="cancel-btn" id="cancel-process-type-btn">取消</button>
-            </div>
-            {% endif %}
+
         </div>
         <div class="info-row">
             <span class="info-label">申請日期</span>
             <span class="info-value">{{ requisition.created_at|date:"Y-m-d" }}</span>
+        </div>
+        <div class="info-row" id="req-date-row">
+            <span class="info-label">需求日期</span>
+            <span class="info-value" id="req-date-display">
+                {{ requisition.request_date|date:"Y-m-d" }}
+                {% if requisition.status == 'demand_submitted' %}
+                <button type="button" class="edit-btn" id="edit-req-date-btn" title="編輯需求日期">✏️</button>
+                {% endif %}
+            </span>
+            {% if requisition.status == 'demand_submitted' %}
+            <div id="req-date-edit" style="display: none; flex: 1;">
+                <input type="date" id="req-date-input" class="form-control form-control-sm" style="display: inline-block; width: auto;" value="{{ requisition.request_date|date:'Y-m-d' }}">
+                <button type="button" class="save-btn" id="save-req-date-btn">儲存</button>
+                <button type="button" class="cancel-btn" id="cancel-req-date-btn">取消</button>
+            </div>
+            {% endif %}
         </div>
         <div class="info-row">
             <span class="info-label">狀態</span>
@@ -378,6 +383,16 @@
                 {% endif %}
             </span>
         </div>
+
+        
+        {% if requisition.status == 'demand_submitted' %}
+        <div class="info-row" style="border-bottom: none; padding-top: 1rem; justify-content: flex-end;">
+            <form action="{% url 'requisitions:simple_applicant_delete' pk=requisition.pk %}" method="post" onsubmit="return confirm('確定要刪除這張申請單嗎？此動作無法復原。');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm" style="border-radius: 8px;">🗑️ 刪除申請單</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Materials List -->
@@ -390,6 +405,9 @@
             <div class="material-info">
                 <div class="material-number">{{ item.material_number }}</div>
                 <div class="material-name">{{ item.item_name }}</div>
+                {% if item.is_insufficient_stock %}
+                <span class="shortage-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;">⚠️ 庫存不足 (剩餘: {{ item.stock_quantity|floatformat:0 }}){% if item.expected_date %} 預計入料: {{ item.expected_date|date:"m/d" }}{% endif %}</span>
+                {% endif %}
                 {% if item.is_shortage and item.expected_date %}
                 <span class="shortage-badge">預計入料: {{ item.expected_date|date:"m/d" }}</span>
                 {% endif %}
@@ -506,68 +524,39 @@
         form.addEventListener('submit', handleSignOff);
     });
     
-    // 投料點編輯功能
-    const editBtn = document.getElementById('edit-process-type-btn');
-    const processTypeDisplay = document.getElementById('process-type-display');
-    const processTypeEdit = document.getElementById('process-type-edit');
-    const processTypeSelect = document.getElementById('process-type-select');
-    const saveBtn = document.getElementById('save-process-type-btn');
-    const cancelBtn = document.getElementById('cancel-process-type-btn');
+    // 需求日期編輯功能
+    const editDateBtn = document.getElementById('edit-req-date-btn');
+    const dateDisplay = document.getElementById('req-date-display');
+    const dateEdit = document.getElementById('req-date-edit');
+    const dateInput = document.getElementById('req-date-input');
+    const saveDateBtn = document.getElementById('save-req-date-btn');
+    const cancelDateBtn = document.getElementById('cancel-req-date-btn');
     
-    if (editBtn) {
-        const orderNumber = '{{ requisition.order_number }}';
-        const requisitionType = '{{ requisition.requisition_type|default:"finished" }}';
-        const currentProcessType = '{{ requisition.process_type }}';
-        const updateUrl = '{% url "requisitions:simple_applicant_update_process_type" pk=requisition.pk %}';
-        const getProcessTypesUrl = '{% url "requisitions:get_available_process_types" %}';
+    if (editDateBtn) {
+        const updateUrl = '{% url "requisitions:simple_applicant_update_request_date" pk=requisition.pk %}';
         
-        editBtn.addEventListener('click', function() {
-            processTypeDisplay.style.display = 'none';
-            processTypeEdit.style.display = 'flex';
-            
-            // 載入可用投料點
-            const typeParam = requisitionType === 'semi_finished' ? 'semi_finished' : 'finished';
-            fetch(`${getProcessTypesUrl}?order_number=${encodeURIComponent(orderNumber)}&type=${typeParam}`)
-            .then(response => response.json())
-            .then(data => {
-                processTypeSelect.innerHTML = '';
-                const pts = data.process_types || data.available_process_types || [];
-                
-                if (pts.length === 0) {
-                    processTypeSelect.innerHTML = '<option value="">無可用投料點</option>';
-                } else {
-                    // 加入目前的投料點作為第一選項
-                    processTypeSelect.innerHTML = `<option value="" disabled selected>選擇投料點（目前: ${currentProcessType}）</option>`;
-                    pts.forEach(pt => {
-                        const option = document.createElement('option');
-                        option.value = pt.id || pt.value;
-                        option.textContent = pt.name || pt.label;
-                        processTypeSelect.appendChild(option);
-                    });
-                }
-            })
-            .catch(error => {
-                processTypeSelect.innerHTML = '<option value="">載入失敗</option>';
-            });
+        editDateBtn.addEventListener('click', function() {
+            dateDisplay.style.display = 'none';
+            dateEdit.style.display = 'flex';
         });
         
-        cancelBtn.addEventListener('click', function() {
-            processTypeDisplay.style.display = '';
-            processTypeEdit.style.display = 'none';
+        cancelDateBtn.addEventListener('click', function() {
+            dateDisplay.style.display = '';
+            dateEdit.style.display = 'none';
         });
         
-        saveBtn.addEventListener('click', function() {
-            const selectedId = processTypeSelect.value;
-            if (!selectedId) {
-                showToast('請選擇投料點', false);
+        saveDateBtn.addEventListener('click', function() {
+            const newDate = dateInput.value;
+            if (!newDate) {
+                showToast('請選擇日期', false);
                 return;
             }
             
-            saveBtn.disabled = true;
-            saveBtn.textContent = '儲存中...';
+            saveDateBtn.disabled = true;
+            saveDateBtn.textContent = '儲存中...';
             
             const formData = new FormData();
-            formData.append('process_type', selectedId);
+            formData.append('request_date', newDate);
             
             fetch(updateUrl, {
                 method: 'POST',
@@ -581,20 +570,22 @@
             .then(data => {
                 showToast(data.message, data.success);
                 if (data.success) {
-                    // 更新顯示的投料點
+                    // 重新整理頁面顯示新日期（簡單起見，或者可以只更新文字）
                     setTimeout(() => window.location.reload(), 500);
                 } else {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = '儲存';
+                    saveDateBtn.disabled = false;
+                    saveDateBtn.textContent = '儲存';
                 }
             })
             .catch(error => {
                 showToast('更新失敗，請重試', false);
-                saveBtn.disabled = false;
-                saveBtn.textContent = '儲存';
+                saveDateBtn.disabled = false;
+                saveDateBtn.textContent = '儲存';
             });
         });
     }
+    
+
 })();
 </script>
 {% endblock %}

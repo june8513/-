@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}批量申請預覽 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: #374151;
+        font-weight: bold;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+        color: #1F2937;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .preview-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .preview-table th {
+        background: #F9FAFB;
+        padding: 1rem;
+        font-weight: 600;
+        color: #6B7280;
+        text-align: left;
+        border-bottom: 2px solid #E5E7EB;
+    }
+
+    .preview-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #F3F4F6;
+        vertical-align: middle;
+    }
+
+    .preview-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .form-control-sm {
+        padding: 0.5rem;
+        border: 1px solid #D1D5DB;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        width: 100%;
+    }
+
+    .actions-bar {
+        margin-top: 2rem;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+
+    .submit-btn {
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .submit-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+    }
+    
+    .cancel-btn {
+        padding: 0.75rem 1.5rem;
+        background: white;
+        color: #6B7280;
+        border: 1px solid #D1D5DB;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s;
+    }
+    
+    .cancel-btn:hover {
+        background: #F3F4F6;
+        color: #374151;
+    }
+
+    .model-tag {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: #EFF6FF;
+        color: #3B82F6;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    .unknown-model {
+        background: #FEF2F2;
+        color: #EF4444;
+    }
+
+    /* Sorting Styles */
+    .preview-table th.sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+
+    .preview-table th.sortable:hover {
+        background: #F3F4F6;
+    }
+
+    .preview-table th.sortable::after {
+        content: '↕';
+        position: absolute;
+        right: 8px;
+        opacity: 0.3;
+    }
+
+    .preview-table th.sortable.asc::after {
+        content: '↑';
+        opacity: 1;
+        color: #3B82F6;
+    }
+
+    .preview-table th.sortable.desc::after {
+        content: '↓';
+        opacity: 1;
+        color: #3B82F6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_applicant_create' %}?type=semi_finished" class="back-btn">←</a>
+        <h1 class="page-title">確認批量申請資料</h1>
+    </div>
+
+    <div class="form-card">
+        <p class="text-muted mb-4">系統已自動解析工單單號並查詢對應機型，請確認或修改每一筆的領料人員與需求日期。</p>
+        
+        <form method="post" action="{% url 'requisitions:simple_applicant_create' %}">
+            {% csrf_token %}
+            <input type="hidden" name="type" value="semi_finished">
+            <input type="hidden" name="action" value="confirm_create">
+            
+            <div class="table-responsive">
+                <table class="preview-table" id="previewTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;" class="sortable" onclick="sortTable(0)">工單單號</th>
+                            <th style="width: 50%;" class="sortable" onclick="sortTable(1)">對應機型</th>
+                            <th style="width: 15%;" class="sortable" onclick="sortTable(2)">領料人員</th>
+                            <th style="width: 20%;" class="sortable" onclick="sortTable(3)">需求日期</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in preview_items %}
+                        <tr>
+                            <td>
+                                <strong>{{ item.order_number }}</strong>
+                                <input type="hidden" name="order_number" value="{{ item.order_number }}">
+                            </td>
+                            <td>
+                                <input type="text" class="form-control-sm" name="machine_model" value="{{ item.machine_model }}" placeholder="請輸入機型" required>
+                            </td>
+                            <td>
+                                <select class="form-control-sm" name="applicant_id" required>
+                                    <option value="">請選擇</option>
+                                    {% for app in applicants %}
+                                    <option value="{{ app.id }}" {% if app.id|stringformat:"s" == item.applicant_id|stringformat:"s" %}selected{% endif %}>{{ app.first_name|default:app.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="date" class="form-control-sm" name="request_date" value="{{ item.request_date|default:today }}" required>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="actions-bar">
+                <a href="{% url 'requisitions:simple_applicant_create' %}?type=semi_finished" class="cancel-btn">返回修改</a>
+                <button type="submit" class="submit-btn">確認建立 {{ preview_items|length }} 筆申請單</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentSort = { column: -1, direction: 'asc' };
+
+    function sortTable(columnIndex) {
+        const table = document.getElementById("previewTable");
+        const tbody = table.tBodies[0];
+        const rows = Array.from(tbody.rows);
+        const headers = table.querySelectorAll('th');
+
+        // Toggle direction
+        if (currentSort.column === columnIndex) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = columnIndex;
+            currentSort.direction = 'asc';
+        }
+
+        // Update UI
+        headers.forEach((h, i) => {
+            h.classList.remove('asc', 'desc');
+            if (i === columnIndex) {
+                h.classList.add(currentSort.direction);
+            }
+        });
+
+        // Sort rows
+        const sortedRows = rows.sort((a, b) => {
+            let valA = getCellValue(a, columnIndex);
+            let valB = getCellValue(b, columnIndex);
+
+            if (valA === valB) return 0;
+            
+            const comparison = valA.localeCompare(valB, 'zh-Hant', { numeric: true });
+            return currentSort.direction === 'asc' ? comparison : -comparison;
+        });
+
+        // Re-append rows
+        while (tbody.firstChild) {
+            tbody.removeChild(tbody.firstChild);
+        }
+        tbody.append(...sortedRows);
+    }
+
+    function getCellValue(row, index) {
+        const cell = row.cells[index];
+        
+        switch(index) {
+            case 0: // Order Number (text)
+                return cell.innerText.trim();
+            case 1: // Machine Model (input)
+                return cell.querySelector('input').value.trim();
+            case 2: // Applicant (select)
+                const select = cell.querySelector('select');
+                return select.options[select.selectedIndex].text.trim();
+            case 3: // Request Date (date input)
+                return cell.querySelector('input').value;
+            default:
+                return "";
+        }
+    }
+</script>
+{% endblock %}

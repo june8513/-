@@ -115,15 +115,51 @@
         <h1 class="page-title">{% if current_type == 'semi_finished' %}建立半成品申請單{% else %}建立申請單{% endif %}</h1>
     </div>
 
+    <!-- Type Toggle Tabs -->
+    <div class="type-tabs mb-4" style="background: #F3F4F6; padding: 4px; border-radius: 12px; display: flex;">
+        <a href="?type=finished" class="type-tab {% if current_type == 'finished' %}active fw-bold bg-white shadow-sm text-primary{% else %}text-secondary{% endif %}" style="flex: 1; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; transition: all 0.2s;">
+            📦 成品撥料 (單筆)
+        </a>
+        <a href="?type=semi_finished" class="type-tab {% if current_type == 'semi_finished' %}active fw-bold bg-white shadow-sm text-success{% else %}text-secondary{% endif %}" style="flex: 1; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; transition: all 0.2s;">
+            🔧 半成品撥料 (批量)
+        </a>
+    </div>
+
     <div class="form-card">
         <form method="post" id="createForm">
             {% csrf_token %}
             <input type="hidden" name="type" value="{{ current_type|default:'finished' }}">
+            {% if current_type == 'semi_finished' %}
+            <input type="hidden" name="action" value="preview">
+            {% endif %}
+
+            {% if current_type == 'semi_finished' %}
+            <!-- 半成品：批量建立 & 指定領料人 -->
+            <div class="form-group">
+                <label class="form-label" for="applicant_id">預設領料人員 (可於下一步修改)</label>
+                <select class="form-control" id="applicant_id" name="applicant_id">
+                    <option value="">請選擇預設領料人員</option>
+                    {% for applicant in applicants %}
+                    <option value="{{ applicant.id }}" {% if applicant == user %}selected{% endif %}>{{ applicant.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <div class="form-group">
+                <label class="form-label" for="request_date_default">預設需求日期 (可於下一步修改)</label>
+                <input type="date" class="form-control" id="request_date_default" name="request_date" value="{{ today }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="order_numbers">工單單號 (批量輸入，一行一個)</label>
+                <textarea class="form-control" id="order_numbers" name="order_numbers" rows="10" placeholder="請在此貼上工單單號，支援從 Excel 直接複製貼上" required></textarea>
+            </div>
+            
+            {% else %}
+            <!-- 成品：單筆建立 & 選擇投料點 -->
+            <div class="form-group">
                 <label class="form-label" for="order_number">工單單號</label>
-                <input type="text" class="form-control" id="order_number" name="order_number" placeholder="請輸入工單單號"
-                    required>
+                <input type="text" class="form-control" id="order_number" name="order_number" placeholder="請輸入工單單號" required>
             </div>
 
             <div class="form-group">
@@ -132,14 +168,16 @@
                     <option value="">請先輸入工單單號</option>
                 </select>
             </div>
+            {% endif %}
 
+            {% if current_type != 'semi_finished' %}
             <div class="form-group">
                 <label class="form-label" for="request_date">需求日期</label>
-                <input type="date" class="form-control" id="request_date" name="request_date" value="{{ today }}"
-                    required>
+                <input type="date" class="form-control" id="request_date" name="request_date" value="{{ today }}" required>
             </div>
+            {% endif %}
 
-            <button type="submit" class="submit-btn" id="submitBtn" disabled>建立申請單</button>
+            <button type="submit" class="submit-btn" id="submitBtn" {% if current_type != 'semi_finished' %}disabled{% endif %}>建立申請單</button>
         </form>
     </div>
 </div>
@@ -148,62 +186,61 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const orderNumberInput = document.getElementById('order_number');
-        const processTypeSelect = document.getElementById('process_type');
-        const submitBtn = document.getElementById('submitBtn');
         const currentType = '{{ current_type|default:"finished" }}';
+        
+        if (currentType === 'finished') {
+            const orderNumberInput = document.getElementById('order_number');
+            const processTypeSelect = document.getElementById('process_type');
+            const submitBtn = document.getElementById('submitBtn');
+            let debounceTimer;
 
-        let debounceTimer;
+            orderNumberInput.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                const orderNumber = this.value.trim();
 
-        orderNumberInput.addEventListener('input', function () {
-            clearTimeout(debounceTimer);
-            const orderNumber = this.value.trim();
-
-            if (orderNumber.length < 2) {
-                processTypeSelect.innerHTML = '<option value="">請輸入完整工單單號</option>';
-                processTypeSelect.disabled = true;
-                submitBtn.disabled = true;
-                return;
-            }
-
-            debounceTimer = setTimeout(function () {
-                let apiUrl = `{% url 'requisitions:get_available_process_types' %}?order_number=${encodeURIComponent(orderNumber)}`;
-                if (currentType === 'semi_finished') {
-                    apiUrl += '&type=semi_finished';
+                if (orderNumber.length < 2) {
+                    processTypeSelect.innerHTML = '<option value="">請輸入完整工單單號</option>';
+                    processTypeSelect.disabled = true;
+                    submitBtn.disabled = true;
+                    return;
                 }
-                
-                fetch(apiUrl)
-                    .then(response => response.json())
-                    .then(data => {
-                        processTypeSelect.innerHTML = '';
 
-                        if (data.process_types && data.process_types.length > 0) {
-                            processTypeSelect.innerHTML = '<option value="">請選擇投料點</option>';
-                            data.process_types.forEach(pt => {
-                                const option = document.createElement('option');
-                                option.value = pt.id;
-                                option.textContent = pt.name;
-                                processTypeSelect.appendChild(option);
-                            });
-                            processTypeSelect.disabled = false;
-                        } else {
-                            processTypeSelect.innerHTML = '<option value="">無可用投料點</option>';
+                debounceTimer = setTimeout(function () {
+                    let apiUrl = `{% url 'requisitions:get_available_process_types' %}?order_number=${encodeURIComponent(orderNumber)}`;
+                    
+                    fetch(apiUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            processTypeSelect.innerHTML = '';
+
+                            if (data.process_types && data.process_types.length > 0) {
+                                processTypeSelect.innerHTML = '<option value="">請選擇投料點</option>';
+                                data.process_types.forEach(pt => {
+                                    const option = document.createElement('option');
+                                    option.value = pt.id;
+                                    option.textContent = pt.name;
+                                    processTypeSelect.appendChild(option);
+                                });
+                                processTypeSelect.disabled = false;
+                            } else {
+                                processTypeSelect.innerHTML = '<option value="">無可用投料點</option>';
+                                processTypeSelect.disabled = true;
+                            }
+                            updateSubmitButton();
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            processTypeSelect.innerHTML = '<option value="">載入失敗</option>';
                             processTypeSelect.disabled = true;
-                        }
-                        updateSubmitButton();
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        processTypeSelect.innerHTML = '<option value="">載入失敗</option>';
-                        processTypeSelect.disabled = true;
-                    });
-            }, 500);
-        });
+                        });
+                }, 500);
+            });
 
-        processTypeSelect.addEventListener('change', updateSubmitButton);
+            processTypeSelect.addEventListener('change', updateSubmitButton);
 
-        function updateSubmitButton() {
-            submitBtn.disabled = !orderNumberInput.value.trim() || !processTypeSelect.value;
+            function updateSubmitButton() {
+                submitBtn.disabled = !orderNumberInput.value.trim() || !processTypeSelect.value;
+            }
         }
     });
 </script>

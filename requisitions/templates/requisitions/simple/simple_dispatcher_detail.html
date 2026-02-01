@@ -95,7 +95,15 @@
 <div class="info-row"><span class="info-label">申請日期</span><span class="info-value">{{ requisition.created_at|date:"Y-m-d" }}</span></div>
 </div>
 
-<h3 style="margin: 1.5rem 0 1rem; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
+<div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 1rem;">
+    <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
+    <div class="btn-group" role="group" aria-label="Sort">
+        <a href="?sort=material{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'material' %}btn-primary{% else %}btn-outline-secondary{% endif %}">物料編號</a>
+        <a href="?sort=bin{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'bin' %}btn-primary{% else %}btn-outline-secondary{% endif %}">儲位</a>
+        <a href="?sort=name{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'name' %}btn-primary{% else %}btn-outline-secondary{% endif %}">品名</a>
+        <a href="?sort=status{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'status' %}btn-primary{% else %}btn-outline-secondary{% endif %}">狀態</a>
+    </div>
+</div>
 
 {% for item in items %}
 <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
@@ -108,12 +116,13 @@
 </div>
 <div class="material-qty-info">
 <div><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></div>
-<div><span class="qty-label">庫存:</span> <span class="qty-value">{{ item.stock_quantity }}</span></div>
+<div><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</div>
 {% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
 </div>
 </div>
 <form method="post" class="material-actions">
 {% csrf_token %}
+<input type="hidden" name="sort" value="{{ current_sort }}">
 <input type="hidden" name="item_pk" value="{{ item.pk }}">
 {% if item.is_actionable %}
 <input type="number" name="dispatched_qty" value="{{ item.required_quantity }}" class="qty-input" min="0" step="1">

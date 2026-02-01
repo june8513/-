@@ -50,19 +50,30 @@ class Command(BaseCommand):
             self.stdout.write(f'Detected update for {config.get_upload_type_display()}: {file_path}')
             
             try:
+                # Normalize type
+                upload_type = str(config.upload_type).strip()
+                self.stdout.write(f"DEBUG: Processing type '{upload_type}' (len={len(upload_type)})")
+
                 # Process based on type
-                if config.upload_type == 'inventory':
+                if upload_type == 'inventory':
                     created, updated = process_inventory_excel(file_path)
                     msg = f"Success: Created {created}, Updated {updated}"
                     
-                elif config.upload_type == 'order_model':
+                elif upload_type == 'order_model':
                     created, updated = process_order_model_excel(file_path)
                     msg = f"Success: Created {created}, Updated {updated}"
                     
-                elif config.upload_type == 'material_details':
+                elif upload_type == 'material_details':
                     # Defaulting required quantity column to '需求數量'
                     created, updated, deactivated = process_material_details_excel(file_path, '需求數量') 
                     msg = f"Success: Created {created}, Updated {updated}, Deactivated {deactivated}"
+
+                elif upload_type == 'semi_finished_model_db':
+                     created, updated = process_order_model_excel(file_path)
+                     msg = f"Success: Created {created}, Updated {updated}"
+
+                else:
+                     raise ValueError(f"未知的上傳類型：'{upload_type}' (len={len(upload_type)}) - 請檢查 models.py 或資料庫設定")
 
                 # Update Config Status
                 config.last_run = timezone.now()

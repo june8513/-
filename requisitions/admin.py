@@ -119,6 +119,7 @@ class AutoUploadConfigAdmin(admin.ModelAdmin):
                 'order_model': 'auto_upload_order_models',
                 'material_details': 'auto_upload_material_details',
                 'semi_finished': 'auto_upload_semi_finished',
+                'semi_finished_model_db': 'auto_upload_semi_finished_model_db',
             }
             
             cmd_name = command_map.get(config.upload_type)

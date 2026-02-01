@@ -4,9 +4,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q, Count, Sum, Case, When, Value, IntegerField
+from django.db.models import Q, Count, Sum, Case, When, Value, IntegerField, F, DecimalField
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from decimal import Decimal
 from datetime import date
@@ -21,9 +23,8 @@ from inventory.models import Material
 
 
 def is_simple_applicant(user):
-    """檢查是否為簡易申請人員（非主管）"""
-    return user.groups.filter(name=GROUP_NAMES['APPLICANT']).exists() and \
-           not user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists() and \
+    """檢查是否為簡易申請人員（包含主管）"""
+    return user.groups.filter(name__in=[GROUP_NAMES['APPLICANT'], GROUP_NAMES['APPLICANT_SUPERVISOR']]).exists() and \
            not user.is_superuser
 
 
@@ -52,6 +53,11 @@ def simple_applicant_home(request):
     requisitions = Requisition.objects.filter(
         applicant=request.user
     ).order_by('-created_at')
+    
+    # 如果是主管，顯示所有申請單 (或根據需求過濾)
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if is_supervisor:
+        requisitions = Requisition.objects.all().order_by('-created_at')
     
     # TODO: 未來可根據 current_type 過濾不同類型的申請單
     # 目前先顯示所有申請單，待申請單有 material_type 欄位後再過濾
@@ -90,63 +96,222 @@ def simple_applicant_create(request):
     if request.method == 'POST':
         current_type = request.POST.get('type', 'finished')
     
+    # 取得申請人列表 (供主管選擇)
+    # 找出所有屬於 '申請人員' 群組的用戶
+    applicants = User.objects.filter(groups__name=GROUP_NAMES['APPLICANT']).order_by('username')
+
     if request.method == 'POST':
-        order_number = request.POST.get('order_number')
-        process_type_id = request.POST.get('process_type')
-        request_date = request.POST.get('request_date')
+        action = request.POST.get('action', 'create')
         
-        # Check if the work order is archived
-        try:
-            work_order = WorkOrder.objects.get(order_number=order_number)
-            if work_order.is_archived:
-                messages.error(request, f"工單 {order_number} 已被歸檔，無法為其建立新的撥料申請單。")
-                return render(request, 'requisitions/simple/simple_applicant_create.html', {
-                    'current_type': current_type,
-                    'today': date.today().isoformat()
-                })
-        except WorkOrder.DoesNotExist:
-            pass
-        
-        try:
-            if current_type == 'semi_finished':
-                # 半成品申請單
-                from requisitions.models import SemiFinishedProcessType
+        if current_type == 'semi_finished':
+            # --- 半成品：批量建立 & 預覽 ---
+            if action == 'preview':
+                # 步驟 1: 預覽
+                order_numbers_raw = request.POST.get('order_numbers', '')
+                default_applicant_id = request.POST.get('applicant_id')
+                default_request_date = request.POST.get('request_date')
                 
-                process_type_obj = get_object_or_404(SemiFinishedProcessType, id=process_type_id)
+                # 解析單號 (一行一個)
+                order_numbers = [line.strip() for line in order_numbers_raw.splitlines() if line.strip()]
                 
-                # 檢查是否已存在
-                existing_requisition = Requisition.objects.filter(
-                    order_number=order_number,
-                    process_type=process_type_obj.name,
-                    requisition_type='semi_finished'
-                ).first()
-                
-                if existing_requisition:
-                    messages.error(request, "此訂單單號在該投料點已存在半成品申請單。")
-                    return render(request, 'requisitions/simple/simple_applicant_create.html', {
-                        'current_type': current_type,
-                        'today': date.today().isoformat()
+                preview_items = []
+                for order_number in order_numbers:
+                    # 查詢對應機型 (從 WorkOrderMaterial 找)
+                    # 邏輯：找該單號關聯的第一個有效的 WorkOrderMaterial 的機型
+                    material_obj = WorkOrderMaterial.objects.filter(
+                        order_number=order_number, 
+                        machine_model__isnull=False
+                    ).first()
+                    
+                    machine_model_name = material_obj.machine_model.name if material_obj and material_obj.machine_model else "未知機型"
+                    
+                    preview_items.append({
+                        'order_number': order_number,
+                        'machine_model': machine_model_name,
+                        'applicant_id': default_applicant_id,
+                        'request_date': default_request_date
                     })
                 
-                # 建立申請單
+                return render(request, 'requisitions/simple/simple_applicant_batch_preview.html', {
+                    'preview_items': preview_items,
+                    'applicants': applicants,
+                    'today': date.today().strftime('%Y-%m-%d')
+                })
+                
+            elif action == 'confirm_create':
+                order_numbers = request.POST.getlist('order_number')
+                applicant_ids = request.POST.getlist('applicant_id')
+                request_dates = request.POST.getlist('request_date')
+                machine_models = request.POST.getlist('machine_model')
+
+                created_count = 0
+                error_count = 0
+                errors = []
+
+                if len(order_numbers) > 0:
+                    for i in range(len(order_numbers)):
+                        if i >= len(applicant_ids) or i >= len(request_dates) or i >= len(machine_models):
+                            continue
+                            
+                        order_number = order_numbers[i]
+                        applicant_id = applicant_ids[i]
+                        request_date_str = request_dates[i]
+                        model_name = machine_models[i]
+
+                        if not (order_number and applicant_id and request_date_str):
+                             continue
+
+                        try:
+                            if applicant_id:
+                                target_applicant = User.objects.get(pk=applicant_id)
+                            else:
+                                target_applicant = request.user
+                            
+                            # --- Logic to Update/Save Machine Model ---
+                            if model_name:
+                                 machine_model_obj, _ = MachineModel.objects.get_or_create(name=model_name.strip())
+                                 
+                                 # Update or Create WorkOrderMaterial 'PARENT_SCOPE'
+                                 WorkOrderMaterial.objects.update_or_create(
+                                     order_number=order_number,
+                                     material_number='PARENT_SCOPE',
+                                     defaults={
+                                         'machine_model': machine_model_obj,
+                                         'item_name': '訂單機型範圍',
+                                         'required_quantity': 0,
+                                         'is_active': True 
+                                     }
+                                 )
+                            # ------------------------------------------
+
+                            with transaction.atomic():
+                                # Duplicate check
+                                existing = Requisition.objects.filter(
+                                    order_number=order_number,
+                                    requisition_type='semi_finished',
+                                    process_type='SEMI'
+                                ).first()
+                                if existing:
+                                    error_count += 1
+                                    errors.append(f"工單 {order_number} 已存在")
+                                    continue
+
+                                requisition = Requisition.objects.create(
+                                    applicant=target_applicant,
+                                    order_number=order_number,
+                                    process_type='SEMI',
+                                    status='demand_submitted',
+                                    requisition_type='semi_finished',
+                                    request_date=request_date_str or date.today()
+                                )
+                                
+                                # Auto-add semi-finished materials
+                                materials_to_add = WorkOrderMaterial.objects.filter(
+                                    order_number=order_number,
+                                    material_type='semi_finished',
+                                    is_active=True
+                                )
+                                
+                                items_to_create = []
+                                for material in materials_to_add:
+                                    items_to_create.append(RequisitionItem(
+                                        requisition=requisition,
+                                        source_material=material,
+                                        order_number=material.order_number,
+                                        material_number=material.material_number,
+                                        item_name=material.item_name,
+                                        required_quantity=material.required_quantity,
+                                        stock_quantity=0
+                                    ))
+                                if items_to_create:
+                                    RequisitionItem.objects.bulk_create(items_to_create)
+                                
+                                created_count += 1
+                                
+                        except Exception as e:
+                            print(f"Error creating requisition for {order_number}: {e}")
+                            error_count += 1
+                            if hasattr(e, 'message'):
+                                errors.append(str(e.message))
+                            else:
+                                errors.append(str(e))
+
+                    if created_count > 0:
+                        messages.success(request, f"成功建立 {created_count} 張半成品申請單！")
+                    if error_count > 0:
+                         if created_count == 0:
+                              messages.error(request, f"建立失敗：<br>{'<br>'.join(errors)}")
+                         else:
+                              messages.warning(request, f"有 {error_count} 筆未建立：<br>{'<br>'.join(errors)}")
+                    
+                    return redirect('requisitions:simple_applicant_home')
+                
+                else:
+                    messages.error(request, "未提交任何資料")
+                    return redirect('requisitions:simple_applicant_create')
+
+            else:
+                 return redirect('requisitions:simple_applicant_create')
+
+        else:
+            # --- 成品：單筆建立 (原有邏輯) ---
+            order_number = request.POST.get('order_number')
+            process_type_id = request.POST.get('process_type')
+            request_date = request.POST.get('request_date')
+            
+            # Check if the work order is archived
+            try:
+                work_order = WorkOrder.objects.get(order_number=order_number)
+                if work_order.is_archived:
+                    messages.error(request, f"工單 {order_number} 已被歸檔，無法為其建立新的撥料申請單。")
+                    return render(request, 'requisitions/simple/simple_applicant_create.html', {
+                        'current_type': current_type,
+                        'today': date.today().isoformat(),
+                        'applicants': applicants
+                    })
+            except WorkOrder.DoesNotExist:
+                # 若工單不存在，是否阻擋？視需求。目前邏輯似乎是依賴 WorkOrderMaterial
+                pass
+
+            process_type_obj = get_object_or_404(ProcessType, id=process_type_id)
+
+            # 檢查是否已存在
+            existing_requisition = Requisition.objects.filter(
+                order_number=order_number,
+                process_type=process_type_obj.name,
+                requisition_type='finished'
+            ).first()
+
+            if existing_requisition:
+                messages.error(request, "此訂單單號在該投料點已存在申請單。")
+                return render(request, 'requisitions/simple/simple_applicant_create.html', {
+                    'current_type': current_type,
+                    'today': date.today().isoformat(),
+                    'applicants': applicants
+                })
+
+            # 建立申請單
+            with transaction.atomic():
                 requisition = Requisition.objects.create(
                     applicant=request.user,
                     order_number=order_number,
                     process_type=process_type_obj.name,
                     status='demand_submitted',
-                    requisition_type='semi_finished',
+                    requisition_type='finished',
                     request_date=request_date or date.today()
                 )
-                
-                # 新增物料項目 - 從半成品 WorkOrderMaterial
+
+                # 新增物料項目
                 materials_to_add = WorkOrderMaterial.objects.filter(
                     order_number=order_number,
-                    material_type='semi_finished',
+                    process_type=process_type_obj,
+                    material_type='finished',
                     is_active=True
                 )
                 
                 items_to_create = []
                 for material in materials_to_add:
+                    # 嘗試抓取即時庫存
                     main_material = Material.objects.filter(material_code=material.material_number).first()
                     stock_quantity = main_material.system_quantity if main_material else Decimal('0')
                     storage_bin = main_material.bin if main_material else ''
@@ -161,113 +326,50 @@ def simple_applicant_create(request):
                             required_quantity=material.required_quantity,
                             stock_quantity=stock_quantity,
                             storage_bin=storage_bin,
+                            confirmed_quantity=Decimal('0'),
                         )
                     )
                 
                 if items_to_create:
                     RequisitionItem.objects.bulk_create(items_to_create)
-                
-                messages.success(request, "半成品撥料申請單建立成功！")
-                return redirect('requisitions:simple_applicant_home')
-            else:
-                # 成品申請單 - 原有邏輯
-                # Re-generate choices for process_type based on the submitted order_number
-                material_process_type_ids = WorkOrderMaterial.objects.filter(
-                    order_number=order_number,
-                    is_active=True
-                ).values_list('process_type__id', flat=True).distinct()
+                    messages.info(request, f"已自動為此申請單加入 {len(items_to_create)} 筆物料項目。")
+                else:
+                    messages.warning(request, "警告：此申請單在對應的需求流程中沒有找到任何有效的物料項目。")
 
-                used_requisition_process_type_names = Requisition.objects.filter(
-                    order_number=order_number
-                ).values_list('process_type', flat=True)
+            messages.success(request, "撥料申請單建立成功！")
+            return redirect('requisitions:simple_applicant_home')
 
-                available_process_types_query = ProcessType.objects.filter(
-                    id__in=material_process_type_ids
-                ).exclude(
-                    name__in=used_requisition_process_type_names
-                ).order_by('name')
-                
-                form_process_type_choices = [(pt.id, pt.name) for pt in available_process_types_query]
-                form = RequisitionForm(request.POST, process_type_choices=form_process_type_choices)
-                
-                if form.is_valid():
-                    existing_requisition = Requisition.objects.filter(
-                        order_number=order_number,
-                        process_type=form.cleaned_data['process_type']
-                    ).first()
-
-                    if existing_requisition:
-                        messages.error(request, "此訂單單號在該需求流程中已存在。")
-                        return render(request, 'requisitions/simple/simple_applicant_create.html', {
-                            'form': form,
-                            'current_type': current_type,
-                            'today': date.today().isoformat()
-                        })
-
-                    selected_process_type_id = form.cleaned_data['process_type']
-                    selected_process_type_obj = get_object_or_404(ProcessType, id=selected_process_type_id)
-
-                    requisition = form.save(commit=False)
-                    requisition.applicant = request.user
-                    requisition.order_number = order_number
-                    requisition.process_type = selected_process_type_obj.name
-                    requisition.status = 'demand_submitted'
-                    requisition.save()
-
-                    # Find related process types (including children for Kits)
-                    related_process_types = [requisition.process_type]
-                    try:
-                        parent_pt = ProcessType.objects.filter(
-                            name=requisition.process_type, 
-                            machine_model__work_order_materials__order_number=requisition.order_number
-                        ).distinct().get()
-                        
-                        children_pts = ProcessType.objects.filter(parent=parent_pt).values_list('name', flat=True)
-                        related_process_types.extend(children_pts)
-                    except Exception:
-                        pass
-
-                    materials_to_add = WorkOrderMaterial.objects.filter(
-                        order_number=requisition.order_number,
-                        process_type__name__in=related_process_types,
-                        is_active=True
-                    )
-
-                    items_to_create = []
-                    for material in materials_to_add:
-                        main_material = Material.objects.filter(material_code=material.material_number).first()
-                        stock_quantity = main_material.system_quantity if main_material else Decimal('0')
-                        storage_bin = main_material.bin if main_material else ''
-
-                        items_to_create.append(
-                            RequisitionItem(
-                                requisition=requisition,
-                                source_material=material,
-                                order_number=material.order_number,
-                                material_number=material.material_number,
-                                item_name=material.item_name,
-                                required_quantity=material.required_quantity,
-                                stock_quantity=stock_quantity,
-                                storage_bin=storage_bin,
-                            )
-                        )
-                    
-                    if items_to_create:
-                        RequisitionItem.objects.bulk_create(items_to_create)
-
-                    messages.success(request, "撥料申請單建立成功！")
-                    return redirect('requisitions:simple_applicant_home')
-        except Exception as e:
-            messages.error(request, f"建立申請單時發生錯誤：{str(e)}")
-    else:
-        form = RequisitionForm()
-    
-    context = {
-        'form': form if 'form' in dir() else RequisitionForm(),
+    return render(request, 'requisitions/simple/simple_applicant_create.html', {
         'current_type': current_type,
-        'today': date.today().isoformat()
-    }
-    return render(request, 'requisitions/simple/simple_applicant_create.html', context)
+        'today': date.today().isoformat(),
+        'applicants': applicants
+    })
+
+
+
+@login_required
+def simple_applicant_delete(request, pk):
+    """簡易申請人員刪除申請單"""
+    if not is_simple_applicant(request.user) and not request.user.is_superuser:
+        return redirect('requisitions:requisition_list')
+
+    requisition = get_object_or_404(Requisition, pk=pk)
+
+    # 權限檢查：只能刪除自己的申請單（除非是超級管理員 或 申請人員主管）
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
+        messages.error(request, '您無權限刪除此申請單。')
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
+
+    # 狀態檢查：只能刪除 'demand_submitted' 狀態的申請單
+    if requisition.status != 'demand_submitted':
+        messages.error(request, '只能刪除尚未撥料的申請單。')
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
+
+    if request.method == 'POST':
+        requisition.delete()
+        messages.success(request, '申請單已刪除。')
+        return redirect('requisitions:simple_applicant_home')
 
 
 @login_required
@@ -275,8 +377,9 @@ def simple_applicant_detail(request, pk):
     """簡易申請人員查看申請單詳情"""
     requisition = get_object_or_404(Requisition, pk=pk)
     
-    # 檢查是否為申請人本人
-    if requisition.applicant != request.user and not request.user.is_superuser:
+    # 檢查是否為申請人本人 (或主管)
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
         messages.error(request, "您沒有權限查看此申請單。")
         return redirect('requisitions:simple_applicant_home')
     
@@ -298,6 +401,18 @@ def simple_applicant_detail(request, pk):
                 item.expected_date = None
         else:
             item.is_shortage = False
+            
+        # 檢查庫存是否不足
+        item.is_insufficient_stock = False
+        if item.stock_quantity is not None and item.required_quantity is not None:
+             # 如果尚未撥料且庫存 < 需求，標記為庫存不足
+             if item.dispatch_status != 'dispatched' and item.stock_quantity < item.required_quantity:
+                 item.is_insufficient_stock = True
+                 # 嘗試取得預計入料日期
+                 if item.source_material:
+                     item.expected_date = item.source_material.estimated_arrival_date
+                 else:
+                     item.expected_date = None
     
     context = {
         'requisition': requisition,
@@ -315,8 +430,9 @@ def simple_applicant_update_process_type(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
-    # 檢查是否為申請人本人或管理員
-    if requisition.applicant != request.user and not request.user.is_superuser:
+    # 檢查是否為申請人本人或管理員 (或主管)
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
         if is_ajax:
             return JsonResponse({'success': False, 'message': '您沒有權限修改此申請單。'})
         messages.error(request, "您沒有權限修改此申請單。")
@@ -385,6 +501,60 @@ def simple_applicant_update_process_type(request, pk):
                 return JsonResponse({'success': False, 'message': f'更新失敗：{str(e)}'})
             messages.error(request, f"更新失敗：{str(e)}")
     
+    return redirect('requisitions:simple_applicant_detail', pk=pk)
+
+
+@login_required
+def simple_applicant_update_request_date(request, pk):
+    """申請人員修改需求日期"""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    
+    # Check permission
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
+        message = "您沒有權限修改此申請單。"
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': message})
+        messages.error(request, message)
+        return redirect('requisitions:simple_applicant_home')
+    
+    # Check status
+    if requisition.status not in ['demand_submitted']:
+        message = "已開始撥料的申請單無法修改需求日期。"
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': message})
+        messages.error(request, message)
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
+    
+    if request.method == 'POST':
+        new_date_str = request.POST.get('request_date')
+        
+        if not new_date_str:
+            message = "請選擇有效的日期。"
+            if is_ajax:
+                return JsonResponse({'success': False, 'message': message})
+            messages.error(request, message)
+        else:
+            try:
+                # Validate and convert date
+                from datetime import datetime
+                new_date = datetime.strptime(new_date_str, '%Y-%m-%d').date()
+                
+                requisition.request_date = new_date
+                requisition.save()
+                
+                message = f"需求日期已更新為 {new_date_str}。"
+                if is_ajax:
+                    return JsonResponse({'success': True, 'message': message})
+                messages.success(request, message)
+                
+            except ValueError:
+                message = "日期格式錯誤。"
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': message})
+                messages.error(request, message)
+            
     return redirect('requisitions:simple_applicant_detail', pk=pk)
 
 
@@ -607,7 +777,32 @@ def simple_dispatcher_detail(request, category, pk):
         return redirect('requisitions:requisition_list')
     
     requisition = get_object_or_404(Requisition, pk=pk)
-    items = requisition.items.all().order_by('material_number')
+    
+    # Get sort parameter
+    sort_param = request.GET.get('sort', 'material')
+    if request.method == 'POST':
+        sort_param = request.POST.get('sort', sort_param)
+        
+    # Apply sorting
+    if sort_param == 'bin':
+        items = requisition.items.all().order_by('storage_bin', 'material_number')
+    elif sort_param == 'name':
+        items = requisition.items.all().order_by('item_name', 'material_number')
+    elif sort_param == 'status':
+        # Status sort: Pending (None/Empty) -> Backordered -> Dispatched
+        items = requisition.items.all().annotate(
+            status_order=Case(
+                When(dispatch_status__isnull=True, then=Value(1)),
+                When(dispatch_status='', then=Value(1)),
+                When(dispatch_status='backordered', then=Value(2)),
+                When(dispatch_status='dispatched', then=Value(3)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        ).order_by('status_order', 'material_number')
+    else:
+        # Default: material number
+        items = requisition.items.all().order_by('material_number')
     
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -728,7 +923,9 @@ def simple_dispatcher_detail(request, category, pk):
             result['total_count'] = total
             return JsonResponse(result)
         
-        return redirect('requisitions:simple_dispatcher_detail', category=category, pk=pk)
+
+        
+        return redirect(f"{reverse('requisitions:simple_dispatcher_detail', kwargs={'category': category, 'pk': pk})}?sort={sort_param}")
     
     # 計算進度
     total = items.count()
@@ -736,18 +933,12 @@ def simple_dispatcher_detail(request, category, pk):
     progress = int((dispatched / total * 100) if total > 0 else 0)
     
     # --- 檢查更早的未撥需求 (優先工單警示) ---
-    from django.db.models.functions import Coalesce
-    from django.db.models import F
-    
     backlog_map = {}
     target_material_numbers = list(items.values_list('material_number', flat=True))
     
     if target_material_numbers:
         # 1. 找出相同物料在其他工單的未撥需求（欠料大於 0）
         from ..models import WorkOrderMaterial
-        from django.db.models import DecimalField
-        from django.db.models.functions import Coalesce
-        from django.db.models import F, Value
         
         other_shortages = WorkOrderMaterial.objects.filter(
             material_number__in=target_material_numbers,
@@ -854,6 +1045,18 @@ def simple_dispatcher_detail(request, category, pk):
                 supp.card_class = ''
                 supp.status_text = '待撥'
             supp.is_actionable = supp.dispatch_status not in ['dispatched', 'backordered']
+            
+        # 檢查庫存是否不足 (針對主項目)
+        item.is_insufficient_stock = False
+        if item.stock_quantity is not None and item.required_quantity is not None:
+             # 如果尚未撥料且庫存 < 需求，標記為庫存不足
+             if item.dispatch_status != 'dispatched' and item.stock_quantity < item.required_quantity:
+                 item.is_insufficient_stock = True
+                 # 嘗試取得預計入料日期
+                 if item.source_material:
+                     item.expected_date = item.source_material.estimated_arrival_date
+                 else:
+                     item.expected_date = None
     
     # 取得類型參數
     current_type = request.GET.get('type', 'finished')
@@ -870,5 +1073,6 @@ def simple_dispatcher_detail(request, category, pk):
         'total_count': total,
         'is_completed': requisition.status in ['dispatch_completed', 'signed_off'],
         'current_type': current_type,
+        'current_sort': sort_param,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_detail.html', context)

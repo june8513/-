@@ -107,6 +107,21 @@ def bulk_upload(request):
                     os.unlink(temp_file_path)
                 except Exception as e:
                     results.append(f"❌ 半成品物料明細錯誤：{str(e)}")
+
+            # Process Semi-Finished Model Database File (New)
+            semi_finished_model_file = request.FILES.get('semi_finished_model_file')
+            if semi_finished_model_file:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                        for chunk in semi_finished_model_file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    # Reuse process_order_model_excel as logic is identical (Order -> Machine Model)
+                    created, updated = process_order_model_excel(temp_file_path)
+                    results.append(f"✅ 半成品機型對照表：新增 {created} 筆，更新 {updated} 筆")
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    results.append(f"❌ 半成品機型對照表錯誤：{str(e)}")
             
             if not results:
                 messages.warning(request, "請至少選擇一個檔案上傳。")
