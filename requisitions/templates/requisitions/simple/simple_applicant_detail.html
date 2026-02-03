@@ -245,9 +245,11 @@
         cursor: pointer;
         margin-left: 0.5rem;
     }
+
     .item-sign-off-btn:hover {
         background: #059669;
     }
+
     .signed-badge {
         display: inline-block;
         padding: 0.25rem 0.5rem;
@@ -258,6 +260,7 @@
         color: #065F46;
         margin-left: 0.5rem;
     }
+
     .edit-btn {
         background: none;
         border: none;
@@ -268,10 +271,13 @@
         opacity: 0.7;
         transition: opacity 0.2s;
     }
+
     .edit-btn:hover {
         opacity: 1;
     }
-    .save-btn, .cancel-btn {
+
+    .save-btn,
+    .cancel-btn {
         padding: 0.25rem 0.6rem;
         font-size: 0.8rem;
         border-radius: 6px;
@@ -279,17 +285,21 @@
         cursor: pointer;
         margin-left: 0.25rem;
     }
+
     .save-btn {
         background: #3B82F6;
         color: white;
     }
+
     .save-btn:hover {
         background: #2563EB;
     }
+
     .cancel-btn {
         background: #E5E7EB;
         color: #374151;
     }
+
     .cancel-btn:hover {
         background: #D1D5DB;
     }
@@ -343,10 +353,15 @@
             <span class="info-value">{{ requisition.order_number }}</span>
         </div>
         <div class="info-row" id="process-type-row">
+            {% if requisition.requisition_type == 'semi_finished' %}
+            <span class="info-label">領料人</span>
+            <span class="info-value">{{ requisition.applicant.username }}</span>
+            {% else %}
             <span class="info-label">投料點</span>
             <span class="info-value" id="process-type-display">
                 {{ requisition.process_type }}
             </span>
+            {% endif %}
 
         </div>
         <div class="info-row">
@@ -363,7 +378,8 @@
             </span>
             {% if requisition.status == 'demand_submitted' %}
             <div id="req-date-edit" style="display: none; flex: 1;">
-                <input type="date" id="req-date-input" class="form-control form-control-sm" style="display: inline-block; width: auto;" value="{{ requisition.request_date|date:'Y-m-d' }}">
+                <input type="date" id="req-date-input" class="form-control form-control-sm"
+                    style="display: inline-block; width: auto;" value="{{ requisition.request_date|date:'Y-m-d' }}">
                 <button type="button" class="save-btn" id="save-req-date-btn">儲存</button>
                 <button type="button" class="cancel-btn" id="cancel-req-date-btn">取消</button>
             </div>
@@ -384,12 +400,14 @@
             </span>
         </div>
 
-        
+
         {% if requisition.status == 'demand_submitted' %}
         <div class="info-row" style="border-bottom: none; padding-top: 1rem; justify-content: flex-end;">
-            <form action="{% url 'requisitions:simple_applicant_delete' pk=requisition.pk %}" method="post" onsubmit="return confirm('確定要刪除這張申請單嗎？此動作無法復原。');">
+            <form action="{% url 'requisitions:simple_applicant_delete' pk=requisition.pk %}" method="post"
+                onsubmit="return confirm('確定要刪除這張申請單嗎？此動作無法復原。');">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger btn-sm" style="border-radius: 8px;">🗑️ 刪除申請單</button>
+                <button type="submit" class="btn btn-outline-danger btn-sm" style="border-radius: 8px;">🗑️
+                    刪除申請單</button>
             </form>
         </div>
         {% endif %}
@@ -406,7 +424,9 @@
                 <div class="material-number">{{ item.material_number }}</div>
                 <div class="material-name">{{ item.item_name }}</div>
                 {% if item.is_insufficient_stock %}
-                <span class="shortage-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;">⚠️ 庫存不足 (剩餘: {{ item.stock_quantity|floatformat:0 }}){% if item.expected_date %} 預計入料: {{ item.expected_date|date:"m/d" }}{% endif %}</span>
+                <span class="shortage-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;">⚠️
+                    庫存不足 (剩餘: {{ item.stock_quantity|floatformat:0 }}){% if item.expected_date %} 預計入料: {{
+                    item.expected_date|date:"m/d" }}{% endif %}</span>
                 {% endif %}
                 {% if item.is_shortage and item.expected_date %}
                 <span class="shortage-badge">預計入料: {{ item.expected_date|date:"m/d" }}</span>
@@ -421,11 +441,13 @@
                     {% endif %}
                 </div>
             </div>
-            <div class="status-icon {% if item.dispatch_status == 'dispatched' %}success{% elif item.is_shortage %}shortage{% else %}pending{% endif %}">
+            <div
+                class="status-icon {% if item.dispatch_status == 'dispatched' %}success{% elif item.is_shortage %}shortage{% else %}pending{% endif %}">
                 {% if item.dispatch_status == 'dispatched' %}✓{% elif item.is_shortage %}!{% else %}○{% endif %}
             </div>
             {% if item.dispatch_status == 'dispatched' and not item.is_signed_off %}
-            <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}" style="display:inline;" class="sign-off-form">
+            <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}"
+                style="display:inline;" class="sign-off-form">
                 {% csrf_token %}
                 <input type="hidden" name="sign_off_item_{{ item.pk }}" value="1">
                 <button type="submit" class="item-sign-off-btn">簽收</button>
@@ -441,10 +463,12 @@
 
     <!-- Sign Off Button -->
     {% if requisition.status != 'signed_off' %}
-    <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}" class="sign-off-form">
+    <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}"
+        class="sign-off-form">
         {% csrf_token %}
         <input type="hidden" name="confirm_all_sign_off" value="1">
-            <button type="submit" class="sign-off-btn" {% if dispatched_count == 0 %}disabled{% endif %}>簽收已撥料物料 ({{ dispatched_count }} 項)</button>
+        <button type="submit" class="sign-off-btn" {% if dispatched_count==0 %}disabled{% endif %}>簽收已撥料物料 ({{
+            dispatched_count }} 項)</button>
     </form>
     {% else %}
     <div class="alert alert-success text-center">此申請單已完成簽收</div>
@@ -454,111 +478,30 @@
 
 {% block extra_js %}
 <script>
-(function() {
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    
-    function showToast(message, success) {
-        const toast = document.createElement('div');
-        toast.className = 'alert ' + (success ? 'alert-success' : 'alert-danger');
-        toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;padding:12px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
-    
-    function handleSignOff(e) {
-        e.preventDefault();
-        const form = e.target;
-        const btn = form.querySelector('button');
-        const itemRow = form.closest('.material-item');
-        
-        btn.disabled = true;
-        btn.textContent = '處理中...';
-        
-        const formData = new FormData(form);
-        
-        fetch(form.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            showToast(data.message, data.success);
-            if (data.success) {
-                // 更新 UI - 替換按鈕為已簽收標籤
-                if (itemRow) {
-                    form.remove();
-                    const badge = document.createElement('span');
-                    badge.className = 'signed-badge';
-                    badge.textContent = '已簽收';
-                    itemRow.appendChild(badge);
-                }
-                
-                // 如果全部簽收完成，刷新頁面顯示完成狀態
-                if (data.requisition_completed) {
-                    setTimeout(() => window.location.reload(), 1000);
-                }
-            } else {
-                btn.disabled = false;
-                btn.textContent = '簽收';
-            }
-        })
-        .catch(error => {
-            showToast('操作失敗，請重試', false);
-            btn.disabled = false;
-            btn.textContent = '簽收';
-        });
-    }
-    
-    // 設定進度條寬度
-    document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function(el) {
-        el.style.width = el.dataset.progress + '%';
-    });
-    
-    // 綁定所有簽收表單
-    document.querySelectorAll('form.sign-off-form').forEach(form => {
-        form.addEventListener('submit', handleSignOff);
-    });
-    
-    // 需求日期編輯功能
-    const editDateBtn = document.getElementById('edit-req-date-btn');
-    const dateDisplay = document.getElementById('req-date-display');
-    const dateEdit = document.getElementById('req-date-edit');
-    const dateInput = document.getElementById('req-date-input');
-    const saveDateBtn = document.getElementById('save-req-date-btn');
-    const cancelDateBtn = document.getElementById('cancel-req-date-btn');
-    
-    if (editDateBtn) {
-        const updateUrl = '{% url "requisitions:simple_applicant_update_request_date" pk=requisition.pk %}';
-        
-        editDateBtn.addEventListener('click', function() {
-            dateDisplay.style.display = 'none';
-            dateEdit.style.display = 'flex';
-        });
-        
-        cancelDateBtn.addEventListener('click', function() {
-            dateDisplay.style.display = '';
-            dateEdit.style.display = 'none';
-        });
-        
-        saveDateBtn.addEventListener('click', function() {
-            const newDate = dateInput.value;
-            if (!newDate) {
-                showToast('請選擇日期', false);
-                return;
-            }
-            
-            saveDateBtn.disabled = true;
-            saveDateBtn.textContent = '儲存中...';
-            
-            const formData = new FormData();
-            formData.append('request_date', newDate);
-            
-            fetch(updateUrl, {
+    (function () {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        function showToast(message, success) {
+            const toast = document.createElement('div');
+            toast.className = 'alert ' + (success ? 'alert-success' : 'alert-danger');
+            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;padding:12px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function handleSignOff(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('button');
+            const itemRow = form.closest('.material-item');
+
+            btn.disabled = true;
+            btn.textContent = '處理中...';
+
+            const formData = new FormData(form);
+
+            fetch(form.action, {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -566,26 +509,107 @@
                     'X-CSRFToken': csrfToken
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                showToast(data.message, data.success);
-                if (data.success) {
-                    // 重新整理頁面顯示新日期（簡單起見，或者可以只更新文字）
-                    setTimeout(() => window.location.reload(), 500);
-                } else {
-                    saveDateBtn.disabled = false;
-                    saveDateBtn.textContent = '儲存';
-                }
-            })
-            .catch(error => {
-                showToast('更新失敗，請重試', false);
-                saveDateBtn.disabled = false;
-                saveDateBtn.textContent = '儲存';
-            });
-        });
-    }
-    
+                .then(response => response.json())
+                .then(data => {
+                    showToast(data.message, data.success);
+                    if (data.success) {
+                        // 更新 UI - 替換按鈕為已簽收標籤
+                        if (itemRow) {
+                            form.remove();
+                            const badge = document.createElement('span');
+                            badge.className = 'signed-badge';
+                            badge.textContent = '已簽收';
+                            itemRow.appendChild(badge);
+                        }
 
-})();
+                        // 如果全部簽收完成，刷新頁面顯示完成狀態
+                        if (data.requisition_completed) {
+                            setTimeout(() => window.location.reload(), 1000);
+                        }
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = '簽收';
+                    }
+                })
+                .catch(error => {
+                    showToast('操作失敗，請重試', false);
+                    btn.disabled = false;
+                    btn.textContent = '簽收';
+                });
+        }
+
+        // 設定進度條寬度
+        document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function (el) {
+            el.style.width = el.dataset.progress + '%';
+        });
+
+        // 綁定所有簽收表單
+        document.querySelectorAll('form.sign-off-form').forEach(form => {
+            form.addEventListener('submit', handleSignOff);
+        });
+
+        // 需求日期編輯功能
+        const editDateBtn = document.getElementById('edit-req-date-btn');
+        const dateDisplay = document.getElementById('req-date-display');
+        const dateEdit = document.getElementById('req-date-edit');
+        const dateInput = document.getElementById('req-date-input');
+        const saveDateBtn = document.getElementById('save-req-date-btn');
+        const cancelDateBtn = document.getElementById('cancel-req-date-btn');
+
+        if (editDateBtn) {
+            const updateUrl = '{% url "requisitions:simple_applicant_update_request_date" pk=requisition.pk %}';
+
+            editDateBtn.addEventListener('click', function () {
+                dateDisplay.style.display = 'none';
+                dateEdit.style.display = 'flex';
+            });
+
+            cancelDateBtn.addEventListener('click', function () {
+                dateDisplay.style.display = '';
+                dateEdit.style.display = 'none';
+            });
+
+            saveDateBtn.addEventListener('click', function () {
+                const newDate = dateInput.value;
+                if (!newDate) {
+                    showToast('請選擇日期', false);
+                    return;
+                }
+
+                saveDateBtn.disabled = true;
+                saveDateBtn.textContent = '儲存中...';
+
+                const formData = new FormData();
+                formData.append('request_date', newDate);
+
+                fetch(updateUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        showToast(data.message, data.success);
+                        if (data.success) {
+                            // 重新整理頁面顯示新日期（簡單起見，或者可以只更新文字）
+                            setTimeout(() => window.location.reload(), 500);
+                        } else {
+                            saveDateBtn.disabled = false;
+                            saveDateBtn.textContent = '儲存';
+                        }
+                    })
+                    .catch(error => {
+                        showToast('更新失敗，請重試', false);
+                        saveDateBtn.disabled = false;
+                        saveDateBtn.textContent = '儲存';
+                    });
+            });
+        }
+
+
+    })();
 </script>
 {% endblock %}

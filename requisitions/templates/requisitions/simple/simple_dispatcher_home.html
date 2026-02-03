@@ -166,20 +166,20 @@
 
     <!-- 成品/半成品標籤切換 -->
     <div class="type-tabs">
-        <a href="{% url 'requisitions:simple_dispatcher_home' %}" 
-           class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
+        <a href="{% url 'requisitions:simple_dispatcher_home' %}"
+            class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
             📦 成品撥料
         </a>
-        <a href="{% url 'requisitions:simple_dispatcher_home' %}?type=semi_finished" 
-           class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
+        <a href="{% url 'requisitions:simple_dispatcher_home' %}?type=semi_finished"
+            class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
             🔧 半成品撥料
         </a>
     </div>
 
     <div class="categories-grid">
         {% for cat in categories %}
-        <a href="{% url 'requisitions:simple_dispatcher_category' category=cat.name %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="category-card"
-            style="background: {{ cat.color }};">
+        <a href="{% url 'requisitions:simple_dispatcher_category' category=cat.name %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
+            class="category-card" style="background: {{ cat.color }};">
             <span class="pending-badge {% if cat.pending_count > 0 %}has-pending{% endif %}">
                 待撥: {{ cat.pending_count }}
             </span>
@@ -188,8 +188,8 @@
         {% empty %}
         <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #9CA3AF;">
             {% if current_type == 'semi_finished' %}
-            目前沒有半成品投料點。<br>
-            請聯繫主管設定投料點。
+            目前沒有待撥的半成品申請。<br>
+            等待申請人員提交需求。
             {% else %}
             目前沒有投料點資料。
             {% endif %}

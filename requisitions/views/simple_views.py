@@ -658,23 +658,27 @@ def simple_dispatcher_home(request):
     categories = []
     
     if current_type == 'semi_finished':
-        # 載入半成品投料點
-        from ..models import SemiFinishedProcessType
-        semi_process_types = SemiFinishedProcessType.objects.filter(is_active=True).order_by('order', 'name')
+        # 半成品：改依「領料人 (Applicant)」分組
+        # 找出所有狀態為「待撥」或「撥料中」的半成品申請單
+        pending_requisitions = Requisition.objects.filter(
+            requisition_type='semi_finished',
+            status__in=['demand_submitted', 'dispatch_in_progress']
+        ).values('applicant__username').annotate(
+            pending_count=Count('id')
+        ).order_by('applicant__username')
         
-        for pt in semi_process_types:
-            # 計算該投料點的待撥申請單數量
-            pending_count = Requisition.objects.filter(
-                process_type=pt.name,
-                requisition_type='semi_finished',
-                status__in=['demand_submitted', 'dispatch_in_progress']
-            ).count()
+        for item in pending_requisitions:
+            username = item['applicant__username']
+            count = item['pending_count']
             
+            # 為了介面一致性，這裡的 name 放 username
+            # color 可以隨機或固定，這裡暫時給一個預設色
             categories.append({
-                'name': pt.name,
-                'color': pt.color,
-                'pending_count': pending_count,
+                'name': username, 
+                'color': '#8B5CF6', # Purple for applicants
+                'pending_count': count,
             })
+            
     else:
         # 載入成品投料點（原有邏輯）
         for category_name in PROCESS_CATEGORY_NAMES:
@@ -699,7 +703,7 @@ def simple_dispatcher_home(request):
 
 @login_required
 def simple_dispatcher_category(request, category):
-    """簡易撥料人員查看特定投料點的申請單"""
+    """簡易撥料人員查看特定投料點（或申請人）的申請單"""
     if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
         return redirect('requisitions:requisition_list')
     
@@ -711,31 +715,24 @@ def simple_dispatcher_category(request, category):
     today = timezone.now().date()
     
     if current_type == 'semi_finished':
-        # 半成品投料點
-        from ..models import SemiFinishedProcessType
+        # 半成品：category 代表 applicant.username
+        target_username = category
+        category_color = '#8B5CF6' # Purple
         
-        # 驗證投料點存在
-        if not SemiFinishedProcessType.objects.filter(name=category, is_active=True).exists():
-            messages.error(request, "無效的半成品投料點。")
-            return redirect('requisitions:simple_dispatcher_home')
-        
-        # 取得投料點顏色
-        pt = SemiFinishedProcessType.objects.filter(name=category).first()
-        category_color = pt.color if pt else '#6B7280'
-        
-        # 待撥料申請單
+        # 待撥料申請單 (依領料人過濾)
         pending_requisitions = Requisition.objects.filter(
-            process_type=category,
+            applicant__username=target_username,
             requisition_type='semi_finished',
             status__in=['demand_submitted', 'dispatch_in_progress']
         ).order_by('-created_at')
         
-        # 已撥料申請單
+        # 已撥料申請單 (依領料人過濾)
         completed_requisitions = Requisition.objects.filter(
-            process_type=category,
+            applicant__username=target_username,
             requisition_type='semi_finished',
             status__in=['dispatch_completed', 'signed_off']
         ).order_by('-updated_at')[:20]
+        
     else:
         # 成品投料點（原有邏輯）
         if category not in PROCESS_CATEGORY_NAMES:
