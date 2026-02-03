@@ -1,3 +1,4 @@
+
 import os
 import time
 import shutil
@@ -15,7 +16,7 @@ from django.utils import timezone
 from requisitions.models import AutoUploadConfig
 
 BASE_DIR = settings.BASE_DIR 
-DEFAULT_MONITOR_DIR = os.path.join(BASE_DIR, 'auto_upload', 'inventory') 
+DEFAULT_MONITOR_DIR = os.path.join(BASE_DIR, 'auto_upload', 'semi_finished_model_db')
 TIMESTAMP_FILE = os.path.join(DEFAULT_MONITOR_DIR, 'last_processed_timestamps.json')
 
 os.makedirs(DEFAULT_MONITOR_DIR, exist_ok=True)
@@ -30,11 +31,11 @@ def save_timestamps(timestamps):
     with open(TIMESTAMP_FILE, 'w') as f:
         json.dump(timestamps, f, indent=4)
 
-def run_monitor_inventory(): # Renamed function
-    print(f"--- 3. Running Inventory Monitor ---")
+def run_monitor_semi_finished_model_db():
+    print(f"--- Running Semi-Finished Model DB Monitor ---")
     
     # Check AutoUploadConfig first
-    config = AutoUploadConfig.objects.filter(upload_type='inventory', is_active=True).first()
+    config = AutoUploadConfig.objects.filter(upload_type='semi_finished_model_db', is_active=True).first()
     
     monitor_paths = []
     if config and config.file_path and os.path.exists(config.file_path):
@@ -69,7 +70,7 @@ def run_monitor_inventory(): # Renamed function
                 
                 if filename not in last_processed_timestamps or current_mtime > last_processed_timestamps[filename]:
                     print(f"Detected change in {filename}. Attempting to upload...")
-                    call_command('auto_upload_inventory', path=file_path)
+                    call_command('auto_upload_semi_finished_model_db', path=file_path)
                     print(f"Successfully processed {filename}.")
                     last_processed_timestamps[filename] = current_mtime
                     
@@ -90,4 +91,4 @@ def run_monitor_inventory(): # Renamed function
     save_timestamps(last_processed_timestamps)
 
 if __name__ == "__main__":
-    run_monitor_inventory()
+    run_monitor_semi_finished_model_db()

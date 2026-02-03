@@ -24,6 +24,7 @@ urlpatterns = [
     path('assistant/', assistant_views.assistant_view, name='assistant'),
     path('api/natural_action/', api_views.natural_action_view, name='natural_action'),
     path('api/check_task_status/<str:task_id>/', api_views.check_task_status, name='check_task_status'),
+    path('api/shortage_materials/', api_views.shortage_materials_api, name='shortage_materials_api'),
     path('finished_goods_dispatch/', views.finished_goods_dispatch, name='finished_goods_dispatch'),
     path('<int:pk>/images/', views.view_requisition_images, name='view_requisition_images'),
     path('<int:pk>/upload_page/', views.upload_requisition_images_page, name='upload_requisition_images_page'),

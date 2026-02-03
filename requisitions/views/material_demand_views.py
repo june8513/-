@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from ..models import Requisition, WorkOrderMaterial, Inventory
+from ..models import Requisition, WorkOrderMaterial, Inventory, RequisitionItem
 from inventory.models import Material
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator, EmptyPage
@@ -171,49 +171,35 @@ def shortage_materials_list(request):
         messages.error(request, "您沒有權限查看此頁面。")
         return redirect('homepage')
 
-    # Get order_number and process_type pairs from all active (non-archived) requisitions
-    active_requisition_pairs = Requisition.objects.filter(
-        is_archived=False
-    ).values_list('order_number', 'process_type')
-
-    # Build a Q object to filter WorkOrderMaterial based on these pairs
-    q_objects = Q()
-    if not active_requisition_pairs:
-        shortage_materials_qs = WorkOrderMaterial.objects.none()
-    else:
-        for order_num, proc_type in active_requisition_pairs:
-            # Ensure proc_type is not null or empty before adding to the query
-            if order_num and proc_type:
-                q_objects |= Q(order_number=order_num, process_type__name=proc_type)
-
-        # Filter for active, backordered materials associated with active requisitions
-        shortage_materials_qs = WorkOrderMaterial.objects.filter(
-            q_objects,
-            is_active=True,
-            required_quantity__gt=Coalesce('confirmed_quantity', Decimal('0.00'))
-        ).exclude(material_number='PARENT_SCOPE').order_by('material_number', 'pk')
-
-    # Aggregate in Python
+    # 只顯示被標記為「缺料」的物料（透過簡易撥料頁面的缺料按鈕標記）
+    backordered_items = RequisitionItem.objects.filter(
+        dispatch_status='backordered',
+        requisition__is_archived=False
+    )
+    
+    # 聚合相同物料
     aggregated_shortages = {}
-    for material in shortage_materials_qs:
-        key = material.material_number
+    for item in backordered_items:
+        key = item.material_number
+        shortage = item.required_quantity - (item.confirmed_quantity or 0)
+        if shortage <= 0:
+            continue
+            
         if key not in aggregated_shortages:
-            # Subquery to get the latest estimated_arrival_date for this material number
+            # 嘗試從 WorkOrderMaterial 取得預計入料日期
             latest_date = WorkOrderMaterial.objects.filter(
                 material_number=key
             ).aggregate(latest_date=Max('estimated_arrival_date'))['latest_date']
-
+            
             aggregated_shortages[key] = {
-                'material_number': material.material_number,
-                'item_name': material.item_name,
+                'material_number': item.material_number,
+                'item_name': item.item_name,
                 'total_shortage': Decimal('0.00'),
                 'orders': set(),
                 'estimated_arrival_date': latest_date
             }
-        shortage = material.required_quantity - (material.confirmed_quantity or 0)
-        if shortage > 0:
-            aggregated_shortages[key]['total_shortage'] += shortage
-            aggregated_shortages[key]['orders'].add(material.order_number)
+        aggregated_shortages[key]['total_shortage'] += shortage
+        aggregated_shortages[key]['orders'].add(item.order_number)
 
     # Convert to list and format orders_str
     summarized_shortages = list(aggregated_shortages.values())

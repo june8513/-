@@ -10,10 +10,12 @@ from monitor_order_models import run_monitor_order_models
 from monitor_material_details import run_monitor_material_details
 from monitor_inventory import run_monitor_inventory
 from monitor_semi_finished import run_monitor_semi_finished
+from monitor_semi_finished_model_db import run_monitor_semi_finished_model_db
+from sync_estimated_arrival_dates import run_sync_estimated_arrival_dates
 
 def main():
     """
-    Runs all three monitoring and upload scripts in the specified order.
+    Runs all five monitoring and upload scripts in the specified order.
     """
     print("=========================================")
     print("Starting All Automatic Upload Monitors...")
@@ -51,6 +53,24 @@ def main():
         run_monitor_semi_finished()
     except Exception as e:
         print("\nAn error occurred during the Semi-Finished upload:")
+        print(f"Error: {e}\n")
+
+    print("\n-----------------------------------------\n")
+
+    # 5. Semi-Finished Model DB
+    try:
+        run_monitor_semi_finished_model_db()
+    except Exception as e:
+        print("\nAn error occurred during the Semi-Finished Model DB upload:")
+        print(f"Error: {e}\n")
+
+    print("\n-----------------------------------------\n")
+
+    # 6. Sync Estimated Arrival Dates
+    try:
+        run_sync_estimated_arrival_dates()
+    except Exception as e:
+        print("\nAn error occurred during the Sync Estimated Arrival Dates:")
         print(f"Error: {e}\n")
 
     print("=========================================")

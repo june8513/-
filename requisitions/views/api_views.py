@@ -51,3 +51,53 @@ def check_task_status(request, task_id):
         return JsonResponse({'status': status, 'error': error}, status=500)
     else: # PENDING or PROCESSING
         return JsonResponse({'status': status, 'message': '任務仍在處理中...'})
+
+
+def shortage_materials_api(request):
+    """
+    API endpoint to get shortage materials data (items marked as 'backordered').
+    Returns JSON data for external programs to use.
+    """
+    from decimal import Decimal
+    from requisitions.models import RequisitionItem, WorkOrderMaterial
+    from django.db.models import Max
+    
+    # 只取得被標記為「缺料」的物料
+    backordered_items = RequisitionItem.objects.filter(
+        dispatch_status='backordered',
+        requisition__is_archived=False
+    )
+    
+    # 聚合相同物料
+    aggregated_shortages = {}
+    for item in backordered_items:
+        key = item.material_number
+        shortage = float(item.required_quantity - (item.confirmed_quantity or 0))
+        if shortage <= 0:
+            continue
+            
+        if key not in aggregated_shortages:
+            # 嘗試從 WorkOrderMaterial 取得預計入料日期
+            latest_date = WorkOrderMaterial.objects.filter(
+                material_number=key
+            ).aggregate(latest_date=Max('estimated_arrival_date'))['latest_date']
+            
+            aggregated_shortages[key] = {
+                'material_number': item.material_number,
+                'item_name': item.item_name,
+                'total_shortage': 0.0,
+                'orders': [],
+                'estimated_arrival_date': str(latest_date) if latest_date else None
+            }
+        aggregated_shortages[key]['total_shortage'] += shortage
+        if item.order_number not in aggregated_shortages[key]['orders']:
+            aggregated_shortages[key]['orders'].append(item.order_number)
+    
+    # 轉換為列表
+    result = list(aggregated_shortages.values())
+    
+    return JsonResponse({
+        'success': True,
+        'count': len(result),
+        'shortage_materials': result
+    })

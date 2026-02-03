@@ -11,11 +11,14 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'material_requisition_system.set
 import django
 django.setup()
 
-BASE_DIR = settings.BASE_DIR 
-MONITOR_DIR = os.path.join(BASE_DIR, 'auto_upload', 'order_models')
-TIMESTAMP_FILE = os.path.join(MONITOR_DIR, 'last_processed_timestamps.json')
+from django.utils import timezone
+from requisitions.models import AutoUploadConfig
 
-os.makedirs(MONITOR_DIR, exist_ok=True)
+BASE_DIR = settings.BASE_DIR 
+DEFAULT_MONITOR_DIR = os.path.join(BASE_DIR, 'auto_upload', 'order_models')
+TIMESTAMP_FILE = os.path.join(DEFAULT_MONITOR_DIR, 'last_processed_timestamps.json')
+
+os.makedirs(DEFAULT_MONITOR_DIR, exist_ok=True)
 
 def load_timestamps():
     if os.path.exists(TIMESTAMP_FILE):
@@ -29,14 +32,38 @@ def save_timestamps(timestamps):
 
 def run_monitor_order_models(): # Renamed function
     print(f"--- 1. Running Order & Model Monitor ---")
+    
+    # Check AutoUploadConfig first
+    config = AutoUploadConfig.objects.filter(upload_type='order_model', is_active=True).first()
+    
+    monitor_paths = []
+    if config and config.file_path and os.path.exists(config.file_path):
+        if os.path.isdir(config.file_path):
+             monitor_paths.append(config.file_path)
+             print(f"Using configured directory: {config.file_path}")
+        else:
+             # It's a file
+             monitor_paths.append(config.file_path)
+             print(f"Using configured file: {config.file_path}")
+    else:
+        monitor_paths.append(DEFAULT_MONITOR_DIR)
+        print(f"Using default directory: {DEFAULT_MONITOR_DIR}")
+        
     last_processed_timestamps = load_timestamps()
-    current_files = set()
+    current_files_processed = set()
 
-    for filename in os.listdir(MONITOR_DIR):
-        if filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls'):
-            file_path = os.path.join(MONITOR_DIR, filename)
-            current_files.add(filename)
-
+    for path in monitor_paths:
+        if os.path.isfile(path):
+            files_to_check = [path]
+            is_single_file = True
+        else:
+            files_to_check = [os.path.join(path, f) for f in os.listdir(path) if f.lower().endswith(('.xlsx', '.xls'))]
+            is_single_file = False
+            
+        for file_path in files_to_check:
+            filename = os.path.basename(file_path)
+            current_files_processed.add(filename)
+            
             try:
                 current_mtime = os.path.getmtime(file_path)
                 
@@ -45,20 +72,20 @@ def run_monitor_order_models(): # Renamed function
                     call_command('auto_upload_order_models', path=file_path)
                     print(f"Successfully uploaded {filename}.")
                     last_processed_timestamps[filename] = current_mtime
+                    
+                    if config:
+                        config.last_run = timezone.now()
+                        config.last_status = "Success"
+                        config.save()
                 else:
                     print(f"No change detected for {filename}. Skipping.")
 
             except Exception as e:
                 print(f"An error occurred while processing {filename}:")
                 traceback.print_exc()
-        else:
-            if not filename.endswith('.json'):
-                print(f"Skipping non-Excel file: {filename}")
-
-    files_to_remove = [f for f in last_processed_timestamps if f not in current_files]
-    for f in files_to_remove:
-        print(f"Removing timestamp for deleted file: {f}")
-        del last_processed_timestamps[f]
+                if config:
+                    config.last_status = f"Error: {str(e)}"
+                    config.save()
 
     save_timestamps(last_processed_timestamps)
 
