@@ -403,11 +403,9 @@
         </div>
         <div class="req-info">
             {% if current_type == 'semi_finished' %}
-            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{
-            req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
+            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
             {% else %}
-            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not
-            req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
+            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
             {% endif %}
 
             {% if req.has_alert or req.is_overdue %}
@@ -483,8 +481,7 @@
                             <td><span class="bin-badge">{{ item.storage_bin|default:"-" }}</span></td>
                             <td style="font-weight:600;">{{ item.material_number }}</td>
                             <td style="font-size:0.8rem; color:#6B7280;">{{ item.item_name }}</td>
-                            <td style="text-align:right; font-weight:600; color:#DC2626;">{{
-                                item.total_required|floatformat:0 }}</td>
+                            <td style="text-align:right; font-weight:600; color:#DC2626;">{{ item.total_required|floatformat:0 }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
