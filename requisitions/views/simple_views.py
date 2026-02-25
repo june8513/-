@@ -50,35 +50,39 @@ def simple_applicant_home(request):
     if current_type not in ['finished', 'semi_finished']:
         current_type = 'finished'
     
-    requisitions = Requisition.objects.filter(
-        applicant=request.user
-    ).order_by('-created_at')
+    base_qs = Requisition.objects.filter(applicant=request.user)
     
-    # 如果是主管，顯示所有申請單 (或根據需求過濾)
+    # 如果是主管，顯示所有申請單
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
     if is_supervisor:
-        requisitions = Requisition.objects.all().order_by('-created_at')
+        base_qs = Requisition.objects.all()
     
-    # TODO: 未來可根據 current_type 過濾不同類型的申請單
-    # 目前先顯示所有申請單，待申請單有 material_type 欄位後再過濾
+    # 依狀態分類
+    pending_reqs = list(base_qs.filter(status='demand_submitted').order_by('-created_at'))
+    in_progress_reqs = list(base_qs.filter(status='dispatch_in_progress').order_by('-created_at'))
+    completed_reqs = list(base_qs.filter(status='dispatch_completed').order_by('-updated_at'))
+    signed_off_reqs = list(base_qs.filter(status='signed_off').order_by('-updated_at')[:20])
     
-    # 計算每個申請單的撥料進度
+    # 計算進度和逾期
     today = timezone.now().date()
-    for req in requisitions:
-        items = req.items.all()
-        total = items.count()
-        dispatched = items.filter(dispatch_status='dispatched').count()
-        req.progress = int((dispatched / total * 100) if total > 0 else 0)
-        req.dispatched_count = dispatched
-        req.total_count = total
-        # 檢查是否逾期（需求日期已過且未完成撥料）
-        req.is_overdue = (
-            req.request_date < today and 
-            req.status in ['demand_submitted', 'dispatch_in_progress']
-        )
+    for req_list in [pending_reqs, in_progress_reqs, completed_reqs, signed_off_reqs]:
+        for req in req_list:
+            items = req.items.all()
+            total = items.count()
+            dispatched = items.filter(dispatch_status='dispatched').count()
+            req.progress = int((dispatched / total * 100) if total > 0 else 0)
+            req.dispatched_count = dispatched
+            req.total_count = total
+            req.is_overdue = (
+                req.request_date < today and 
+                req.status in ['demand_submitted', 'dispatch_in_progress']
+            )
     
     context = {
-        'requisitions': requisitions,
+        'pending_reqs': pending_reqs,
+        'in_progress_reqs': in_progress_reqs,
+        'completed_reqs': completed_reqs,
+        'signed_off_reqs': signed_off_reqs,
         'user': request.user,
         'current_type': current_type,
     }
@@ -414,12 +418,22 @@ def simple_applicant_detail(request, pk):
                  else:
                      item.expected_date = None
     
+    # 查詢機型
+    machine_model_name = ''
+    wom = WorkOrderMaterial.objects.filter(
+        order_number=requisition.order_number,
+        machine_model__isnull=False
+    ).select_related('machine_model').first()
+    if wom and wom.machine_model:
+        machine_model_name = wom.machine_model.name
+
     context = {
         'requisition': requisition,
         'items': items,
         'progress': progress,
         'dispatched_count': dispatched,
         'total_count': total,
+        'machine_model_name': machine_model_name,
     }
     return render(request, 'requisitions/simple/simple_applicant_detail.html', context)
 
@@ -753,9 +767,23 @@ def simple_dispatcher_category(request, category):
             status__in=['dispatch_completed', 'signed_off']
         ).order_by('-updated_at')[:20]
     
-    # 計算每個申請單的逾期狀態
+    # 計算每個申請單的逾期狀態和撥料進度
     for req in pending_requisitions:
         req.is_overdue = req.request_date < today
+        items = req.items.all()
+        total = items.count()
+        dispatched = items.filter(dispatch_status='dispatched').count()
+        req.progress = int((dispatched / total * 100) if total > 0 else 0)
+        req.dispatched_count = dispatched
+        req.total_count = total
+    
+    for req in completed_requisitions:
+        items = req.items.all()
+        total = items.count()
+        dispatched = items.filter(dispatch_status='dispatched').count()
+        req.progress = int((dispatched / total * 100) if total > 0 else 0)
+        req.dispatched_count = dispatched
+        req.total_count = total
     
     context = {
         'category': category,
@@ -996,6 +1024,18 @@ def simple_dispatcher_detail(request, category, pk):
     
     # 將 backlog_info 附加到每個物料項目，並預處理顯示文字
     items_list = list(main_items)
+    
+    # 即時更新庫存（從 Material 表取得最新庫存數量）
+    from inventory.models import Material as InvMaterial
+    material_codes = [item.material_number for item in items_list]
+    live_stock = dict(
+        InvMaterial.objects.filter(material_code__in=material_codes)
+        .values_list('material_code', 'system_quantity')
+    )
+    for item in items_list:
+        live_qty = live_stock.get(item.material_number)
+        if live_qty is not None:
+            item.stock_quantity = live_qty
     for item in items_list:
         item.backlog_info = backlog_map.get(item.material_number, [])
         item.has_backlog = bool(item.backlog_info)
@@ -1060,6 +1100,15 @@ def simple_dispatcher_detail(request, category, pk):
     if current_type not in ['finished', 'semi_finished']:
         current_type = 'finished'
     
+    # 查詢機型
+    machine_model_name = ''
+    wom = WorkOrderMaterial.objects.filter(
+        order_number=requisition.order_number,
+        machine_model__isnull=False
+    ).select_related('machine_model').first()
+    if wom and wom.machine_model:
+        machine_model_name = wom.machine_model.name
+
     context = {
         'requisition': requisition,
         'items': items_list,
@@ -1071,5 +1120,6 @@ def simple_dispatcher_detail(request, category, pk):
         'is_completed': requisition.status in ['dispatch_completed', 'signed_off'],
         'current_type': current_type,
         'current_sort': sort_param,
+        'machine_model_name': machine_model_name,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_detail.html', context)

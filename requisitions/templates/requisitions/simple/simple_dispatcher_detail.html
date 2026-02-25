@@ -5,58 +5,326 @@
 
 {% block extra_css %}
 <style>
-.simple-container { max-width: 800px; margin: 0 auto; padding: 1rem; }
-.page-header { display: flex; align-items: center; margin-bottom: 1.5rem; }
-.back-btn { width: 40px; height: 40px; border-radius: 12px; background: #F3F4F6; border: none; display: flex; align-items: center; justify-content: center; margin-right: 1rem; text-decoration: none; color: #374151; }
-.back-btn:hover { background: #E5E7EB; }
-.page-title { font-size: 1.25rem; font-weight: 700; color: #1F2937; }
-.info-card { background: white; border-radius: 16px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
-.progress-section { text-align: center; margin-bottom: 1rem; }
-.progress-bar-large { width: 100%; height: 12px; background: #E5E7EB; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem; }
-.progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%); border-radius: 6px; }
-.progress-text { font-size: 1.1rem; font-weight: 600; color: #374151; }
-.info-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #F3F4F6; }
-.info-row:last-child { border-bottom: none; }
-.info-label { color: #6B7280; }
-.info-value { font-weight: 600; color: #1F2937; }
-.material-card { background: white; border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
-.material-card.dispatched { background: #ECFDF5; border: 1px solid #A7F3D0; }
-.material-card.backordered { background: #FEF2F2; border: 1px solid #FECACA; }
-.material-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
-.material-info h4 { font-size: 1rem; font-weight: 600; color: #1F2937; margin: 0 0 0.25rem 0; }
-.material-info p { font-size: 0.85rem; color: #6B7280; margin: 0; }
-.material-qty-info { text-align: right; font-size: 0.9rem; }
-.qty-label { color: #6B7280; }
-.qty-value { font-weight: 600; color: #1F2937; }
-.material-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.action-btn { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.9rem; font-weight: 500; border: none; cursor: pointer; }
-.action-btn.dispatch { background: #3B82F6; color: white; }
-.action-btn.backorder { background: #FEF3C7; color: #92400E; }
-.action-btn.undo { background: #FEE2E2; color: #DC2626; }
-.qty-input { width: 80px; padding: 0.5rem; border: 1px solid #D1D5DB; border-radius: 6px; text-align: center; }
-.status-badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; }
-.status-badge.dispatched { background: #D1FAE5; color: #065F46; }
-.status-badge.backordered { background: #FEE2E2; color: #DC2626; }
-.storage-bin { font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem; }
-.backlog-alert { display: inline-block; background: #FEE2E2; color: #DC2626; padding: 0.1rem 0.4rem; border-radius: 6px; font-size: 0.7rem; font-weight: 600; margin-top: 0.25rem; }
-.warning-icon { color: #DC2626; }
-.action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.toast-message { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1F2937; color: white; padding: 12px 24px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-.toast-message.success { background: #059669; }
-.toast-message.error { background: #DC2626; }
-/* 補撥相關樣式 */
-.action-btn.supplementary { background: #8B5CF6; color: white; }
-.supplementary-section { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #E5E7EB; }
-.supplementary-toggle { color: #6B7280; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem; }
-.supplementary-toggle:hover { color: #374151; }
-.supplementary-list { margin-top: 0.5rem; padding-left: 1rem; display: none; }
-.supplementary-list.show { display: block; }
-.supp-item { background: #F9FAFB; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; border-left: 3px solid #8B5CF6; }
-.supp-item.dispatched { background: #F0FDF4; border-left-color: #10B981; }
-.supp-item-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 0.5rem; }
-.supp-item-header .supp-label { color: #8B5CF6; font-weight: 600; }
-.supp-item-header .supp-status { font-size: 0.75rem; }
-.add-supplementary-form { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+    .simple-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #F3F4F6;
+        padding: 0.75rem 0;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        text-decoration: none;
+        color: #374151;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+    }
+
+    .page-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .info-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .progress-section {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .progress-bar-large {
+        width: 100%;
+        height: 12px;
+        background: #E5E7EB;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%);
+        border-radius: 6px;
+    }
+
+    .progress-text {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #F3F4F6;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        color: #6B7280;
+    }
+
+    .info-value {
+        font-weight: 600;
+        color: #1F2937;
+    }
+
+    .material-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .material-card.dispatched {
+        background: #ECFDF5;
+        border: 1px solid #A7F3D0;
+    }
+
+    .material-card.backordered {
+        background: #FEF2F2;
+        border: 1px solid #FECACA;
+    }
+
+    .material-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .material-info h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1F2937;
+        margin: 0 0 0.25rem 0;
+    }
+
+    .material-info p {
+        font-size: 0.85rem;
+        color: #6B7280;
+        margin: 0;
+    }
+
+    .material-qty-info {
+        text-align: right;
+        font-size: 0.9rem;
+    }
+
+    .qty-label {
+        color: #6B7280;
+    }
+
+    .qty-value {
+        font-weight: 600;
+        color: #1F2937;
+    }
+
+    .material-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+    }
+
+    .action-btn.dispatch {
+        background: #3B82F6;
+        color: white;
+    }
+
+    .action-btn.backorder {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    .action-btn.undo {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+
+    .qty-input {
+        width: 80px;
+        padding: 0.5rem;
+        border: 1px solid #D1D5DB;
+        border-radius: 6px;
+        text-align: center;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-badge.dispatched {
+        background: #D1FAE5;
+        color: #065F46;
+    }
+
+    .status-badge.backordered {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+
+    .storage-bin {
+        font-size: 0.8rem;
+        color: #6B7280;
+        margin-top: 0.25rem;
+    }
+
+    .backlog-alert {
+        display: inline-block;
+        background: #FEE2E2;
+        color: #DC2626;
+        padding: 0.1rem 0.4rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-top: 0.25rem;
+    }
+
+    .warning-icon {
+        color: #DC2626;
+    }
+
+    .action-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .toast-message {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1F2937;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .toast-message.success {
+        background: #059669;
+    }
+
+    .toast-message.error {
+        background: #DC2626;
+    }
+
+    .action-btn.supplementary {
+        background: #8B5CF6;
+        color: white;
+    }
+
+    .supplementary-section {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px dashed #E5E7EB;
+    }
+
+    .supplementary-toggle {
+        color: #6B7280;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .supplementary-toggle:hover {
+        color: #374151;
+    }
+
+    .supplementary-list {
+        margin-top: 0.5rem;
+        padding-left: 1rem;
+        display: none;
+    }
+
+    .supplementary-list.show {
+        display: block;
+    }
+
+    .supp-item {
+        background: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #8B5CF6;
+    }
+
+    .supp-item.dispatched {
+        background: #F0FDF4;
+        border-left-color: #10B981;
+    }
+
+    .supp-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .supp-item-header .supp-label {
+        color: #8B5CF6;
+        font-weight: 600;
+    }
+
+    .supp-item-header .supp-status {
+        font-size: 0.75rem;
+    }
+
+    .add-supplementary-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.5rem;
+    }
 </style>
 {% endblock %}
 
@@ -64,10 +332,10 @@
 <div class="simple-container">
 {% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>{% endfor %}{% endif %}
 
-    <div class="page-header">
-        <a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="back-btn">←</a>
-        <h1 class="page-title">{{ requisition.order_number }}</h1>
-    </div>
+<div class="page-header">
+<a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="back-btn">←</a>
+<h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
+</div>
 
 {% if requisition.has_alert %}
 <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert" style="border-radius: 12px;">
@@ -91,18 +359,23 @@
 <div class="progress-text">{{ dispatched_count }}/{{ total_count }} 已撥料 ({{ progress }}%)</div>
 </div>
 <div class="info-row"><span class="info-label">投料點</span><span class="info-value">{{ requisition.process_type }}</span></div>
-<div class="info-row"><span class="info-label">申請人</span><span class="info-value">{{ requisition.applicant.username }}</span></div>
-<div class="info-row"><span class="info-label">申請日期</span><span class="info-value">{{ requisition.created_at|date:"Y-m-d" }}</span></div>
+<div class="info-row"><span class="info-label">申請人</span><span class="info-value">{{ requisition.applicant.first_name }} {{ requisition.applicant.last_name }}{% if not requisition.applicant.first_name and not requisition.applicant.last_name %}{{ requisition.applicant.username }}{% endif %}</span></div>
+<div class="info-row"><span class="info-label">需求日期</span><span class="info-value">{{ requisition.request_date|date:"Y-m-d" }}</span></div>
+</div>
+
+<div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+<button type="button" class="action-btn" style="background:#E5E7EB;color:#374151;flex:1;" onclick="copyOrderNumber()">📋 複製工單號</button>
+<button type="button" class="action-btn" style="background:#D1FAE5;color:#065F46;flex:1;" onclick="copyDispatchedMaterials()">📋 複製已撥料物料</button>
 </div>
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 1rem;">
-    <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
-    <div class="btn-group" role="group" aria-label="Sort">
-        <a href="?sort=material{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'material' %}btn-primary{% else %}btn-outline-secondary{% endif %}">物料編號</a>
-        <a href="?sort=bin{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'bin' %}btn-primary{% else %}btn-outline-secondary{% endif %}">儲位</a>
-        <a href="?sort=name{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'name' %}btn-primary{% else %}btn-outline-secondary{% endif %}">品名</a>
-        <a href="?sort=status{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'status' %}btn-primary{% else %}btn-outline-secondary{% endif %}">狀態</a>
-    </div>
+<h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
+<div class="btn-group" role="group" aria-label="Sort">
+<a href="?sort=material{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'material' %}btn-primary{% else %}btn-outline-secondary{% endif %}">物料編號</a>
+<a href="?sort=bin{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'bin' %}btn-primary{% else %}btn-outline-secondary{% endif %}">儲位</a>
+<a href="?sort=name{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'name' %}btn-primary{% else %}btn-outline-secondary{% endif %}">品名</a>
+<a href="?sort=status{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'status' %}btn-primary{% else %}btn-outline-secondary{% endif %}">狀態</a>
+</div>
 </div>
 
 {% for item in items %}
@@ -116,7 +389,7 @@
 </div>
 <div class="material-qty-info">
 <div><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></div>
-<div><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</div>
+<div><span class="qty-label">庫存:</span> <span class="qty-value"{% if item.is_insufficient_stock %} style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</div>
 {% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
 </div>
 </div>
@@ -136,9 +409,7 @@
 {% if item.supplementary_list or item.needs_supplementary %}
 <div class="supplementary-section">
 {% if item.supplementary_list %}
-<div class="supplementary-toggle" onclick="this.nextElementSibling.classList.toggle('show')">
-▶ 補撥項目 ({{ item.supplementary_list|length }})
-</div>
+<div class="supplementary-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▶ 補撥項目 ({{ item.supplementary_list|length }})</div>
 <div class="supplementary-list">
 {% for supp in item.supplementary_list %}
 <div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}">
@@ -175,141 +446,116 @@
 {% endif %}
 </div>
 {% empty %}
-<p class="text-muted text-center">沒有物料項目</p>
+<div class="empty-state">暫無物料項目</div>
 {% endfor %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-(function() {
-    const csrfToken = '{{ csrf_token }}';
-    
-    function showToast(message, isSuccess) {
-        const toast = document.createElement('div');
-        toast.className = 'toast-message ' + (isSuccess ? 'success' : 'error');
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2500);
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
     }
-    
-    function updateProgress(data) {
-        const progressFill = document.querySelector('.progress-bar-fill');
-        const progressText = document.querySelector('.progress-text');
-        if (progressFill && progressText) {
-            progressFill.style.width = data.progress + '%';
-            progressText.textContent = data.dispatched_count + '/' + data.total_count + ' 已撥料 (' + data.progress + '%)';
-        }
+    function copyOrderNumber() {
+        var text = '{{ requisition.order_number }}';
+        fallbackCopy(text);
+        showCopyToast('已複製工單號: ' + text);
     }
-    
-    function updateCardUI(card, newStatus, dispatchedQty) {
-        const actionsForm = card.querySelector('.material-actions');
-        const statusBadge = card.querySelector('.status-badge');
-        const qtyInfo = card.querySelector('.material-qty-info');
-        
-        // 更新卡片樣式
-        card.classList.remove('dispatched', 'backordered');
-        
-        if (newStatus === 'dispatched') {
-            card.classList.add('dispatched');
-            const statusText = dispatchedQty ? '已撥 ' + dispatchedQty : '已撥';
-            // 更新狀態徽章
-            if (statusBadge) {
-                statusBadge.className = 'status-badge dispatched';
-                statusBadge.textContent = statusText;
-            } else {
-                const newBadge = document.createElement('span');
-                newBadge.className = 'status-badge dispatched';
-                newBadge.textContent = statusText;
-                qtyInfo.appendChild(newBadge);
-            }
-            // 更新按鈕為撤銷
-            actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
-        } else if (newStatus === 'backordered') {
-            card.classList.add('backordered');
-            if (statusBadge) {
-                statusBadge.className = 'status-badge backordered';
-                statusBadge.textContent = '缺料';
-            } else {
-                const newBadge = document.createElement('span');
-                newBadge.className = 'status-badge backordered';
-                newBadge.textContent = '缺料';
-                qtyInfo.appendChild(newBadge);
-            }
-            actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
-        } else if (newStatus === 'pending') {
-            if (statusBadge) statusBadge.remove();
-            const reqQty = card.querySelector('.qty-value').textContent;
-            actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><input type="number" name="dispatched_qty" value="' + reqQty + '" class="qty-input" min="0" step="1"><button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button><button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>';
-        }
-        
-        // 重新綁定事件
-        bindFormEvents(actionsForm);
-    }
-    
-    function handleFormSubmit(e) {
-        e.preventDefault();
-        const form = e.target;
-        const card = form.closest('.material-card');
-        const submitBtn = e.submitter;
-        const action = submitBtn.value;
-        
-        // 禁用按鈕防止重複提交
-        const buttons = form.querySelectorAll('button');
-        buttons.forEach(btn => btn.disabled = true);
-        
-        const formData = new FormData(form);
-        formData.append('action', action);
-        
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            showToast(data.message, data.success);
-            if (data.success) {
-                if (action === 'supplementary') {
-                    // 補撥成功後刷新頁面以顯示新項目，但保持滾動位置
-                    const scrollPos = window.scrollY;
-                    sessionStorage.setItem('scroll_pos', scrollPos);
-                    window.location.reload();
-                } else {
-                    updateCardUI(card, data.new_status, data.dispatched_qty);
-                    updateProgress(data);
-                }
-            } else {
-                buttons.forEach(btn => btn.disabled = false);
-            }
-        })
-        .catch(error => {
-            showToast('操作失敗，請重試', false);
-            buttons.forEach(btn => btn.disabled = false);
+    function copyDispatchedMaterials() {
+        var items = [];
+        document.querySelectorAll('.material-card.dispatched').forEach(function (card) {
+            var num = card.querySelector('.material-info h4').textContent.trim().split(' ')[0];
+            items.push(num);
         });
+        if (items.length === 0) {
+            showCopyToast('目前沒有已撥料的物料', true);
+            return;
+        }
+        fallbackCopy(items.join('\n'));
+        showCopyToast('已複製 ' + items.length + ' 筆物料編號');
     }
-    
-    function bindFormEvents(form) {
-        form.addEventListener('submit', handleFormSubmit);
+    function showCopyToast(msg, isError) {
+        var t = document.createElement('div');
+        t.className = 'toast-message ' + (isError ? 'error' : 'success');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(function () { t.remove(); }, 2500);
     }
-    
-    // 設定進度條寬度
-    document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function(el) {
-        el.style.width = el.dataset.progress + '%';
-    });
-    
-    // 綁定所有表單 (撥料、補撥等)
-    document.querySelectorAll('form.material-actions, form.add-supplementary-form').forEach(bindFormEvents);
-    
-    // 恢復滾動位置
-    const savedScroll = sessionStorage.getItem('scroll_pos');
-    if (savedScroll) {
-        window.scrollTo(0, parseInt(savedScroll, 10));
-        sessionStorage.removeItem('scroll_pos');
-    }
-})();
+</script>
+<script>
+    (function () {
+        const csrfToken = '{{ csrf_token }}';
+        function showToast(message, isSuccess) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-message ' + (isSuccess ? 'success' : 'error');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+        }
+        function updateProgress(data) {
+            const progressFill = document.querySelector('.progress-bar-fill');
+            const progressText = document.querySelector('.progress-text');
+            if (progressFill && progressText) {
+                progressFill.style.width = data.progress + '%';
+                progressText.textContent = data.dispatched_count + '/' + data.total_count + ' 已撥料 (' + data.progress + '%)';
+            }
+        }
+        function updateCardUI(card, newStatus, dispatchedQty) {
+            const actionsForm = card.querySelector('.material-actions');
+            const statusBadge = card.querySelector('.status-badge');
+            const qtyInfo = card.querySelector('.material-qty-info');
+            card.classList.remove('dispatched', 'backordered');
+            if (newStatus === 'dispatched') {
+                card.classList.add('dispatched');
+                const statusText = dispatchedQty ? '已撥 ' + dispatchedQty : '已撥';
+                if (statusBadge) { statusBadge.className = 'status-badge dispatched'; statusBadge.textContent = statusText; }
+                else { const newBadge = document.createElement('span'); newBadge.className = 'status-badge dispatched'; newBadge.textContent = statusText; qtyInfo.appendChild(newBadge); }
+                actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
+            } else if (newStatus === 'backordered') {
+                card.classList.add('backordered');
+                if (statusBadge) { statusBadge.className = 'status-badge backordered'; statusBadge.textContent = '缺料'; }
+                else { const newBadge = document.createElement('span'); newBadge.className = 'status-badge backordered'; newBadge.textContent = '缺料'; qtyInfo.appendChild(newBadge); }
+                actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
+            } else if (newStatus === 'pending') {
+                if (statusBadge) statusBadge.remove();
+                const reqQty = card.querySelector('.qty-value').textContent;
+                actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><input type="number" name="dispatched_qty" value="' + reqQty + '" class="qty-input" min="0" step="1"><button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button><button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>';
+            }
+            bindFormEvents(actionsForm);
+        }
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const card = form.closest('.material-card');
+            const submitBtn = e.submitter;
+            const action = submitBtn.value;
+            const buttons = form.querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+            const formData = new FormData(form);
+            formData.append('action', action);
+            fetch(window.location.href, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfToken } })
+                .then(response => response.json())
+                .then(data => {
+                    showToast(data.message, data.success);
+                    if (data.success) {
+                        if (action === 'supplementary') { const scrollPos = window.scrollY; sessionStorage.setItem('scroll_pos', scrollPos); window.location.reload(); }
+                        else { updateCardUI(card, data.new_status, data.dispatched_qty); updateProgress(data); }
+                    } else { buttons.forEach(btn => btn.disabled = false); }
+                })
+                .catch(error => { showToast('操作失敗，請重試', false); buttons.forEach(btn => btn.disabled = false); });
+        }
+        function bindFormEvents(form) { form.addEventListener('submit', handleFormSubmit); }
+        document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function (el) { el.style.width = el.dataset.progress + '%'; });
+        document.querySelectorAll('form.material-actions, form.add-supplementary-form').forEach(bindFormEvents);
+        const savedScroll = sessionStorage.getItem('scroll_pos');
+        if (savedScroll) { window.scrollTo(0, parseInt(savedScroll, 10)); sessionStorage.removeItem('scroll_pos'); }
+    })();
 </script>
 {% endblock %}

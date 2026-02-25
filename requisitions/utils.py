@@ -198,7 +198,7 @@ def _update_requisition_alert(order_number, process_type_name, message, is_deman
         
         for req in reqs:
             # Append message
-            timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
+            timestamp = timezone.localtime(timezone.now()).strftime('%Y-%m-%d %H:%M')
             new_msg = f"[{timestamp}] {message}"
             if req.alert_message:
                 req.alert_message += f"\n{new_msg}"
@@ -400,12 +400,32 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
             material_prefix = material_number_clean[:10]
             parent_desc_val = str(row.get(parent_desc_col, '')).strip() if parent_desc_col else ""
             
-            # 新邏輯：優先使用作業說明規則
+            # 新邏輯：優先使用物料投料點記憶 (MaterialProcessTypeRule)
             operation_desc_val = str(row.get(operation_desc_col, '')).strip() if operation_desc_col else ""
             process_type_name = None
             
-            # 1. 首先檢查作業說明規則 (OperationProcessRule)
-            if operation_desc_val:
+            # 1. 首先檢查物料投料點記憶 (MaterialProcessTypeRule) - 優先順序最高
+            from requisitions.models import MaterialProcessTypeRule
+            rules = MaterialProcessTypeRule.objects.filter(
+                material_prefix=material_prefix,
+                machine_model_name=machine_model_name_clean
+            ).order_by('-parent_material_desc_keyword')
+            
+            # Try to find specific keyword match first
+            for rule in rules:
+                if rule.parent_material_desc_keyword and rule.parent_material_desc_keyword in parent_desc_val:
+                    process_type_name = rule.process_type_name
+                    break
+            
+            # If no keyword match, look for generic rule (empty keyword)
+            if not process_type_name:
+                for rule in rules:
+                    if not rule.parent_material_desc_keyword:
+                        process_type_name = rule.process_type_name
+                        break
+            
+            # 2. 如果物料投料點記憶沒有匹配，檢查作業說明規則 (OperationProcessRule)
+            if not process_type_name and operation_desc_val:
                 op_rule = OperationProcessRule.objects.filter(
                     operation_description=operation_desc_val
                 ).first()
@@ -414,27 +434,6 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 else:
                     # 未知的作業說明，收集起來供後續處理
                     unknown_operations.add(operation_desc_val)
-            
-            # 2. 如果作業說明沒有匹配，檢查舊的 MaterialProcessTypeRule
-            if not process_type_name:
-                from requisitions.models import MaterialProcessTypeRule
-                rules = MaterialProcessTypeRule.objects.filter(
-                    material_prefix=material_prefix,
-                    machine_model_name=machine_model_name_clean
-                ).order_by('-parent_material_desc_keyword')
-                
-                # Try to find specific keyword match first
-                for rule in rules:
-                    if rule.parent_material_desc_keyword and rule.parent_material_desc_keyword in parent_desc_val:
-                        process_type_name = rule.process_type_name
-                        break
-                
-                # If no keyword match, look for generic rule (empty keyword)
-                if not process_type_name:
-                    for rule in rules:
-                        if not rule.parent_material_desc_keyword:
-                            process_type_name = rule.process_type_name
-                            break
             
             # 3. 使用舊的 output.xlsx 對照表
             if not process_type_name:
@@ -497,9 +496,12 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                             material_instance.required_quantity = required_quantity_clean
                             is_dirty = True
                 
-                # Process Type comparison (ID)
+                # Process Type comparison (ID) - 記錄舊投料點用於後續同步 RequisitionItem
+                old_process_type_name = material_instance.process_type.name if material_instance.process_type else None
                 if material_instance.process_type_id != process_type_obj.id:
                     material_instance.process_type = process_type_obj
+                    material_instance._old_process_type_name = old_process_type_name  # 暫存舊投料點
+                    material_instance._new_process_type_name = process_type_obj.name  # 暫存新投料點
                     is_dirty = True
                 
                 # Active status
@@ -537,8 +539,96 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
         with transaction.atomic():
             if materials_to_create:
                 WorkOrderMaterial.objects.bulk_create(materials_to_create, batch_size=2000)
+                
+                # 自動為新增物料建立 RequisitionItem（加入現有未歸檔的申請單）
+                from requisitions.models import RequisitionItem, Requisition
+                from inventory.models import Material as InvMaterial
+                
+                for new_material in materials_to_create:
+                    pt_name = new_material.process_type.name if new_material.process_type else None
+                    if not pt_name:
+                        continue
+                    
+                    # 找到同訂單、同投料點、未歸檔的申請單
+                    matching_reqs = Requisition.objects.filter(
+                        order_number=new_material.order_number,
+                        process_type=pt_name,
+                        is_archived=False
+                    )
+                    
+                    for req in matching_reqs:
+                        # 檢查是否已存在該物料的 RequisitionItem
+                        already_exists = RequisitionItem.objects.filter(
+                            requisition=req,
+                            material_number=new_material.material_number
+                        ).exists()
+                        
+                        if not already_exists:
+                            # 需要重新從 DB 取得已儲存的 WorkOrderMaterial（因為 bulk_create 後才有 pk）
+                            saved_material = WorkOrderMaterial.objects.filter(
+                                order_number=new_material.order_number,
+                                material_number=new_material.material_number,
+                                machine_model=new_material.machine_model
+                            ).first()
+                            
+                            # 嘗試取得庫存資訊
+                            inv_material = InvMaterial.objects.filter(
+                                material_code=new_material.material_number
+                            ).first()
+                            stock_qty = inv_material.system_quantity if inv_material else Decimal('0')
+                            storage_bin = inv_material.bin if inv_material else ''
+                            
+                            RequisitionItem.objects.create(
+                                requisition=req,
+                                source_material=saved_material,
+                                order_number=new_material.order_number,
+                                material_number=new_material.material_number,
+                                item_name=new_material.item_name,
+                                required_quantity=new_material.required_quantity,
+                                stock_quantity=stock_qty,
+                                storage_bin=storage_bin,
+                                confirmed_quantity=Decimal('0'),
+                            )
+                            print(f"[Auto-Add] 新增物料 {new_material.material_number} 至申請單 {req.order_number} ({pt_name})")
+                
             if materials_to_update:
                 WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active'], batch_size=2000)
+            
+            # 同步 RequisitionItem 到正確的申請單（當投料點變更時）
+            from requisitions.models import RequisitionItem, Requisition
+            for material in materials_to_update:
+                if hasattr(material, '_old_process_type_name') and hasattr(material, '_new_process_type_name'):
+                    old_pt = material._old_process_type_name
+                    new_pt = material._new_process_type_name
+                    
+                    if old_pt and new_pt and old_pt != new_pt:
+                        # 找到該物料在舊申請單中的 RequisitionItem
+                        old_items = RequisitionItem.objects.filter(
+                            source_material=material,
+                            requisition__process_type=old_pt,
+                            requisition__is_archived=False
+                        ).select_related('requisition')
+                        
+                        for item in old_items:
+                            old_req = item.requisition
+                            
+                            # 找到或建立新投料點的申請單
+                            new_req, created = Requisition.objects.get_or_create(
+                                order_number=old_req.order_number,
+                                process_type=new_pt,
+                                requisition_type=old_req.requisition_type,
+                                defaults={
+                                    'applicant': old_req.applicant,
+                                    'request_date': old_req.request_date,
+                                    'status': 'demand_submitted',
+                                }
+                            )
+                            
+                            # 將 RequisitionItem 移到新申請單
+                            item.requisition = new_req
+                            item.save()
+                            
+                            print(f"[Sync] 物料 {material.material_number} 從「{old_pt}」移至「{new_pt}」申請單")
 
         uploaded_deletion_scopes = set()
         for _, row in df_upload.iterrows():
@@ -561,7 +651,8 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
         for order_num, model_name in uploaded_deletion_scopes:
             existing_materials_in_scope = WorkOrderMaterial.objects.filter(
                 order_number=order_num,
-                machine_model__name=model_name
+                machine_model__name=model_name,
+                is_active=True
             ).exclude(material_number="PARENT_SCOPE").select_related('process_type')
 
             for material in existing_materials_in_scope:
@@ -682,6 +773,17 @@ def process_inventory_excel(excel_file_path):
                 
                 # Note: Creating a MaterialTransaction is omitted here because there is no
                 # 'user' in an automated context.
+        
+            # Excel 中不存在的物料，庫存設為 0（SAP 不匯出庫存為 0 的物料）
+            uploaded_material_codes = set(df['物料'].astype(str).str.strip().unique())
+            zeroed_count = Material.objects.exclude(
+                material_code__in=uploaded_material_codes
+            ).filter(
+                system_quantity__gt=0
+            ).update(system_quantity=0)
+            
+            if zeroed_count > 0:
+                print(f"[Inventory] 已將 {zeroed_count} 筆不在 Excel 中的物料庫存歸零。")
         
         return created_count, updated_count
 

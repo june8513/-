@@ -227,6 +227,58 @@
     .type-tab.semi-finished.active {
         color: #10B981;
     }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #374151;
+        margin: 1.5rem 0 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-count {
+        background: #E5E7EB;
+        color: #374151;
+        padding: 0.1rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+    }
+
+    .section-title.pending .section-count {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    .section-title.in-progress .section-count {
+        background: #DBEAFE;
+        color: #1E40AF;
+    }
+
+    .section-title.completed .section-count {
+        background: #D1FAE5;
+        color: #065F46;
+    }
+
+    .section-title.signed-off .section-count {
+        background: #E5E7EB;
+        color: #374151;
+    }
+
+    .signed-off-card {
+        opacity: 0.7;
+    }
+
+    .empty-state-sm {
+        text-align: center;
+        padding: 1rem;
+        color: #9CA3AF;
+        background: #F9FAFB;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
 </style>
 {% endblock %}
 
@@ -250,12 +302,12 @@
 
     <!-- 成品/半成品標籤切換 -->
     <div class="type-tabs">
-        <a href="{% url 'requisitions:simple_applicant_home' %}" 
-           class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
+        <a href="{% url 'requisitions:simple_applicant_home' %}"
+            class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
             📦 成品撥料
         </a>
-        <a href="{% url 'requisitions:simple_applicant_home' %}?type=semi_finished" 
-           class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
+        <a href="{% url 'requisitions:simple_applicant_home' %}?type=semi_finished"
+            class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
             🔧 半成品撥料
         </a>
     </div>
@@ -263,53 +315,97 @@
     {% if current_type == 'finished' %}
     <a href="{% url 'requisitions:simple_applicant_create' %}" class="btn create-btn">建立申請單</a>
     {% else %}
-    <a href="{% url 'requisitions:simple_applicant_create' %}?type=semi_finished" class="btn create-btn" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);">建立半成品申請單</a>
+    <a href="{% url 'requisitions:simple_applicant_create' %}?type=semi_finished" class="btn create-btn"
+        style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);">建立半成品申請單</a>
     {% endif %}
 
-    {% if requisitions %}
-    {% for req in requisitions %}
+    <!-- 待撥料 -->
+    <h2 class="section-title pending">⏳ 待撥料 <span class="section-count">{{ pending_reqs|length }}</span></h2>
+    {% for req in pending_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
         {% if req.has_alert or req.is_overdue %}
         <div class="alert-badges">
-            {% if req.is_overdue %}
-            <span class="alert-badge overdue">⚠ 逾期</span>
-            {% endif %}
-            {% if req.has_alert %}
-            <span class="alert-badge change">🚨 需求變更</span>
-            {% endif %}
+            {% if req.is_overdue %}<span class="alert-badge overdue">⚠ 逾期</span>{% endif %}
+            {% if req.has_alert %}<span class="alert-badge change">🚨 需求變更</span>{% endif %}
         </div>
         {% endif %}
         <div class="order-number">{{ req.order_number }}</div>
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
-            <div class="status-indicator">
-                {% if req.status == 'signed_off' %}
-                <span class="status-dot signed-off"></span>
-                <span>已簽收</span>
-                {% elif req.status == 'dispatch_completed' %}
-                <span class="status-dot completed"></span>
-                <span>已撥料</span>
-                {% elif req.status == 'dispatch_in_progress' %}
-                <span class="status-dot in-progress"></span>
-                <span>撥料中</span>
-                {% else %}
-                <span class="status-dot pending"></span>
-                <span>待處理</span>
-                {% endif %}
-            </div>
-            <span class="date-text">{{ req.created_at|date:"Y-m-d" }}</span>
+            <div class="status-indicator"><span class="status-dot pending"></span><span>待處理</span></div>
+            <span class="date-text">{{ req.created_at|date:"m/d" }}</span>
         </div>
         <div class="progress-bar-container">
             <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
         </div>
         <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
     </a>
+    {% empty %}
+    <div class="empty-state-sm">目前沒有待撥料的申請單</div>
     {% endfor %}
-    {% else %}
-    <div class="empty-state">
-        <p>目前沒有申請單</p>
-        <p>點擊上方按鈕建立第一張申請單</p>
-    </div>
-    {% endif %}
+
+    <!-- 撥料中 -->
+    <h2 class="section-title in-progress">🔄 撥料中 <span class="section-count">{{ in_progress_reqs|length }}</span></h2>
+    {% for req in in_progress_reqs %}
+    <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
+        {% if req.has_alert or req.is_overdue %}
+        <div class="alert-badges">
+            {% if req.is_overdue %}<span class="alert-badge overdue">⚠ 逾期</span>{% endif %}
+            {% if req.has_alert %}<span class="alert-badge change">🚨 需求變更</span>{% endif %}
+        </div>
+        {% endif %}
+        <div class="order-number">{{ req.order_number }}</div>
+        <span class="process-badge">{{ req.process_type }}</span>
+        <div class="status-row">
+            <div class="status-indicator"><span class="status-dot in-progress"></span><span>撥料中</span></div>
+            <span class="date-text">{{ req.created_at|date:"m/d" }}</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+        </div>
+        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
+    </a>
+    {% empty %}
+    <div class="empty-state-sm">目前沒有撥料中的申請單</div>
+    {% endfor %}
+
+    <!-- 已撥料（待簽收） -->
+    <h2 class="section-title completed">✅ 已撥料 <span class="section-count">{{ completed_reqs|length }}</span></h2>
+    {% for req in completed_reqs %}
+    <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
+        <div class="order-number">{{ req.order_number }}</div>
+        <span class="process-badge">{{ req.process_type }}</span>
+        <div class="status-row">
+            <div class="status-indicator"><span class="status-dot completed"></span><span>待簽收</span></div>
+            <span class="date-text">{{ req.updated_at|date:"m/d" }}</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+        </div>
+        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
+    </a>
+    {% empty %}
+    <div class="empty-state-sm">目前沒有待簽收的申請單</div>
+    {% endfor %}
+
+    <!-- 已簽收 -->
+    <h2 class="section-title signed-off">📋 已簽收 <span class="section-count">{{ signed_off_reqs|length }}</span></h2>
+    {% for req in signed_off_reqs %}
+    <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card">
+        <div class="order-number">{{ req.order_number }}</div>
+        <span class="process-badge">{{ req.process_type }}</span>
+        <div class="status-row">
+            <div class="status-indicator"><span class="status-dot signed-off"></span><span>已簽收</span></div>
+            <span class="date-text">{{ req.updated_at|date:"m/d" }}</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: 100%;"></div>
+        </div>
+        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
+    </a>
+    {% empty %}
+    <div class="empty-state-sm">目前沒有已簽收的申請單</div>
+    {% endfor %}
+
 </div>
 {% endblock %}

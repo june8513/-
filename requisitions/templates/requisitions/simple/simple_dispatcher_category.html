@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ category }} - 撥料人員{% endblock %}
+{% block title %}{{ category }} - 撥料人員</div>
+{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -149,6 +150,73 @@
         background: #FEF3C7;
         color: #92400E;
     }
+
+    .progress-mini {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.35rem;
+    }
+
+    .progress-mini-bar {
+        flex: 1;
+        height: 4px;
+        background: #E5E7EB;
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .progress-mini-fill {
+        height: 100%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #3B82F6, #10B981);
+    }
+
+    .progress-mini-text {
+        font-size: 0.7rem;
+        color: #9CA3AF;
+        white-space: nowrap;
+    }
+
+    .copy-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 8px;
+        border: 1px solid #D1D5DB;
+        background: white;
+        color: #374151;
+        font-size: 0.8rem;
+        cursor: pointer;
+    }
+
+    .copy-btn:active {
+        background: #F3F4F6;
+    }
+
+    .copy-btns {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .toast-message {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #059669;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        font-size: 0.85rem;
+    }
+
+    .toast-message.error {
+        background: #DC2626;
+    }
 </style>
 {% endblock %}
 
@@ -157,6 +225,47 @@
     document.querySelectorAll('.category-badge[data-color]').forEach(function (el) {
         el.style.background = el.dataset.color;
     });
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    }
+    function showToast(msg, isError) {
+        var t = document.createElement('div');
+        t.className = 'toast-message' + (isError ? ' error' : '');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(function () { t.remove(); }, 2500);
+    }
+    function copyAllOrders() {
+        var orders = [];
+        document.querySelectorAll('.order-number').forEach(function (el) {
+            orders.push(el.textContent.trim());
+        });
+        if (orders.length === 0) { showToast('沒有工單', true); return; }
+        fallbackCopy(orders.join('\n'));
+        showToast('已複製 ' + orders.length + ' 筆工單號');
+    }
+    function copyDispatchedOrders() {
+        var orders = [];
+        var completedSection = false;
+        document.querySelectorAll('h2, a.requisition-card').forEach(function (el) {
+            if (el.tagName === 'H2' && el.textContent.includes('已撥料')) completedSection = true;
+            if (el.tagName === 'H2' && !el.textContent.includes('已撥料')) completedSection = false;
+            if (completedSection && el.tagName === 'A') {
+                var num = el.querySelector('.order-number');
+                if (num) orders.push(num.textContent.trim());
+            }
+        });
+        if (orders.length === 0) { showToast('沒有已撥料工單', true); return; }
+        fallbackCopy(orders.join('\n'));
+        showToast('已複製 ' + orders.length + ' 筆已撥料工單號');
+    }
 </script>
 {% endblock %}
 
@@ -179,6 +288,11 @@
         </h1>
     </div>
 
+    <div class="copy-btns">
+        <button type="button" class="copy-btn" onclick="copyAllOrders()">📋 複製所有工單號</button>
+        <button type="button" class="copy-btn" onclick="copyDispatchedOrders()">📋 複製已撥料工單號</button>
+    </div>
+
     <!-- 待撥料申請單 -->
     <h2 class="section-title pending">待撥料 <span class="count">{{ pending_requisitions|length }}</span></h2>
 
@@ -192,9 +306,9 @@
         </div>
         <div class="req-info">
             {% if current_type == 'semi_finished' %}
-            領料人: {{ req.applicant.username }} · {{ req.created_at|date:"H:i" }}
+            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
             {% else %}
-            {{ req.process_type }} · 申請人: {{ req.applicant.username }}
+            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
             {% endif %}
 
             {% if req.has_alert or req.is_overdue %}
@@ -207,6 +321,11 @@
                 {% endif %}
             </div>
             {% endif %}
+        </div>
+        <div class="progress-mini">
+            <div class="progress-mini-bar">
+                <div class="progress-mini-fill" style="width: {{ req.progress }}%;"></div>
+            </div><span class="progress-mini-text">{{ req.dispatched_count }}/{{ req.total_count }}</span>
         </div>
     </a>
     {% endfor %}
@@ -227,6 +346,11 @@
         </div>
         <div class="req-info">
             {{ req.process_type }} · {% if req.status == 'signed_off' %}已簽收{% else %}待簽收{% endif %}
+        </div>
+        <div class="progress-mini">
+            <div class="progress-mini-bar">
+                <div class="progress-mini-fill" style="width: {{ req.progress }}%;"></div>
+            </div><span class="progress-mini-text">{{ req.dispatched_count }}/{{ req.total_count }}</span>
         </div>
     </a>
     {% endfor %}

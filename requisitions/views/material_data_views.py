@@ -463,25 +463,29 @@ def update_work_order_quantities(request):
                   current_pt_name = material.process_type.name if material.process_type else None
                   
                   if current_pt_name != new_pt_name:
-                      try:
-                          new_pt_obj = ProcessType.objects.get(name=new_pt_name, machine_model=material.machine_model)
-                          material.process_type = new_pt_obj
-                          material.save()
-                          updated_materials.append(f"物料 {material.material_number} 投料點更新: {new_pt_name}")
-                          
-                          # Learning
-                          from requisitions.models import MaterialProcessTypeRule
-                          material_prefix = material.material_number[:10]
-                          MaterialProcessTypeRule.objects.update_or_create(
-                              material_prefix=material_prefix,
-                              machine_model_name=material.machine_model.name,
-                              defaults={
-                                  'process_type_name': new_pt_name,
-                                  'updated_by': request.user
-                              }
-                          )
-                      except ProcessType.DoesNotExist:
-                          messages.error(request, f"物料 {material.material_number} 更新失敗：機型 {material.machine_model} 不支援投料點 '{new_pt_name}'。")
+                      # 使用 get_or_create 來自動建立不存在的投料點
+                      new_pt_obj, created = ProcessType.objects.get_or_create(
+                          name=new_pt_name, 
+                          machine_model=material.machine_model
+                      )
+                      if created:
+                          messages.info(request, f"已為機型 {material.machine_model} 自動建立新投料點 '{new_pt_name}'。")
+                      
+                      material.process_type = new_pt_obj
+                      material.save()
+                      updated_materials.append(f"物料 {material.material_number} 投料點更新: {new_pt_name}")
+                      
+                      # Learning
+                      from requisitions.models import MaterialProcessTypeRule
+                      material_prefix = material.material_number[:10]
+                      MaterialProcessTypeRule.objects.update_or_create(
+                          material_prefix=material_prefix,
+                          machine_model_name=material.machine_model.name,
+                          defaults={
+                              'process_type_name': new_pt_name,
+                              'updated_by': request.user
+                          }
+                      )
               except Exception as e:
                   print(f"Error updating PT: {e}")
 
@@ -791,3 +795,63 @@ def process_types_management(request):
         'machine_models': MachineModel.objects.all(), # Pass all machine models for the form
     }
     return render(request, 'requisitions/process_types_management.html', context)
+
+
+@login_required
+def sync_storage_bins(request):
+    """從上傳的 Excel 匯入儲格資料，更新 Material.bin 和 RequisitionItem.storage_bin"""
+    if request.method != 'POST':
+        return redirect('requisitions:work_order_material_list')
+
+    if not (request.user.is_superuser or request.user.groups.filter(name__in=['撥料人員', '申請人員']).exists()):
+        messages.error(request, "您沒有權限執行此操作。")
+        return redirect('requisitions:work_order_material_list')
+
+    excel_file = request.FILES.get('storage_bin_file')
+    if not excel_file:
+        messages.error(request, "請選擇一個 Excel 檔案。")
+        redirect_url = request.META.get('HTTP_REFERER', reverse('requisitions:work_order_material_list'))
+        return redirect(redirect_url)
+
+    try:
+        df = pd.read_excel(excel_file, dtype={'物料': str, '儲格': str}, engine='openpyxl')
+        df.columns = df.columns.str.strip()
+
+        if '物料' not in df.columns or '儲格' not in df.columns:
+            messages.error(request, "Excel 檔案必須包含「物料」和「儲格」欄位。")
+            redirect_url = request.META.get('HTTP_REFERER', reverse('requisitions:work_order_material_list'))
+            return redirect(redirect_url)
+
+        # 建立物料 -> 儲格對應
+        bin_map = {}
+        for _, row in df.iterrows():
+            material_code = str(row['物料']).strip()
+            bin_value = str(row['儲格']).strip()
+            if material_code and bin_value and bin_value != 'nan':
+                bin_map[material_code] = bin_value
+
+        material_updated = 0
+        item_updated = 0
+
+        with transaction.atomic():
+            # 1. 更新 Material.bin
+            for material_code, bin_value in bin_map.items():
+                updated = Material.objects.filter(material_code=material_code).exclude(bin=bin_value).update(bin=bin_value)
+                material_updated += updated
+
+            # 2. 更新 RequisitionItem.storage_bin
+            items = RequisitionItem.objects.all()
+            for item in items:
+                new_bin = bin_map.get(item.material_number, '')
+                if new_bin and item.storage_bin != new_bin:
+                    item.storage_bin = new_bin
+                    item.save(update_fields=['storage_bin'])
+                    item_updated += 1
+
+        messages.success(request, f"儲格匯入完成！Excel 共 {len(bin_map)} 筆。更新 Material {material_updated} 筆、RequisitionItem {item_updated} 筆。")
+
+    except Exception as e:
+        messages.error(request, f"處理 Excel 時發生錯誤: {e}")
+
+    redirect_url = request.META.get('HTTP_REFERER', reverse('requisitions:work_order_material_list'))
+    return redirect(redirect_url)
