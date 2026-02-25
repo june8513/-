@@ -401,6 +401,36 @@ function quickDispatch(itemPk, btn) {
     })
     .catch(err => showToast('伺服器錯誤', true));
 }
+
+function sortShortageTable(n) {
+    const table = document.querySelector(".shortage-table");
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    
+    // Toggle sort direction
+    const currentDir = table.getAttribute("data-sort-dir") || "desc";
+    const newDir = currentDir === "asc" ? "desc" : "asc";
+    table.setAttribute("data-sort-dir", newDir);
+    
+    const factor = newDir === "asc" ? 1 : -1;
+    
+    rows.sort((a, b) => {
+        let x = a.children[n].innerText.trim().toLowerCase();
+        let y = b.children[n].innerText.trim().toLowerCase();
+        
+        // Handle numeric sorting for the Quantity column (index 4)
+        if (n === 4) {
+            const nx = parseFloat(x) || 0;
+            const ny = parseFloat(y) || 0;
+            return (nx - ny) * factor;
+        }
+        
+        return x.localeCompare(y, 'zh-TW') * factor;
+    });
+    
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+}
 </script>
 {% endblock %}
 
@@ -507,11 +537,11 @@ function quickDispatch(itemPk, btn) {
                 <table class="shortage-table">
                     <thead>
                         <tr>
-                            <th>儲格</th>
-                            <th>工單</th>
-                            <th>物料</th>
-                            <th>品名</th>
-                            <th style="text-align:right;">數量</th>
+                            <th onclick="sortShortageTable(0)" style="cursor:pointer;">儲格 ⇅</th>
+                            <th onclick="sortShortageTable(1)" style="cursor:pointer;">工單 ⇅</th>
+                            <th onclick="sortShortageTable(2)" style="cursor:pointer;">物料 ⇅</th>
+                            <th onclick="sortShortageTable(3)" style="cursor:pointer;">品名 ⇅</th>
+                            <th onclick="sortShortageTable(4)" style="cursor:pointer; text-align:right;">數量 ⇅</th>
                             <th style="text-align:center;">操作</th>
                         </tr>
                     </thead>
