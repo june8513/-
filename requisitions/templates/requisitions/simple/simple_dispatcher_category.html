@@ -292,11 +292,9 @@
         </div>
         <div class="req-info">
             {% if current_type == 'semi_finished' %}
-            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{
-            req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
+            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
             {% else %}
-            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not
-            req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
+            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
             {% endif %}
 
             {% if req.has_alert or req.is_overdue %}
