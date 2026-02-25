@@ -324,6 +324,17 @@
         font-size: 0.8rem;
         color: #4B5563;
     }
+
+    .replenish-btn {
+        padding: 0.2rem 0.5rem;
+        background: #10B981;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+    .replenish-btn:hover { background: #059669; }
 </style>
 {% endblock %}
 
@@ -363,6 +374,33 @@
     function toggleShortageModal(show) {
         document.getElementById('shortageModal').style.display = show ? 'flex' : 'none';
     }
+
+function quickDispatch(itemPk, btn) {
+    if (!confirm('確認已完成此物料撥料？')) return;
+    const formData = new FormData();
+    formData.append('action', 'quick_dispatch');
+    formData.append('item_pk', itemPk);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showToast('已完成補料');
+            btn.closest('tr').remove();
+            if (document.querySelectorAll('.shortage-table tbody tr').length === 0) {
+                document.querySelector('.modal-body').innerHTML = '<div style="padding: 2rem; text-align: center; color: #9CA3AF;">目前無待撥欠料項目</div>';
+            }
+        } else {
+            showToast(data.message || '操作失敗', true);
+        }
+    })
+    .catch(err => showToast('伺服器錯誤', true));
+}
 </script>
 {% endblock %}
 
@@ -470,18 +508,24 @@
                     <thead>
                         <tr>
                             <th>儲格</th>
+                            <th>工單</th>
                             <th>物料</th>
                             <th>品名</th>
-                            <th style="text-align:right;">總數</th>
+                            <th style="text-align:right;">數量</th>
+                            <th style="text-align:center;">操作</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in shortage_items %}
                         <tr>
                             <td><span class="bin-badge">{{ item.storage_bin|default:"-" }}</span></td>
+                            <td style="font-size:0.8rem;">{{ item.order_number }}</td>
                             <td style="font-weight:600;">{{ item.material_number }}</td>
                             <td style="font-size:0.8rem; color:#6B7280;">{{ item.item_name }}</td>
-                            <td style="text-align:right; font-weight:600; color:#DC2626;">{{ item.total_required|floatformat:0 }}</td>
+                            <td style="text-align:right; font-weight:600; color:#DC2626;">{{ item.required_quantity|floatformat:0 }}</td>
+                            <td style="text-align:center;">
+                                <button type="button" class="replenish-btn" onclick="quickDispatch({{ item.pk }}, this)">補料</button>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

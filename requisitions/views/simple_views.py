@@ -725,6 +725,19 @@ def simple_dispatcher_category(request, category):
     
     today = timezone.now().date()
     
+    # 處理快速撥料（補料）請求
+    if request.method == 'POST' and request.POST.get('action') == 'quick_dispatch':
+        item_pk = request.POST.get('item_pk')
+        try:
+            item = get_object_or_404(RequisitionItem, pk=item_pk)
+            # 將數量設為需求量，狀態改為已撥料
+            item.confirmed_quantity = item.required_quantity
+            item.dispatch_status = 'dispatched'
+            item.save()
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    
     if current_type == 'semi_finished':
         # 半成品：category 代表 applicant.username
         target_username = category
@@ -782,15 +795,11 @@ def simple_dispatcher_category(request, category):
         req.dispatched_count = dispatched
         req.total_count = total
     
-    # 彙整所有待撥申請單中的缺料項目
+    # 取得所有待撥申請單中的缺料項目 (不彙整，以便單獨補料)
     shortage_items = RequisitionItem.objects.filter(
         requisition__in=pending_requisitions,
         dispatch_status='backordered'
-    ).values(
-        'material_number', 'item_name', 'storage_bin'
-    ).annotate(
-        total_required=Sum('required_quantity')
-    ).order_by('storage_bin', 'material_number')
+    ).order_by('storage_bin', 'order_number', 'material_number')
     
     context = {
         'category': category,
