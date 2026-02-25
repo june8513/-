@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q, Count, Sum, Case, When, Value, IntegerField, F, DecimalField
-from django.db.models import Case, When, Value, IntegerField, Sum
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from decimal import Decimal
 from datetime import date
