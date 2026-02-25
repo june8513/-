@@ -217,6 +217,87 @@
     .toast-message.error {
         background: #DC2626;
     }
+
+    .shortage-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 8px;
+        border: 1px solid #FECACA;
+        background: #FEF2F2;
+        color: #DC2626;
+        font-size: 0.8rem;
+        cursor: pointer;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+    .shortage-btn:hover { background: #FEE2E2; }
+    
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 1rem;
+    }
+    .modal-container {
+        background: white;
+        width: 100%;
+        max-width: 600px;
+        max-height: 80vh;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+        padding: 1rem;
+        border-bottom: 1px solid #E5E7EB;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #F9FAFB;
+    }
+    .modal-title { font-weight: 600; color: #111827; }
+    .close-modal { cursor: pointer; font-size: 1.5rem; color: #9CA3AF; line-height: 1; }
+    .modal-body {
+        padding: 0;
+        overflow-y: auto;
+        flex: 1;
+    }
+    .shortage-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .shortage-table th {
+        background: #F3F4F6;
+        position: sticky;
+        top: 0;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        color: #4B5563;
+        font-weight: 600;
+        border-bottom: 1px solid #E5E7EB;
+    }
+    .shortage-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #F3F4F6;
+        color: #1F2937;
+    }
+    .shortage-table tr:last-child td { border-bottom: none; }
+    .bin-badge {
+        background: #E5E7EB;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        color: #4B5563;
+    }
 </style>
 {% endblock %}
 
@@ -252,6 +333,10 @@
         showToast('已複製 ' + orders.length + ' 筆工單號');
     }
 
+
+function toggleShortageModal(show) {
+    document.getElementById('shortageModal').style.display = show ? 'flex' : 'none';
+}
 </script>
 {% endblock %}
 
@@ -262,6 +347,7 @@
     <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
         {{ message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <button type="button" class="shortage-btn" onclick="toggleShortageModal(true)">🚨 查看待撥欠料物料</button>
     </div>
     {% endfor %}
     {% endif %}
@@ -345,5 +431,41 @@
         暫無已撥料申請單
     </div>
     {% endif %}
+
+    <!-- Shortage Modal -->
+    <div id="shortageModal" class="modal-overlay" onclick="toggleShortageModal(false)">
+        <div class="modal-container" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">待撥欠料彙整 ({{ category }})</div>
+                <div class="close-modal" onclick="toggleShortageModal(false)">&times;</div>
+            </div>
+            <div class="modal-body">
+                {% if shortage_items %}
+                <table class="shortage-table">
+                    <thead>
+                        <tr>
+                            <th>儲格</th>
+                            <th>物料</th>
+                            <th>品名</th>
+                            <th style="text-align:right;">總數</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in shortage_items %}
+                        <tr>
+                            <td><span class="bin-badge">{{ item.storage_bin|default:"-" }}</span></td>
+                            <td style="font-weight:600;">{{ item.material_number }}</td>
+                            <td style="font-size:0.8rem; color:#6B7280;">{{ item.item_name }}</td>
+                            <td style="text-align:right; font-weight:600; color:#DC2626;">{{ item.total_required|floatformat:0 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding: 2rem; text-align: center; color: #9CA3AF;">目前無待撥欠料項目</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

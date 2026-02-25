@@ -8,15 +8,12 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q, Count, Sum, Case, When, Value, IntegerField, F, DecimalField
-from django.db.models.functions import Coalesce
+from django.db.models import Case, When, Value, IntegerField, Sum
 from django.http import JsonResponse
 from decimal import Decimal
 from datetime import date
 
-from ..models import (
-    Requisition, RequisitionItem, WorkOrderMaterial, ProcessType, 
-    MachineModel, WorkOrder
-)
+from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
@@ -785,12 +782,23 @@ def simple_dispatcher_category(request, category):
         req.dispatched_count = dispatched
         req.total_count = total
     
+    # 彙整所有待撥申請單中的缺料項目
+    shortage_items = RequisitionItem.objects.filter(
+        requisition__in=pending_requisitions,
+        dispatch_status='backordered'
+    ).values(
+        'material_number', 'item_name', 'storage_bin'
+    ).annotate(
+        total_required=Sum('required_quantity')
+    ).order_by('storage_bin', 'material_number')
+    
     context = {
         'category': category,
         'category_color': category_color,
         'pending_requisitions': pending_requisitions,
         'completed_requisitions': completed_requisitions,
         'current_type': current_type,
+        'shortage_items': shortage_items,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_category.html', context)
 
