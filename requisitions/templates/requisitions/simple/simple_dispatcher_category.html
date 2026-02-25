@@ -251,21 +251,7 @@
         fallbackCopy(orders.join('\n'));
         showToast('已複製 ' + orders.length + ' 筆工單號');
     }
-    function copyDispatchedOrders() {
-        var orders = [];
-        var completedSection = false;
-        document.querySelectorAll('h2, a.requisition-card').forEach(function (el) {
-            if (el.tagName === 'H2' && el.textContent.includes('已撥料')) completedSection = true;
-            if (el.tagName === 'H2' && !el.textContent.includes('已撥料')) completedSection = false;
-            if (completedSection && el.tagName === 'A') {
-                var num = el.querySelector('.order-number');
-                if (num) orders.push(num.textContent.trim());
-            }
-        });
-        if (orders.length === 0) { showToast('沒有已撥料工單', true); return; }
-        fallbackCopy(orders.join('\n'));
-        showToast('已複製 ' + orders.length + ' 筆已撥料工單號');
-    }
+
 </script>
 {% endblock %}
 
@@ -290,7 +276,7 @@
 
     <div class="copy-btns">
         <button type="button" class="copy-btn" onclick="copyAllOrders()">📋 複製所有工單號</button>
-        <button type="button" class="copy-btn" onclick="copyDispatchedOrders()">📋 複製已撥料工單號</button>
+
     </div>
 
     <!-- 待撥料申請單 -->
@@ -306,9 +292,11 @@
         </div>
         <div class="req-info">
             {% if current_type == 'semi_finished' %}
-            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
+            領料人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{
+            req.applicant.username }}{% endif %} · {{ req.created_at|date:"H:i" }}
             {% else %}
-            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
+            {{ req.process_type }} · 申請人: {{ req.applicant.first_name }} {{ req.applicant.last_name }}{% if not
+            req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
             {% endif %}
 
             {% if req.has_alert or req.is_overdue %}
