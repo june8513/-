@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
-from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, UserProfile
+from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, UserProfile, RequisitionViewPermission
 
 class RequisitionItemInline(admin.TabularInline):
     model = RequisitionItem
@@ -165,4 +165,12 @@ class OperationProcessRuleAdmin(admin.ModelAdmin):
     search_fields = ('operation_description',)
     list_editable = ('process_type',)
     raw_id_fields = ('updated_by',)
+
+
+@admin.register(RequisitionViewPermission)
+class RequisitionViewPermissionAdmin(admin.ModelAdmin):
+    list_display = ('viewer', 'owner')
+    list_filter = ('viewer', 'owner')
+    search_fields = ('viewer__username', 'owner__username')
+    raw_id_fields = ('viewer', 'owner')
 

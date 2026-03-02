@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block title %}申請單詳情 - 物料申請系統{% endblock %}
-
 {% block extra_css %}
 <style>
     .simple-container {
@@ -10,7 +8,6 @@
         margin: 0 auto;
         padding: 1rem;
     }
-
     .page-header {
         display: flex;
         align-items: center;
@@ -21,7 +18,6 @@
         background: #F3F4F6;
         padding: 0.75rem 0;
     }
-
     .back-btn {
         width: 40px;
         height: 40px;
@@ -36,17 +32,14 @@
         text-decoration: none;
         color: #374151;
     }
-
     .back-btn:hover {
         background: #E5E7EB;
     }
-
     .page-title {
         font-size: 1.5rem;
         font-weight: 700;
         color: #1F2937;
     }
-
     .info-card {
         background: white;
         border-radius: 16px;
@@ -54,12 +47,10 @@
         margin-bottom: 1rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
-
     .progress-section {
         text-align: center;
         margin-bottom: 1rem;
     }
-
     .progress-bar-large {
         width: 100%;
         height: 12px;
@@ -68,41 +59,34 @@
         overflow: hidden;
         margin-bottom: 0.5rem;
     }
-
     .progress-bar-fill {
         height: 100%;
         background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%);
         border-radius: 6px;
         transition: width 0.5s ease;
     }
-
     .progress-text {
         font-size: 1.2rem;
         font-weight: 600;
         color: #374151;
     }
-
     .info-row {
         display: flex;
         justify-content: space-between;
         padding: 0.5rem 0;
         border-bottom: 1px solid #F3F4F6;
     }
-
     .info-row:last-child {
         border-bottom: none;
     }
-
     .info-label {
         color: #6B7280;
         font-size: 0.9rem;
     }
-
     .info-value {
         font-weight: 600;
         color: #1F2937;
     }
-
     .status-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -110,27 +94,22 @@
         font-size: 0.85rem;
         font-weight: 500;
     }
-
     .status-pending {
         background: #FEF3C7;
         color: #92400E;
     }
-
     .status-in-progress {
         background: #DBEAFE;
         color: #1E40AF;
     }
-
     .status-completed {
         background: #D1FAE5;
         color: #065F46;
     }
-
     .status-signed-off {
         background: #ECFDF5;
         color: #047857;
     }
-
     .materials-card {
         background: white;
         border-radius: 16px;
@@ -138,14 +117,12 @@
         margin-bottom: 1rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
-
     .materials-title {
         font-size: 1.1rem;
         font-weight: 600;
         color: #1F2937;
         margin-bottom: 1rem;
     }
-
     .material-item {
         display: flex;
         justify-content: space-between;
@@ -155,56 +132,44 @@
         margin-bottom: 0.5rem;
         background: #F9FAFB;
     }
-
     .material-item.dispatched {
         background: #ECFDF5;
     }
-
     .material-item.shortage {
         background: #FEF2F2;
     }
-
     .material-info {
         flex: 1;
     }
-
     .material-number {
         font-weight: 600;
         color: #1F2937;
         font-size: 0.95rem;
     }
-
     .material-name {
         color: #6B7280;
         font-size: 0.85rem;
     }
-
     .material-qty {
         text-align: right;
     }
-
     .qty-text {
         font-size: 0.9rem;
         color: #374151;
     }
-
     .status-icon {
         margin-left: 0.75rem;
         font-size: 1.2rem;
     }
-
     .status-icon.success {
         color: #10B981;
     }
-
     .status-icon.pending {
         color: #F59E0B;
     }
-
     .status-icon.shortage {
         color: #EF4444;
     }
-
     .shortage-badge {
         display: inline-block;
         background: #FEE2E2;
@@ -214,7 +179,6 @@
         font-size: 0.75rem;
         margin-top: 0.25rem;
     }
-
     .sign-off-btn {
         width: 100%;
         padding: 1rem;
@@ -227,18 +191,15 @@
         transition: all 0.3s ease;
         box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
     }
-
     .sign-off-btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
     }
-
     .sign-off-btn:disabled {
         background: #9CA3AF;
         box-shadow: none;
         transform: none;
     }
-
     .item-sign-off-btn {
         padding: 0.35rem 0.75rem;
         font-size: 0.8rem;
@@ -250,11 +211,9 @@
         cursor: pointer;
         margin-left: 0.5rem;
     }
-
     .item-sign-off-btn:hover {
         background: #059669;
     }
-
     .signed-badge {
         display: inline-block;
         padding: 0.25rem 0.5rem;
@@ -265,7 +224,6 @@
         color: #065F46;
         margin-left: 0.5rem;
     }
-
     .edit-btn {
         background: none;
         border: none;
@@ -276,11 +234,9 @@
         opacity: 0.7;
         transition: opacity 0.2s;
     }
-
     .edit-btn:hover {
         opacity: 1;
     }
-
     .save-btn,
     .cancel-btn {
         padding: 0.25rem 0.6rem;
@@ -290,27 +246,22 @@
         cursor: pointer;
         margin-left: 0.25rem;
     }
-
     .save-btn {
         background: #3B82F6;
         color: white;
     }
-
     .save-btn:hover {
         background: #2563EB;
     }
-
     .cancel-btn {
         background: #E5E7EB;
         color: #374151;
     }
-
     .cancel-btn:hover {
         background: #D1D5DB;
     }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="simple-container">
     {% if messages %}
@@ -321,13 +272,11 @@
     </div>
     {% endfor %}
     {% endif %}
-
     <div class="page-header">
         <a href="{% url 'requisitions:simple_applicant_home' %}" class="back-btn">←</a>
         <h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span
                 style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
     </div>
-
     {% if requisition.has_alert %}
     <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert"
         style="border-radius: 12px;">
@@ -344,7 +293,6 @@
         </form>
     </div>
     {% endif %}
-
     <!-- Progress Section -->
     <div class="info-card">
         <div class="progress-section">
@@ -353,7 +301,6 @@
             </div>
             <div class="progress-text">{{ progress }}% 已撥料</div>
         </div>
-
         <div class="info-row">
             <span class="info-label">工單單號</span>
             <span class="info-value">{{ requisition.order_number }}</span>
@@ -368,7 +315,6 @@
                 {{ requisition.process_type }}
             </span>
             {% endif %}
-
         </div>
         <div class="info-row">
             <span class="info-label">申請日期</span>
@@ -405,8 +351,6 @@
                 {% endif %}
             </span>
         </div>
-
-
         {% if requisition.status == 'demand_submitted' %}
         <div class="info-row" style="border-bottom: none; padding-top: 1rem; justify-content: flex-end;">
             <form action="{% url 'requisitions:simple_applicant_delete' pk=requisition.pk %}" method="post"
@@ -418,11 +362,9 @@
         </div>
         {% endif %}
     </div>
-
     <!-- Materials List -->
     <div class="materials-card">
         <h3 class="materials-title">物料清單 ({{ total_count }} 項)</h3>
-
         {% for item in items %}
         <div
             class="material-item {% if item.dispatch_status == 'dispatched' %}dispatched{% elif item.is_shortage %}shortage{% endif %}">
@@ -431,8 +373,7 @@
                 <div class="material-name">{{ item.item_name }}</div>
                 {% if item.is_insufficient_stock %}
                 <span class="shortage-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;">⚠️
-                    庫存不足 (剩餘: {{ item.stock_quantity|floatformat:0 }}){% if item.expected_date %} 預計入料: {{
-                    item.expected_date|date:"m/d" }}{% endif %}</span>
+                    庫存不足 (剩餘: {{ item.stock_quantity|floatformat:0 }}){% if item.expected_date %} 預計入料: {{ item.expected_date|date:"m/d" }}{% endif %}</span>
                 {% endif %}
                 {% if item.is_shortage and item.expected_date %}
                 <span class="shortage-badge">預計入料: {{ item.expected_date|date:"m/d" }}</span>
@@ -459,14 +400,13 @@
                 <button type="submit" class="item-sign-off-btn">簽收</button>
             </form>
             {% elif item.is_signed_off %}
-            <span class="signed-badge">已簽收</span>
+            <span class="signed-badge">已簽收{% if item.sign_off_by %} ({{ item.sign_off_by.username }}){% endif %}</span>
             {% endif %}
         </div>
         {% empty %}
         <p class="text-muted text-center">沒有物料項目</p>
         {% endfor %}
     </div>
-
     <!-- Sign Off Button -->
     {% if requisition.status != 'signed_off' %}
     <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}"
@@ -480,12 +420,10 @@
     {% endif %}
 </div>
 {% endblock %}
-
 {% block extra_js %}
 <script>
     (function () {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
         function showToast(message, success) {
             const toast = document.createElement('div');
             toast.className = 'alert ' + (success ? 'alert-success' : 'alert-danger');
@@ -494,18 +432,14 @@
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
-
         function handleSignOff(e) {
             e.preventDefault();
             const form = e.target;
             const btn = form.querySelector('button');
             const itemRow = form.closest('.material-item');
-
             btn.disabled = true;
             btn.textContent = '處理中...';
-
             const formData = new FormData(form);
-
             fetch(form.action, {
                 method: 'POST',
                 body: formData,
@@ -523,10 +457,9 @@
                             form.remove();
                             const badge = document.createElement('span');
                             badge.className = 'signed-badge';
-                            badge.textContent = '已簽收';
+                            badge.textContent = '已簽收 ({{ user.username }})';
                             itemRow.appendChild(badge);
                         }
-
                         // 如果全部簽收完成，刷新頁面顯示完成狀態
                         if (data.requisition_completed) {
                             setTimeout(() => window.location.reload(), 1000);
@@ -542,17 +475,14 @@
                     btn.textContent = '簽收';
                 });
         }
-
         // 設定進度條寬度
         document.querySelectorAll('.progress-bar-fill[data-progress]').forEach(function (el) {
             el.style.width = el.dataset.progress + '%';
         });
-
         // 綁定所有簽收表單
         document.querySelectorAll('form.sign-off-form').forEach(form => {
             form.addEventListener('submit', handleSignOff);
         });
-
         // 需求日期編輯功能
         const editDateBtn = document.getElementById('edit-req-date-btn');
         const dateDisplay = document.getElementById('req-date-display');
@@ -560,33 +490,26 @@
         const dateInput = document.getElementById('req-date-input');
         const saveDateBtn = document.getElementById('save-req-date-btn');
         const cancelDateBtn = document.getElementById('cancel-req-date-btn');
-
         if (editDateBtn) {
             const updateUrl = '{% url "requisitions:simple_applicant_update_request_date" pk=requisition.pk %}';
-
             editDateBtn.addEventListener('click', function () {
                 dateDisplay.style.display = 'none';
                 dateEdit.style.display = 'flex';
             });
-
             cancelDateBtn.addEventListener('click', function () {
                 dateDisplay.style.display = '';
                 dateEdit.style.display = 'none';
             });
-
             saveDateBtn.addEventListener('click', function () {
                 const newDate = dateInput.value;
                 if (!newDate) {
                     showToast('請選擇日期', false);
                     return;
                 }
-
                 saveDateBtn.disabled = true;
                 saveDateBtn.textContent = '儲存中...';
-
                 const formData = new FormData();
                 formData.append('request_date', newDate);
-
                 fetch(updateUrl, {
                     method: 'POST',
                     body: formData,
@@ -613,8 +536,6 @@
                     });
             });
         }
-
-
     })();
 </script>
 {% endblock %}

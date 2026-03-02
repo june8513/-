@@ -4,6 +4,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.db.models import Q
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
@@ -13,7 +14,7 @@ from django.http import JsonResponse
 from decimal import Decimal
 from datetime import date
 
-from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial
+from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionViewPermission
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
@@ -47,7 +48,19 @@ def simple_applicant_home(request):
     if current_type not in ['finished', 'semi_finished']:
         current_type = 'finished'
     
-    base_qs = Requisition.objects.filter(applicant=request.user)
+    # 取得被授權查看的使用者列表
+    viewable_owners = RequisitionViewPermission.objects.filter(
+        viewer=request.user
+    ).values_list('owner', flat=True)
+    viewable_owner_names = list(
+        RequisitionViewPermission.objects.filter(
+            viewer=request.user
+        ).values_list('owner__username', flat=True)
+    )
+    
+    base_qs = Requisition.objects.filter(
+        Q(applicant=request.user) | Q(applicant__in=viewable_owners)
+    )
     
     # 如果是主管，顯示所有申請單
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
@@ -74,6 +87,8 @@ def simple_applicant_home(request):
                 req.request_date < today and 
                 req.status in ['demand_submitted', 'dispatch_in_progress']
             )
+            # 標記是否為他人的申請單
+            req.is_from_other = (req.applicant != request.user)
     
     context = {
         'pending_reqs': pending_reqs,
@@ -82,6 +97,7 @@ def simple_applicant_home(request):
         'signed_off_reqs': signed_off_reqs,
         'user': request.user,
         'current_type': current_type,
+        'viewable_owner_names': viewable_owner_names,
     }
     return render(request, 'requisitions/simple/simple_applicant_home.html', context)
 
@@ -356,9 +372,12 @@ def simple_applicant_delete(request, pk):
 
     requisition = get_object_or_404(Requisition, pk=pk)
 
-    # 權限檢查：只能刪除自己的申請單（除非是超級管理員 或 申請人員主管）
+    # 權限檢查：只能刪除自己的申請單（除非是超級管理員、申請人員主管、或被授權者）
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
+    has_view_permission = RequisitionViewPermission.objects.filter(
+        owner=requisition.applicant, viewer=request.user
+    ).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
         messages.error(request, '您無權限刪除此申請單。')
         return redirect('requisitions:simple_applicant_detail', pk=pk)
 
@@ -378,9 +397,12 @@ def simple_applicant_detail(request, pk):
     """簡易申請人員查看申請單詳情"""
     requisition = get_object_or_404(Requisition, pk=pk)
     
-    # 檢查是否為申請人本人 (或主管)
+    # 檢查是否為申請人本人 (或主管 或被授權者)
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
+    has_view_permission = RequisitionViewPermission.objects.filter(
+        owner=requisition.applicant, viewer=request.user
+    ).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
         messages.error(request, "您沒有權限查看此申請單。")
         return redirect('requisitions:simple_applicant_home')
     
@@ -441,9 +463,12 @@ def simple_applicant_update_process_type(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
-    # 檢查是否為申請人本人或管理員 (或主管)
+    # 檢查是否為申請人本人或管理員 (或主管 或被授權者)
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
+    has_view_permission = RequisitionViewPermission.objects.filter(
+        owner=requisition.applicant, viewer=request.user
+    ).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
         if is_ajax:
             return JsonResponse({'success': False, 'message': '您沒有權限修改此申請單。'})
         messages.error(request, "您沒有權限修改此申請單。")
@@ -523,7 +548,10 @@ def simple_applicant_update_request_date(request, pk):
     
     # Check permission
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser:
+    has_view_permission = RequisitionViewPermission.objects.filter(
+        owner=requisition.applicant, viewer=request.user
+    ).exists()
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
         message = "您沒有權限修改此申請單。"
         if is_ajax:
             return JsonResponse({'success': False, 'message': message})
@@ -575,8 +603,11 @@ def simple_applicant_sign_off(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
-    # 檢查是否為申請人本人
-    if requisition.applicant != request.user and not request.user.is_superuser:
+    # 檢查是否為申請人本人 (或被授權者)
+    has_view_permission = RequisitionViewPermission.objects.filter(
+        owner=requisition.applicant, viewer=request.user
+    ).exists()
+    if requisition.applicant != request.user and not request.user.is_superuser and not has_view_permission:
         if is_ajax:
             return JsonResponse({'success': False, 'message': '您沒有權限執行簽收操作。'})
         messages.error(request, "您沒有權限執行簽收操作。")

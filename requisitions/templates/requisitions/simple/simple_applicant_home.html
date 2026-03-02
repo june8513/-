@@ -330,6 +330,7 @@
         </div>
         {% endif %}
         <div class="order-number">{{ req.order_number }}</div>
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot pending"></span><span>待處理</span></div>
@@ -355,6 +356,7 @@
         </div>
         {% endif %}
         <div class="order-number">{{ req.order_number }}</div>
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot in-progress"></span><span>撥料中</span></div>
@@ -374,6 +376,7 @@
     {% for req in completed_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
         <div class="order-number">{{ req.order_number }}</div>
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot completed"></span><span>待簽收</span></div>
@@ -393,6 +396,7 @@
     {% for req in signed_off_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card">
         <div class="order-number">{{ req.order_number }}</div>
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot signed-off"></span><span>已簽收</span></div>

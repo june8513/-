@@ -382,7 +382,7 @@
 <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
 <div class="material-header">
 <div class="material-info">
-<h4>{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收</span>{% endif %}</h4>
+<h4>{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.username }}){% endif %}</span>{% endif %}</h4>
 <p>{{ item.item_name }}</p>
 {% if item.storage_bin %}<p class="storage-bin">儲格: {{ item.storage_bin }}</p>{% endif %}
 {% if item.has_backlog %}<div class="backlog-alert">⚠ 有更早工單需先撥料</div>{% endif %}
@@ -415,7 +415,7 @@
 <div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}">
 <div class="supp-item-header">
 <span class="supp-label">補撥 #{{ forloop.counter }}</span>
-<span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% endif %}</span>
+<span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% if supp.sign_off_by %} ({{ supp.sign_off_by.username }}){% endif %}{% endif %}</span>
 </div>
 <form method="post" class="material-actions">
 {% csrf_token %}

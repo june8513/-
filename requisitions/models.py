@@ -314,3 +314,19 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} 的設定檔"
 
+
+class RequisitionViewPermission(models.Model):
+    """申請單查看授權 - 允許某使用者查看並操作另一使用者的申請單"""
+    owner = models.ForeignKey(User, on_delete=models.CASCADE,
+        related_name='view_permissions_granted', verbose_name="申請單擁有者")
+    viewer = models.ForeignKey(User, on_delete=models.CASCADE,
+        related_name='view_permissions_received', verbose_name="被授權查看者")
+
+    class Meta:
+        verbose_name = "申請單查看授權"
+        verbose_name_plural = "申請單查看授權"
+        unique_together = ('owner', 'viewer')
+
+    def __str__(self):
+        return f"{self.viewer.username} 可查看 {self.owner.username} 的申請單"
+
