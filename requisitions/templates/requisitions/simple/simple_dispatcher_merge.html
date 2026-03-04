@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}合併撥料 - {{ category }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 750px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #F3F4F6;
+        padding: 0.75rem 0;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        text-decoration: none;
+        color: #374151;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+    }
+
+    .page-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: white;
+        margin-left: 0.5rem;
+    }
+
+    .summary-bar {
+        background: white;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.9rem;
+        color: #374151;
+    }
+
+    .material-card {
+        background: white;
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .material-header {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        gap: 0.75rem;
+        transition: background 0.15s;
+    }
+
+    .material-header:hover {
+        background: #F9FAFB;
+    }
+
+    .bin-badge {
+        background: #E5E7EB;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        color: #4B5563;
+        white-space: nowrap;
+    }
+
+    .mat-number {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #1F2937;
+        min-width: 0;
+    }
+
+    .mat-name {
+        font-size: 0.8rem;
+        color: #6B7280;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mat-orders {
+        font-size: 0.75rem;
+        color: #374151;
+        white-space: nowrap;
+    }
+
+    .expand-icon {
+        font-size: 0.8rem;
+        color: #9CA3AF;
+        transition: transform 0.2s;
+    }
+
+    .material-card.expanded .expand-icon {
+        transform: rotate(90deg);
+    }
+
+    .order-details {
+        display: none;
+        border-top: 1px solid #F3F4F6;
+        background: #FAFBFC;
+    }
+
+    .material-card.expanded .order-details {
+        display: block;
+    }
+
+    .order-row {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #F3F4F6;
+        gap: 0.5rem;
+    }
+
+    .order-row:last-child {
+        border-bottom: none;
+    }
+
+    .order-num {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #1F2937;
+        flex: 1;
+    }
+
+    .order-qty {
+        font-size: 0.85rem;
+        color: #374151;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+
+    .btn-dispatch {
+        padding: 0.25rem 0.5rem;
+        background: #10B981;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .btn-dispatch:hover {
+        background: #059669;
+    }
+
+    .btn-backorder {
+        padding: 0.25rem 0.5rem;
+        background: #F59E0B;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .btn-backorder:hover {
+        background: #D97706;
+    }
+
+    .btn-dispatch:disabled,
+    .btn-backorder:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .dispatched-label {
+        font-size: 0.75rem;
+        color: #10B981;
+        font-weight: 600;
+    }
+
+    .backordered-label {
+        font-size: 0.75rem;
+        color: #F59E0B;
+        font-weight: 600;
+    }
+
+    .dispatch-all-section {
+        position: sticky;
+        bottom: 0;
+        padding: 1rem;
+        background: #F3F4F6;
+    }
+
+    .dispatch-all-btn {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, #3B82F6, #2563EB);
+        border: none;
+        border-radius: 12px;
+        color: white;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+        transition: all 0.3s;
+    }
+
+    .dispatch-all-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .dispatch-all-btn:disabled {
+        background: #9CA3AF;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .toast-message {
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #059669;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        font-size: 0.85rem;
+    }
+
+    .toast-message.error {
+        background: #DC2626;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #9CA3AF;
+        background: #F9FAFB;
+        border-radius: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
+            class="back-btn" > ← < /a>
+        <h1 class="page-title" > 合併撥料
+            <span class="category-badge" style="background: {{ category_color }};" > {{ category }} < /span>
+        </h1>
+    </div>
+
+    <div class="summary-bar">
+        <span > 已選 {{ order_numbers|length }} 張工單 · {{ total_items }} 筆未撥物料 < /span>
+        <span > {{ merged_items|length }} 種物料 < /span>
+    </div>
+
+    {% if merged_items %}
+    {% for mat in merged_items %}
+    <div class="material-card" id="card-{{ forloop.counter }}">
+        <div class="material-header" onclick="toggleCard('card-{{ forloop.counter }}')">
+            <span class="bin-badge" > {{ mat.storage_bin }} < /span>
+            <span class="mat-number" > {{ mat.material_number }} < /span>
+            <span class="mat-name" > {{ mat.item_name }} < /span>
+            <span class="mat-orders">
+                {% for o in mat.orders %}{{ o.order_number }}-{{ o.required_quantity|floatformat:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            </span>
+            <span class="expand-icon" > ▶ < /span>
+        </div>
+        <div class="order-details">
+            {% for o in mat.orders %}
+            <div class="order-row" id="item-{{ o.pk }}">
+                <span class="order-num" > {{ o.order_number }} < /span>
+                <span class="order-qty" > {{ o.required_quantity|floatformat:0 }} < /span>
+                <button class="btn-dispatch" onclick="dispatchItem({{ o.pk }}, this)" > 撥料 < /button>
+                <button class="btn-backorder" onclick="backorderItem({{ o.pk }}, this)" > 缺料 < /button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="dispatch-all-section">
+        <button class="dispatch-all-btn" onclick="dispatchAll()" > 全部撥料 ({{ total_items }} 筆) < /button>
+    </div>
+    {% else %}
+    <div class="empty-state" > 所選工單沒有未撥料的物料 < /div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const csrfToken = '{{ csrf_token }}';
+
+    function showToast(msg, isError) {
+        const t = document.createElement('div');
+        t.className = 'toast-message' + (isError ? ' error' : '');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 2500);
+    }
+
+    function toggleCard(id) {
+        document.getElementById(id).classList.toggle('expanded');
+    }
+
+    function dispatchItem(pk, btn) {
+        const row = btn.closest('.order-row');
+        btn.disabled = true;
+        const formData = new FormData();
+        formData.append('action', 'dispatch_item');
+        formData.append('item_pk', pk);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    row.innerHTML = ' < span class="order-num" > ' + row.querySelector('.order-num').textContent + ' < /span > '
+                        + ' < span class="order-qty" > ' + row.querySelector('.order-qty').textContent + ' < /span > '
+                        + ' < span class="dispatched-label" > ✓ 已撥料 < /span > ';
+                    showToast('已撥料');
+                } else {
+                    showToast(data.message || '操作失敗', true);
+                    btn.disabled = false;
+                }
+            })
+            .catch(() => { showToast('伺服器錯誤', true); btn.disabled = false; });
+    }
+
+    function backorderItem(pk, btn) {
+        const row = btn.closest('.order-row');
+        btn.disabled = true;
+        const formData = new FormData();
+        formData.append('action', 'backorder_item');
+        formData.append('item_pk', pk);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    row.innerHTML = ' < span class="order-num" > ' + row.querySelector('.order-num').textContent + ' < /span > '
+                        + ' < span class="order-qty" > ' + row.querySelector('.order-qty').textContent + ' < /span > '
+                        + ' < span class="backordered-label" > ⚠ 缺料 < /span > ';
+                    showToast('已標記缺料');
+                } else {
+                    showToast(data.message || '操作失敗', true);
+                    btn.disabled = false;
+                }
+            })
+            .catch(() => { showToast('伺服器錯誤', true); btn.disabled = false; });
+    }
+
+    function dispatchAll() {
+        if (!confirm('確認要將所有未撥物料全部撥料嗎？')) return;
+        const btn = document.querySelector('.dispatch-all-btn');
+        btn.disabled = true;
+        btn.textContent = '處理中...';
+
+        const formData = new FormData();
+        formData.append('action', 'dispatch_all');
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showToast(data.message || '操作失敗', true);
+                    btn.disabled = false;
+                    btn.textContent = '全部撥料';
+                }
+            })
+            .catch(() => {
+                showToast('伺服器錯誤', true);
+                btn.disabled = false;
+                btn.textContent = '全部撥料';
+            });
+    }
+</script>
+{% endblock %}
