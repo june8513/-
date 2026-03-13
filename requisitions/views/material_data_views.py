@@ -438,9 +438,9 @@ def update_work_order_quantities(request):
           process_type=process_type_obj.name # ProcessType name as CharField
       ).first()
       
+      # Requisition is now optional for updating WorkOrderMaterial attributes
       if not current_requisition:
-          messages.error(request, f"找不到訂單 {order_number} 和流程 {process_type_obj.name} 對應的撥料申請單。")
-          return redirect(f'{redirect_url}{query_string}')
+          messages.info(request, f"提示：目前尚未建立工單 {order_number} 的申請單，僅更新物料基本資料。")
 
       # Get all WorkOrderMaterials relevant to this order and process type
       all_relevant_work_order_materials = WorkOrderMaterial.objects.filter(
@@ -537,50 +537,51 @@ def update_work_order_quantities(request):
                       status__in=['demand_submitted', 'dispatch_in_progress', 'dispatch_completed', 'signed_off'] # Include more statuses
                   )
 
-                  for req in relevant_requisitions:
-                      print(f"DEBUG: Processing Requisition (PK: {req.pk}, Order: {req.order_number}, Process: {req.process_type}, Status: {req.status}) for WorkOrderMaterial (PK: {material.pk}, Material: {material.material_number})") # DEBUG
+                  if relevant_requisitions.exists():
+                      for req in relevant_requisitions:
+                          print(f"DEBUG: Processing Requisition (PK: {req.pk}, Order: {req.order_number}, Process: {req.process_type}, Status: {req.status}) for WorkOrderMaterial (PK: {material.pk}, Material: {material.material_number})") # DEBUG
 
-                      # Update Requisition status if it's still 'demand_submitted'
-                      if req.status == 'demand_submitted':
-                          req.status = 'dispatch_in_progress'
-                          req.save()
+                          # Update Requisition status if it's still 'demand_submitted'
+                          if req.status == 'demand_submitted':
+                              req.status = 'dispatch_in_progress'
+                              req.save()
 
-                      # Create or update RequisitionItem
-                      requisition_item, created = RequisitionItem.objects.update_or_create(
-                          requisition=req,
-                          material_number=material.material_number, # Use material_number for lookup
-                          defaults={
-                              'source_material': material, # Keep source_material in defaults
-                              'order_number': material.order_number,
-                              'item_name': material.item_name,
-                              'required_quantity': material.required_quantity,
-                              'stock_quantity': Material.objects.filter(material_code=material.material_number).values_list('system_quantity', flat=True).first() or Decimal('0'), # Fetch current stock from the correct source
-                              'confirmed_quantity': material.confirmed_quantity,
-                              'dispatch_status': 'dispatched' if material.confirmed_quantity >= material.required_quantity else 'backordered',
-                          }
-                      )
-                      if created:
-                          messages.info(request, f"為申請單 {req.order_number} ({req.process_type}) 新增物料 {material.material_number}。")
-                      else:
-                          messages.info(request, f"更新申請單 {req.order_number} ({req.process_type}) 的物料 {material.material_number} 撥料數量。")
-                      
-                      affected_requisition_ids.add(req.pk)
+                          # Create or update RequisitionItem
+                          requisition_item, created = RequisitionItem.objects.update_or_create(
+                              requisition=req,
+                              material_number=material.material_number, # Use material_number for lookup
+                              defaults={
+                                  'source_material': material, # Keep source_material in defaults
+                                  'order_number': material.order_number,
+                                  'item_name': material.item_name,
+                                  'required_quantity': material.required_quantity,
+                                  'stock_quantity': Material.objects.filter(material_code=material.material_number).values_list('system_quantity', flat=True).first() or Decimal('0'), # Fetch current stock from the correct source
+                                  'confirmed_quantity': material.confirmed_quantity,
+                                  'dispatch_status': 'dispatched' if material.confirmed_quantity >= material.required_quantity else 'backordered',
+                              }
+                          )
+                          if created:
+                              messages.info(request, f"為申請單 {req.order_number} ({req.process_type}) 新增物料 {material.material_number}。")
+                          else:
+                              messages.info(request, f"更新申請單 {req.order_number} ({req.process_type}) 的物料 {material.material_number} 撥料數量。")
+                          
+                          affected_requisition_ids.add(req.pk)
 
-                      # Check if all items for this requisition are fully dispatched
-                      all_items_for_req = RequisitionItem.objects.filter(requisition=req)
-                      all_dispatched = True
-                      for item in all_items_for_req:
-                          confirmed_qty = item.confirmed_quantity if item.confirmed_quantity is not None else Decimal('0')
-                          if confirmed_qty < item.required_quantity:
-                              all_dispatched = False
-                              break
-                      
-                      if all_dispatched and req.status != 'dispatch_completed':
-                          req.status = 'dispatch_completed'
-                          req.dispatch_performed = True # Set dispatch_performed to True
-                          req.save()
-                          messages.success(request, f"申請單 {req.order_number} ({req.process_type}) 所有物料已撥料完成！")
-                          redirect_to_requisition_pk = req.pk # Store the PK for redirection
+                          # Check if all items for this requisition are fully dispatched
+                          all_items_for_req = RequisitionItem.objects.filter(requisition=req)
+                          all_dispatched = True
+                          for item in all_items_for_req:
+                              confirmed_qty = item.confirmed_quantity if item.confirmed_quantity is not None else Decimal('0')
+                              if confirmed_qty < item.required_quantity:
+                                  all_dispatched = False
+                                  break
+                          
+                          if all_dispatched and req.status != 'dispatch_completed':
+                              req.status = 'dispatch_completed'
+                              req.dispatch_performed = True # Set dispatch_performed to True
+                              req.save()
+                              messages.success(request, f"申請單 {req.order_number} ({req.process_type}) 所有物料已撥料完成！")
+                              redirect_to_requisition_pk = req.pk # Store the PK for redirection
                   # --- End New Logic ---
 
               except (ValueError, WorkOrderMaterial.DoesNotExist) as e:
@@ -589,34 +590,35 @@ def update_work_order_quantities(request):
                   return redirect(f'{redirect_url}{query_string}')
 
       # --- New Logic: Handle WorkOrderMaterials not explicitly processed by user input ---
-      for material in all_relevant_work_order_materials:
-          # Check if a RequisitionItem already exists for this material and requisition
-          # This covers both explicitly processed materials and previously existing items
-          if not RequisitionItem.objects.filter(requisition=current_requisition, material_number=material.material_number).exists():
-              # This material has no RequisitionItem yet, meaning it was not explicitly handled
-              # and no RequisitionItem was created for it previously.
-              # It should be considered 'backordered' as it was not dispatched.
-              
-              # Create RequisitionItem for this unprocessed material
-              requisition_item, created = RequisitionItem.objects.update_or_create(
-                  requisition=current_requisition,
-                  material_number=material.material_number,
-                  defaults={
-                      'source_material': material,
-                      'order_number': material.order_number,
-                      'item_name': material.item_name,
-                      'required_quantity': material.required_quantity,
-                      'stock_quantity': Material.objects.filter(material_code=material.material_number).values_list('system_quantity', flat=True).first() or Decimal('0'),
-                      'confirmed_quantity': Decimal('0'), # Set to 0 as it was not dispatched
-                      'dispatch_status': 'backordered', # Explicitly set to backordered
-                  }
-              )
-              if created:
-                  messages.info(request, f"為申請單 {current_requisition.order_number} ({current_requisition.process_type}) 新增未撥物料 {material.material_number}。")
-              else:
-                  messages.info(request, f"更新申請單 {current_requisition.order_number} ({current_requisition.process_type}) 的未撥物料 {material.material_number} 狀態。")
-              
-              affected_requisition_ids.add(current_requisition.pk)
+      if current_requisition:
+          for material in all_relevant_work_order_materials:
+              # Check if a RequisitionItem already exists for this material and requisition
+              # This covers both explicitly processed materials and previously existing items
+              if not RequisitionItem.objects.filter(requisition=current_requisition, material_number=material.material_number).exists():
+                  # This material has no RequisitionItem yet, meaning it was not explicitly handled
+                  # and no RequisitionItem was created for it previously.
+                  # It should be considered 'backordered' as it was not dispatched.
+                  
+                  # Create RequisitionItem for this unprocessed material
+                  requisition_item, created = RequisitionItem.objects.update_or_create(
+                      requisition=current_requisition,
+                      material_number=material.material_number,
+                      defaults={
+                          'source_material': material,
+                          'order_number': material.order_number,
+                          'item_name': material.item_name,
+                          'required_quantity': material.required_quantity,
+                          'stock_quantity': Material.objects.filter(material_code=material.material_number).values_list('system_quantity', flat=True).first() or Decimal('0'),
+                          'confirmed_quantity': Decimal('0'), # Set to 0 as it was not dispatched
+                          'dispatch_status': 'backordered', # Explicitly set to backordered
+                      }
+                  )
+                  if created:
+                      messages.info(request, f"為申請單 {current_requisition.order_number} ({current_requisition.process_type}) 新增未撥物料 {material.material_number}。")
+                  else:
+                      messages.info(request, f"更新申請單 {current_requisition.order_number} ({current_requisition.process_type}) 的未撥物料 {material.material_number} 狀態。")
+                  
+                  affected_requisition_ids.add(current_requisition.pk)
       # --- End New Logic ---
 
       # After processing all materials (both explicitly updated and implicitly backordered),
