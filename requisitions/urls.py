@@ -16,7 +16,9 @@ urlpatterns = [
     path('simple/applicant/<int:pk>/delete/', simple_views.simple_applicant_delete, name='simple_applicant_delete'),
     path('simple/dispatcher/', simple_views.simple_dispatcher_home, name='simple_dispatcher_home'),
     path('simple/dispatcher/<str:category>/', simple_views.simple_dispatcher_category, name='simple_dispatcher_category'),
+    path('simple/dispatcher/<str:category>/merge/', simple_views.simple_dispatcher_merge, name='simple_dispatcher_merge'),
     path('simple/dispatcher/<str:category>/<int:pk>/', simple_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
+    path('simple/dispatcher/announcement/update/', simple_views.update_announcement, name='update_announcement'),
 
     path('work_orders/', views.work_order_list, name='work_order_list'),
     path('work_orders/<str:order_number>/toggle_archive/', views.toggle_work_order_archive, name='toggle_work_order_archive'),
@@ -24,6 +26,7 @@ urlpatterns = [
     path('assistant/', assistant_views.assistant_view, name='assistant'),
     path('api/natural_action/', api_views.natural_action_view, name='natural_action'),
     path('api/check_task_status/<str:task_id>/', api_views.check_task_status, name='check_task_status'),
+    path('api/save_ai_correction/', api_views.save_ai_correction, name='save_ai_correction'),
     path('api/shortage_materials/', api_views.shortage_materials_api, name='shortage_materials_api'),
     path('finished_goods_dispatch/', views.finished_goods_dispatch, name='finished_goods_dispatch'),
     path('<int:pk>/images/', views.view_requisition_images, name='view_requisition_images'),

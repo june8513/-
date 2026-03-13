@@ -279,7 +279,7 @@
         font-size: 0.9rem;
         margin-bottom: 0.5rem;
     }
-</style>
+    </style>
 {% endblock %}
 
 {% block content %}
@@ -296,7 +296,7 @@
     <div class="page-header">
         <h1 class="page-title">我的申請單</h1>
         <div class="user-badge">
-            {{ user.username }}
+            {{ user.first_name }}{{ user.last_name }}{% if not user.first_name %}{{ user.username }}{% endif %}
         </div>
     </div>
 
@@ -330,7 +330,7 @@
         </div>
         {% endif %}
         <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot pending"></span><span>待處理</span></div>
@@ -356,7 +356,7 @@
         </div>
         {% endif %}
         <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot in-progress"></span><span>撥料中</span></div>
@@ -376,7 +376,7 @@
     {% for req in completed_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
         <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot completed"></span><span>待簽收</span></div>
@@ -396,7 +396,7 @@
     {% for req in signed_off_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card">
         <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.username }}</span>{% endif %}
+        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
         <span class="process-badge">{{ req.process_type }}</span>
         <div class="status-row">
             <div class="status-indicator"><span class="status-dot signed-off"></span><span>已簽收</span></div>
@@ -412,4 +412,6 @@
     {% endfor %}
 
 </div>
+
+    </div>
 {% endblock %}

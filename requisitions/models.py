@@ -306,6 +306,7 @@ class UserProfile(models.Model):
     """使用者額外資訊，用於儲存申請角色等狀態"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="使用者")
     requested_role = models.CharField(max_length=50, blank=True, null=True, verbose_name="申請角色")
+    can_publish_announcements = models.BooleanField(default=False, verbose_name="可發佈公告")
     
     class Meta:
         verbose_name = "使用者設定檔"
@@ -314,19 +315,55 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} 的設定檔"
 
-
-class RequisitionViewPermission(models.Model):
-    """申請單查看授權 - 允許某使用者查看並操作另一使用者的申請單"""
-    owner = models.ForeignKey(User, on_delete=models.CASCADE,
-        related_name='view_permissions_granted', verbose_name="申請單擁有者")
-    viewer = models.ForeignKey(User, on_delete=models.CASCADE,
-        related_name='view_permissions_received', verbose_name="被授權查看者")
+class RequisitionShareGroup(models.Model):
+    """申請單共享群組 - 群組成員可互相查看並操作申請單"""
+    name = models.CharField(max_length=100, unique=True, verbose_name="群組名稱")
+    members = models.ManyToManyField(User, related_name='requisition_share_groups', verbose_name="群組成員")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新時間")
 
     class Meta:
-        verbose_name = "申請單查看授權"
-        verbose_name_plural = "申請單查看授權"
-        unique_together = ('owner', 'viewer')
+        verbose_name = "申請單共享群組"
+        verbose_name_plural = "申請單共享群組"
 
     def __str__(self):
-        return f"{self.viewer.username} 可查看 {self.owner.username} 的申請單"
+        return self.name
 
+class AIUserCorrection(models.Model):
+    """
+    AI 學習功能 - 紀錄使用者對 AI 回答的修正
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_corrections', verbose_name="修正者")
+    query_text = models.TextField(verbose_name="原始問題")
+    incorrect_response = models.TextField(verbose_name="錯誤回答")
+    correction_text = models.TextField(verbose_name="使用者修正建議")
+    is_active = models.BooleanField(default=True, verbose_name="是否生效", help_text="關閉則 AI 不會參考此條修正")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
+
+    class Meta:
+        verbose_name = "AI 修正紀錄"
+        verbose_name_plural = "AI 修正紀錄"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"修正: {self.query_text[:30]}... (by {self.user.username})"
+
+
+class Announcement(models.Model):
+    """
+    公告功能 - 顯示在撥料員主頁面
+    """
+    content = models.TextField(verbose_name="公告內容")
+    is_active = models.BooleanField(default=True, verbose_name="是否啟用")
+    is_system_generated = models.BooleanField(default=False, verbose_name="系統自動產生")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="發佈時間")
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="過期時間")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="發佈人員")
+
+    class Meta:
+        verbose_name = "系統公告"
+        verbose_name_plural = "系統公告"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"公告: {self.content[:30]}..."

@@ -1,7 +1,25 @@
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from .models import RequisitionItem, WorkOrderMaterial
+from .models import Requisition, RequisitionItem, WorkOrderMaterial
 from decimal import Decimal
+from django.utils import timezone
+from datetime import timedelta
+
+@receiver(post_save, sender=Requisition)
+def create_announcement_on_requisition_creation(sender, instance, created, **kwargs):
+    """
+    當有新申請單建立時，自動發佈公告。
+    """
+    if created:
+        from .models import Announcement
+        process_type_str = f'"{instance.process_type}"' if instance.process_type else ""
+        content = f"系統有新申請單一筆 ({process_type_str}工單: {instance.order_number})"
+        expires_at = timezone.now() + timedelta(days=1)
+        Announcement.objects.create(
+            content=content,
+            is_system_generated=True,
+            expires_at=expires_at
+        )
 
 @receiver(post_delete, sender=RequisitionItem)
 def update_work_order_material_on_requisition_item_delete(sender, instance, **kwargs):

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
-from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, UserProfile, RequisitionViewPermission
+from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, UserProfile, RequisitionShareGroup, AIUserCorrection, Announcement
 
 class RequisitionItemInline(admin.TabularInline):
     model = RequisitionItem
@@ -13,6 +13,7 @@ class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
     verbose_name_plural = '使用者設定檔'
+    fields = ('requested_role', 'can_publish_announcements')
 
 @admin.register(Requisition)
 class RequisitionAdmin(admin.ModelAdmin):
@@ -167,10 +168,55 @@ class OperationProcessRuleAdmin(admin.ModelAdmin):
     raw_id_fields = ('updated_by',)
 
 
-@admin.register(RequisitionViewPermission)
-class RequisitionViewPermissionAdmin(admin.ModelAdmin):
-    list_display = ('viewer', 'owner')
-    list_filter = ('viewer', 'owner')
-    search_fields = ('viewer__username', 'owner__username')
-    raw_id_fields = ('viewer', 'owner')
+from django import forms
+from django.contrib.admin.widgets import FilteredSelectMultiple
 
+class RequisitionShareGroupForm(forms.ModelForm):
+    members = forms.ModelMultipleChoiceField(
+        queryset=User.objects.all(),
+        required=False,
+        widget=FilteredSelectMultiple(verbose_name='成員', is_stacked=False),
+        label="群組成員"
+    )
+
+    class Meta:
+        model = RequisitionShareGroup
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'members' in self.fields:
+            self.fields['members'].label_from_instance = lambda obj: f"{obj.get_full_name()} ({obj.username})" if obj.get_full_name() else obj.username
+
+@admin.register(RequisitionShareGroup)
+class RequisitionShareGroupAdmin(admin.ModelAdmin):
+    form = RequisitionShareGroupForm
+    list_display = ('name', 'get_members_count', 'created_at')
+    search_fields = ('name', 'members__username', 'members__first_name', 'members__last_name')
+    # filter_horizontal = ('members',)
+    
+    def get_members_count(self, obj):
+        return obj.members.count()
+    get_members_count.short_description = '成員數量'
+
+@admin.register(AIUserCorrection)
+class AIUserCorrectionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'query_text_short', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at', 'user')
+    search_fields = ('query_text', 'correction_text', 'incorrect_response')
+    list_editable = ('is_active',)
+
+    def query_text_short(self, obj):
+        return obj.query_text[:50]
+    query_text_short.short_description = '問題內容'
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ('content_short', 'is_active', 'is_system_generated', 'created_by', 'created_at', 'expires_at')
+    list_filter = ('is_active', 'is_system_generated', 'created_at', 'expires_at')
+    search_fields = ('content',)
+    list_editable = ('is_active',)
+
+    def content_short(self, obj):
+        return obj.content[:50]
+    content_short.short_description = '公告內容'

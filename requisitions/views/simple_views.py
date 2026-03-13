@@ -14,7 +14,7 @@ from django.http import JsonResponse
 from decimal import Decimal
 from datetime import date
 
-from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionViewPermission
+from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
@@ -48,15 +48,10 @@ def simple_applicant_home(request):
     if current_type not in ['finished', 'semi_finished']:
         current_type = 'finished'
     
-    # 取得被授權查看的使用者列表
-    viewable_owners = RequisitionViewPermission.objects.filter(
-        viewer=request.user
-    ).values_list('owner', flat=True)
-    viewable_owner_names = list(
-        RequisitionViewPermission.objects.filter(
-            viewer=request.user
-        ).values_list('owner__username', flat=True)
-    )
+    # 取得被授權查看的使用者列表 (同一共享群組的成員)
+    share_groups = request.user.requisition_share_groups.all()
+    viewable_owners = User.objects.filter(requisition_share_groups__in=share_groups).distinct()
+    viewable_owner_names = list(viewable_owners.exclude(pk=request.user.pk).values_list('username', flat=True))
     
     base_qs = Requisition.objects.filter(
         Q(applicant=request.user) | Q(applicant__in=viewable_owners)
@@ -372,12 +367,13 @@ def simple_applicant_delete(request, pk):
 
     requisition = get_object_or_404(Requisition, pk=pk)
 
-    # 權限檢查：只能刪除自己的申請單（除非是超級管理員、申請人員主管、或被授權者）
+    # 權限檢查：只能刪除自己的申請單（或是同一群組成員、主管、超級管理員）
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    has_view_permission = RequisitionViewPermission.objects.filter(
-        owner=requisition.applicant, viewer=request.user
-    ).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not is_group_member:
         messages.error(request, '您無權限刪除此申請單。')
         return redirect('requisitions:simple_applicant_detail', pk=pk)
 
@@ -397,12 +393,13 @@ def simple_applicant_detail(request, pk):
     """簡易申請人員查看申請單詳情"""
     requisition = get_object_or_404(Requisition, pk=pk)
     
-    # 檢查是否為申請人本人 (或主管 或被授權者)
+    # 檢查是否為申請人本人 (或主管 或同一群組成員)
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    has_view_permission = RequisitionViewPermission.objects.filter(
-        owner=requisition.applicant, viewer=request.user
-    ).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not is_group_member:
         messages.error(request, "您沒有權限查看此申請單。")
         return redirect('requisitions:simple_applicant_home')
     
@@ -463,12 +460,13 @@ def simple_applicant_update_process_type(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
-    # 檢查是否為申請人本人或管理員 (或主管 或被授權者)
+    # 檢查是否為申請人本人或管理員 (或主管 或同一群組成員)
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    has_view_permission = RequisitionViewPermission.objects.filter(
-        owner=requisition.applicant, viewer=request.user
-    ).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not is_group_member:
         if is_ajax:
             return JsonResponse({'success': False, 'message': '您沒有權限修改此申請單。'})
         messages.error(request, "您沒有權限修改此申請單。")
@@ -548,10 +546,11 @@ def simple_applicant_update_request_date(request, pk):
     
     # Check permission
     is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    has_view_permission = RequisitionViewPermission.objects.filter(
-        owner=requisition.applicant, viewer=request.user
-    ).exists()
-    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not has_view_permission:
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    
+    if requisition.applicant != request.user and not is_supervisor and not request.user.is_superuser and not is_group_member:
         message = "您沒有權限修改此申請單。"
         if is_ajax:
             return JsonResponse({'success': False, 'message': message})
@@ -603,11 +602,12 @@ def simple_applicant_sign_off(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
-    # 檢查是否為申請人本人 (或被授權者)
-    has_view_permission = RequisitionViewPermission.objects.filter(
-        owner=requisition.applicant, viewer=request.user
-    ).exists()
-    if requisition.applicant != request.user and not request.user.is_superuser and not has_view_permission:
+    # 檢查是否為申請人本人 (或同一群組成員)
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    
+    if requisition.applicant != request.user and not request.user.is_superuser and not is_group_member:
         if is_ajax:
             return JsonResponse({'success': False, 'message': '您沒有權限執行簽收操作。'})
         messages.error(request, "您沒有權限執行簽收操作。")
@@ -659,11 +659,8 @@ def simple_applicant_sign_off(request, pk):
                     result = {'success': True, 'message': f'成功簽收 {signed_off_count} 筆物料項目。', 'item_pk': item_pk_signed}
             
             # Check if all items are signed off
-            all_relevant_items = RequisitionItem.objects.filter(
-                requisition=requisition,
-                dispatch_status__in=['dispatched', 'backordered']
-            )
-            all_signed = all_relevant_items.exists() and all(item.is_signed_off for item in all_relevant_items)
+            all_items = requisition.items.all()
+            all_signed = all_items.exists() and all(item.is_signed_off for item in all_items)
             if all_signed:
                 requisition.status = 'signed_off'
                 requisition.sign_off_by = request.user
@@ -735,10 +732,20 @@ def simple_dispatcher_home(request):
                 'pending_count': pending_count,
             })
     
+    # 取得所有最新且未過期的公告
+    now = timezone.now()
+    announcements = Announcement.objects.filter(
+        Q(is_active=True) & (Q(expires_at__gt=now) | Q(expires_at__isnull=True))
+    ).order_by('-created_at')
+    
+    can_publish = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.can_publish_announcements)
+    
     context = {
         'categories': categories,
         'user': request.user,
         'current_type': current_type,
+        'announcements': announcements,
+        'can_publish': can_publish,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_home.html', context)
 
@@ -765,6 +772,15 @@ def simple_dispatcher_category(request, category):
             item.confirmed_quantity = item.required_quantity
             item.dispatch_status = 'dispatched'
             item.save()
+            # 更新申請單狀態
+            req = item.requisition
+            all_items = req.items.all()
+            dispatched = all_items.filter(dispatch_status='dispatched').count()
+            if dispatched == all_items.count():
+                req.status = 'dispatch_completed'
+            elif dispatched > 0:
+                req.status = 'dispatch_in_progress'
+            req.save()
             return JsonResponse({'success': True})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
@@ -817,6 +833,7 @@ def simple_dispatcher_category(request, category):
         req.progress = int((dispatched / total * 100) if total > 0 else 0)
         req.dispatched_count = dispatched
         req.total_count = total
+        req.undispatched_count = total - dispatched
     
     for req in completed_requisitions:
         items = req.items.all()
@@ -844,6 +861,123 @@ def simple_dispatcher_category(request, category):
 
 
 @login_required
+def simple_dispatcher_merge(request, category):
+    """合併撥料 - 將多張工單的物料合併呈現，集中撥料"""
+    if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
+        return redirect('requisitions:requisition_list')
+
+    current_type = request.GET.get('type', 'finished')
+    order_numbers = request.GET.getlist('orders')
+
+    if not order_numbers:
+        messages.error(request, '請選擇至少一張工單。')
+        return redirect('requisitions:simple_dispatcher_category', category=category)
+
+    # 處理 AJAX 撥料/缺料請求
+    if request.method == 'POST':
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        action = request.POST.get('action')
+
+        if action == 'dispatch_item':
+            item_pk = request.POST.get('item_pk')
+            try:
+                item = get_object_or_404(RequisitionItem, pk=item_pk)
+                item.confirmed_quantity = item.required_quantity
+                item.dispatch_status = 'dispatched'
+                item.save()
+                # 更新申請單狀態
+                req = item.requisition
+                all_items = req.items.all()
+                dispatched = all_items.filter(dispatch_status='dispatched').count()
+                if dispatched == all_items.count():
+                    req.status = 'dispatch_completed'
+                elif dispatched > 0:
+                    req.status = 'dispatch_in_progress'
+                req.save()
+                return JsonResponse({'success': True, 'message': '已撥料'})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)})
+
+        elif action == 'backorder_item':
+            item_pk = request.POST.get('item_pk')
+            try:
+                item = get_object_or_404(RequisitionItem, pk=item_pk)
+                item.dispatch_status = 'backordered'
+                item.save()
+                return JsonResponse({'success': True, 'message': '已標記缺料'})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)})
+
+        elif action == 'dispatch_all':
+            try:
+                items = RequisitionItem.objects.filter(
+                    requisition__order_number__in=order_numbers,
+                    requisition__process_type__icontains=category,
+                ).exclude(dispatch_status='dispatched')
+                count = 0
+                affected_reqs = set()
+                for item in items:
+                    item.confirmed_quantity = item.required_quantity
+                    item.dispatch_status = 'dispatched'
+                    item.save()
+                    affected_reqs.add(item.requisition_id)
+                    count += 1
+
+                # 更新所有受影響的申請單狀態
+                for req in Requisition.objects.filter(pk__in=affected_reqs):
+                    all_items = req.items.all()
+                    dispatched = all_items.filter(dispatch_status='dispatched').count()
+                    if dispatched == all_items.count():
+                        req.status = 'dispatch_completed'
+                    elif dispatched > 0:
+                        req.status = 'dispatch_in_progress'
+                    req.save()
+
+                return JsonResponse({'success': True, 'message': f'已完成 {count} 筆撥料'})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)})
+
+        return JsonResponse({'success': False, 'message': '未知操作'})
+
+    # GET: 查詢所選工單中的未撥料物料
+    undispatched_items = RequisitionItem.objects.filter(
+        requisition__order_number__in=order_numbers,
+        requisition__process_type__icontains=category,
+    ).exclude(dispatch_status='dispatched').select_related('requisition').order_by('storage_bin', 'material_number')
+
+    # 按物料編號分組合併
+    from collections import OrderedDict
+    merged = OrderedDict()
+    for item in undispatched_items:
+        key = item.material_number
+        if key not in merged:
+            merged[key] = {
+                'material_number': item.material_number,
+                'item_name': item.item_name,
+                'storage_bin': item.storage_bin or '-',
+                'orders': [],
+                'total_qty': 0,
+            }
+        merged[key]['orders'].append({
+            'pk': item.pk,
+            'order_number': item.requisition.order_number,
+            'required_quantity': item.required_quantity,
+            'status': item.dispatch_status,
+        })
+        merged[key]['total_qty'] += item.required_quantity
+
+    category_color = PROCESS_CATEGORY_COLORS.get(category, '#6B7280')
+
+    context = {
+        'category': category,
+        'category_color': category_color,
+        'current_type': current_type,
+        'order_numbers': order_numbers,
+        'merged_items': list(merged.values()),
+        'total_items': undispatched_items.count(),
+    }
+    return render(request, 'requisitions/simple/simple_dispatcher_merge.html', context)
+
 def simple_dispatcher_detail(request, category, pk):
     """簡易撥料人員撥退料操作頁面"""
     if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
@@ -1171,3 +1305,37 @@ def simple_dispatcher_detail(request, category, pk):
         'machine_model_name': machine_model_name,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_detail.html', context)
+
+
+@login_required
+def update_announcement(request):
+    """更新系統公告 (管理員或授權人員)"""
+    can_publish = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.can_publish_announcements)
+    if not can_publish:
+        return JsonResponse({'success': False, 'message': '權限不足'})
+    
+    if request.method == 'POST':
+        action = request.POST.get('action', 'create')
+        
+        if action == 'delete':
+            announcement_id = request.POST.get('announcement_id')
+            if announcement_id:
+                announcement = get_object_or_404(Announcement, id=announcement_id)
+                announcement.is_active = False
+                announcement.save()
+                return JsonResponse({'success': True, 'message': '公告已刪除'})
+            return JsonResponse({'success': False, 'message': '找不到公告'})
+
+        content = request.POST.get('content', '').strip()
+        if content:
+            # 建立新的公告，而不是覆蓋舊的
+            Announcement.objects.create(
+                content=content,
+                created_by=request.user,
+                is_active=True
+            )
+            return JsonResponse({'success': True, 'message': '公告已發佈'})
+        else:
+            return JsonResponse({'success': False, 'message': '內容不能為空'})
+    
+    return JsonResponse({'success': False, 'message': '無效的請求'})

@@ -638,12 +638,8 @@ def requisition_sign_off(request, pk):
                     messages.success(request, f"成功簽收 {signed_off_count} 筆物料項目。")
 
             # Check if all relevant RequisitionItems for this requisition are signed off
-            # We consider items that were dispatched or backordered
-            all_relevant_items = RequisitionItem.objects.filter(
-                requisition=requisition,
-                dispatch_status__in=['dispatched', 'backordered']
-            )
-            if all_relevant_items.exists() and all(item.is_signed_off for item in all_relevant_items):
+            all_items = requisition.items.all()
+            if all_items.exists() and all(item.is_signed_off for item in all_items):
                 requisition.status = 'signed_off'
                 requisition.sign_off_by = request.user
                 requisition.sign_off_date = timezone.now()

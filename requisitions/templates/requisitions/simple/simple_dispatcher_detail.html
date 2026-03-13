@@ -325,130 +325,286 @@
         align-items: center;
         margin-top: 0.5rem;
     }
+
+    /* 搜尋相關樣式 */
+    .search-wrapper {
+        position: fixed;
+        bottom: 2rem;
+        right: 1.5rem;
+        display: flex;
+        flex-direction: row-reverse;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 1000;
+        pointer-events: none;
+    }
+
+    .search-fab {
+        width: 56px;
+        height: 56px;
+        border-radius: 28px;
+        background: #3B82F6;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        font-size: 1.5rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: auto;
+        flex-shrink: 0;
+    }
+
+    .search-fab:active {
+        transform: scale(0.9);
+    }
+
+    .search-container {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        background: white;
+        border-radius: 28px;
+        padding: 0;
+        width: 0;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        opacity: 0;
+    }
+
+    .search-container.active {
+        width: calc(100vw - 100px);
+        max-width: 400px;
+        padding: 0.25rem 1rem;
+        opacity: 1;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 0.5rem;
+        border: none;
+        font-size: 1rem;
+        outline: none;
+        background: transparent;
+    }
+
+    .search-close {
+        padding: 0.25rem 0.5rem;
+        background: transparent;
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="simple-container">
-{% if messages %}{% for message in messages %}<div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>{% endfor %}{% endif %}
+    {% if messages %}{% for message in messages %}<div
+        class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">{{ message }}<button
+            type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>{% endfor %}{% endif %}
 
-<div class="page-header">
-<a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" class="back-btn">←</a>
-<h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
+            class="back-btn">←</a>
+        <h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span
+                style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
+    </div>
+
+    {% if requisition.has_alert %}
+    <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert"
+        style="border-radius: 12px;">
+        <div>
+            <strong>🚨 需求變更警示</strong>
+            <pre
+                style="white-space: pre-wrap; font-family: inherit; margin: 0.5rem 0 0;">{{ requisition.alert_message }}</pre>
+        </div>
+        <form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post"
+            onsubmit="return confirm('確定要解除此警示嗎？');" style="flex-shrink: 0; margin-left: 1rem;">
+            {% csrf_token %}
+            <input type="hidden" name="next"
+                value="{% url 'requisitions:simple_dispatcher_detail' category=category pk=requisition.pk %}">
+            <button type="submit" class="btn btn-danger btn-sm">解除警示</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="info-card">
+        <div class="progress-section">
+            <div class="progress-bar-large">
+                <div class="progress-bar-fill" data-progress="{{ progress }}"></div>
+            </div>
+            <div class="progress-text">{{ dispatched_count }}/{{ total_count }} 已撥料 ({{ progress }}%)</div>
+        </div>
+        <div class="info-row"><span class="info-label">投料點</span><span class="info-value">{{ requisition.process_type }}</span></div>
+        <div class="info-row"><span class="info-label">申請人</span><span class="info-value">{{ requisition.applicant.first_name }}{{ requisition.applicant.last_name }}{% if not requisition.applicant.first_name %}{{ requisition.applicant.username }}{% endif %}</span></div>
+        <div class="info-row"><span class="info-label">需求日期</span><span class="info-value">{{ requisition.request_date|date:"Y-m-d" }}</span></div>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <button type="button" class="action-btn" style="background:#E5E7EB;color:#374151;flex:1;"
+            onclick="copyOrderNumber()">📋 複製工單號</button>
+        <button type="button" class="action-btn" style="background:#D1FAE5;color:#065F46;flex:1;"
+            onclick="copyDispatchedMaterials()">📋 複製已撥料物料</button>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 1rem;">
+        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
+        <div class="btn-group" role="group" aria-label="Sort">
+            <a href="?sort=material{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}"
+                class="btn btn-sm {% if current_sort == 'material' %}btn-primary{% else %}btn-outline-secondary{% endif %}">物料編號</a>
+            <a href="?sort=bin{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}"
+                class="btn btn-sm {% if current_sort == 'bin' %}btn-primary{% else %}btn-outline-secondary{% endif %}">儲位</a>
+            <a href="?sort=name{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}"
+                class="btn btn-sm {% if current_sort == 'name' %}btn-primary{% else %}btn-outline-secondary{% endif %}">品名</a>
+            <a href="?sort=status{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}"
+                class="btn btn-sm {% if current_sort == 'status' %}btn-primary{% else %}btn-outline-secondary{% endif %}">狀態</a>
+        </div>
+    </div>
+
+    {% for item in items %}
+    <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
+        <div class="material-header">
+            <div class="material-info">
+                <h4>{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}){% endif %}</span>{% endif %}</h4>
+                <p>{{ item.item_name }}</p>
+                {% if item.storage_bin %}<p class="storage-bin">儲格: {{ item.storage_bin }}</p>{% endif %}
+                {% if item.has_backlog %}<div class="backlog-alert">⚠ 有更早工單需先撥料</div>{% endif %}
+            </div>
+            <div class="material-qty-info">
+                <div><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span>
+                </div>
+                <div><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}
+                        style="color:#DC2626;font-weight:700;" {% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}
+                </div>
+                {% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
+            </div>
+        </div>
+        <form method="post" class="material-actions">
+            {% csrf_token %}
+            <input type="hidden" name="sort" value="{{ current_sort }}">
+            <input type="hidden" name="item_pk" value="{{ item.pk }}">
+            {% if item.is_actionable %}
+            <input type="number" name="dispatched_qty" value="{{ item.required_quantity }}" class="qty-input" min="0"
+                step="1">
+            <button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
+            <button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>
+            {% elif not item.is_signed_off %}
+            <button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
+            {% endif %}
+        </form>
+
+        {% if item.supplementary_list or item.needs_supplementary %}
+        <div class="supplementary-section">
+            {% if item.supplementary_list %}
+            <div class="supplementary-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▶ 補撥項目 ({{ item.supplementary_list|length }})</div>
+            <div class="supplementary-list">
+                {% for supp in item.supplementary_list %}
+                <div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}">
+                    <div class="supp-item-header">
+                        <span class="supp-label">補撥 #{{ forloop.counter }}</span>
+                        <span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% if supp.sign_off_by %} ({{ supp.sign_off_by.first_name }}{{ supp.sign_off_by.last_name }}{% if not supp.sign_off_by.first_name %}{{ supp.sign_off_by.username }}{% endif %}){% endif %}{% endif %}</span>
+                    </div>
+                    <form method="post" class="material-actions">
+                        {% csrf_token %}
+                        <input type="hidden" name="item_pk" value="{{ supp.pk }}">
+                        {% if supp.is_actionable %}
+                        <span style="font-size:0.85rem;color:#6B7280;">補撥數量: {{ supp.required_quantity }}</span>
+                        <input type="number" name="dispatched_qty" value="{{ supp.required_quantity }}"
+                            class="qty-input" min="0" step="1">
+                        <button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
+                        {% elif not supp.is_signed_off %}
+                        <button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
+                        {% endif %}
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if item.needs_supplementary %}
+            <form method="post" class="add-supplementary-form">
+                {% csrf_token %}
+                <input type="hidden" name="item_pk" value="{{ item.pk }}">
+                <span style="font-size:0.85rem;color:#6B7280;">剩餘: {{ item.remaining_quantity }}</span>
+                <input type="number" name="supplementary_qty" value="{{ item.remaining_quantity }}" class="qty-input"
+                    min="0.01" max="{{ item.remaining_quantity }}" step="0.01">
+                <button type="submit" name="action" value="supplementary" class="action-btn supplementary">補撥</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="empty-state">暫無物料項目</div>
+    {% endfor %}
 </div>
 
-{% if requisition.has_alert %}
-<div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert" style="border-radius: 12px;">
-<div>
-<strong>🚨 需求變更警示</strong>
-<pre style="white-space: pre-wrap; font-family: inherit; margin: 0.5rem 0 0;">{{ requisition.alert_message }}</pre>
-</div>
-<form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post" onsubmit="return confirm('確定要解除此警示嗎？');" style="flex-shrink: 0; margin-left: 1rem;">
-{% csrf_token %}
-<input type="hidden" name="next" value="{% url 'requisitions:simple_dispatcher_detail' category=category pk=requisition.pk %}">
-<button type="submit" class="btn btn-danger btn-sm">解除警示</button>
-</form>
-</div>
-{% endif %}
-
-<div class="info-card">
-<div class="progress-section">
-<div class="progress-bar-large">
-<div class="progress-bar-fill" data-progress="{{ progress }}"></div>
-</div>
-<div class="progress-text">{{ dispatched_count }}/{{ total_count }} 已撥料 ({{ progress }}%)</div>
-</div>
-<div class="info-row"><span class="info-label">投料點</span><span class="info-value">{{ requisition.process_type }}</span></div>
-<div class="info-row"><span class="info-label">申請人</span><span class="info-value">{{ requisition.applicant.first_name }} {{ requisition.applicant.last_name }}{% if not requisition.applicant.first_name and not requisition.applicant.last_name %}{{ requisition.applicant.username }}{% endif %}</span></div>
-<div class="info-row"><span class="info-label">需求日期</span><span class="info-value">{{ requisition.request_date|date:"Y-m-d" }}</span></div>
+<!-- 搜尋懸浮按鈕與搜尋框 -->
+<div class="search-wrapper">
+    <button id="search-fab" class="search-fab" title="搜尋">🔍</button>
+    <div id="search-container" class="search-container">
+        <input type="text" id="search-input" placeholder="搜尋物料..." class="search-input">
+        <button id="search-close" class="search-close">✖</button>
+    </div>
 </div>
 
-<div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-<button type="button" class="action-btn" style="background:#E5E7EB;color:#374151;flex:1;" onclick="copyOrderNumber()">📋 複製工單號</button>
-<button type="button" class="action-btn" style="background:#D1FAE5;color:#065F46;flex:1;" onclick="copyDispatchedMaterials()">📋 複製已撥料物料</button>
-</div>
+<script>
+    (function () {
+        const fab = document.getElementById("search-fab");
+        const container = document.getElementById("search-container");
+        const input = document.getElementById("search-input");
+        const close = document.getElementById("search-close");
+        const items = document.querySelectorAll(".material-card, .supp-item");
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 1rem;">
-<h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">物料清單</h3>
-<div class="btn-group" role="group" aria-label="Sort">
-<a href="?sort=material{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'material' %}btn-primary{% else %}btn-outline-secondary{% endif %}">物料編號</a>
-<a href="?sort=bin{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'bin' %}btn-primary{% else %}btn-outline-secondary{% endif %}">儲位</a>
-<a href="?sort=name{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'name' %}btn-primary{% else %}btn-outline-secondary{% endif %}">品名</a>
-<a href="?sort=status{% if current_type == 'semi_finished' %}&type=semi_finished{% endif %}" class="btn btn-sm {% if current_sort == 'status' %}btn-primary{% else %}btn-outline-secondary{% endif %}">狀態</a>
-</div>
-</div>
+        if (fab && container && input && close) {
+            fab.addEventListener("click", () => {
+                container.classList.toggle("active");
+                if (container.classList.contains("active")) {
+                    input.focus();
+                    fab.innerHTML = "✖";
+                } else {
+                    input.value = "";
+                    filterItems("");
+                    fab.innerHTML = "🔍";
+                }
+            });
 
-{% for item in items %}
-<div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
-<div class="material-header">
-<div class="material-info">
-<h4>{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.username }}){% endif %}</span>{% endif %}</h4>
-<p>{{ item.item_name }}</p>
-{% if item.storage_bin %}<p class="storage-bin">儲格: {{ item.storage_bin }}</p>{% endif %}
-{% if item.has_backlog %}<div class="backlog-alert">⚠ 有更早工單需先撥料</div>{% endif %}
-</div>
-<div class="material-qty-info">
-<div><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></div>
-<div><span class="qty-label">庫存:</span> <span class="qty-value"{% if item.is_insufficient_stock %} style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</div>
-{% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
-</div>
-</div>
-<form method="post" class="material-actions">
-{% csrf_token %}
-<input type="hidden" name="sort" value="{{ current_sort }}">
-<input type="hidden" name="item_pk" value="{{ item.pk }}">
-{% if item.is_actionable %}
-<input type="number" name="dispatched_qty" value="{{ item.required_quantity }}" class="qty-input" min="0" step="1">
-<button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
-<button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>
-{% elif not item.is_signed_off %}
-<button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
-{% endif %}
-</form>
+            close.addEventListener("click", (e) => {
+                e.stopPropagation();
+                container.classList.remove("active");
+                input.value = "";
+                filterItems("");
+                fab.innerHTML = "🔍";
+            });
 
-{% if item.supplementary_list or item.needs_supplementary %}
-<div class="supplementary-section">
-{% if item.supplementary_list %}
-<div class="supplementary-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▶ 補撥項目 ({{ item.supplementary_list|length }})</div>
-<div class="supplementary-list">
-{% for supp in item.supplementary_list %}
-<div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}">
-<div class="supp-item-header">
-<span class="supp-label">補撥 #{{ forloop.counter }}</span>
-<span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% if supp.sign_off_by %} ({{ supp.sign_off_by.username }}){% endif %}{% endif %}</span>
-</div>
-<form method="post" class="material-actions">
-{% csrf_token %}
-<input type="hidden" name="item_pk" value="{{ supp.pk }}">
-{% if supp.is_actionable %}
-<span style="font-size:0.85rem;color:#6B7280;">補撥數量: {{ supp.required_quantity }}</span>
-<input type="number" name="dispatched_qty" value="{{ supp.required_quantity }}" class="qty-input" min="0" step="1">
-<button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
-{% elif not supp.is_signed_off %}
-<button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
-{% endif %}
-</form>
-</div>
-{% endfor %}
-</div>
-{% endif %}
+            input.addEventListener("input", (e) => {
+                filterItems(e.target.value.toLowerCase());
+            });
 
-{% if item.needs_supplementary %}
-<form method="post" class="add-supplementary-form">
-{% csrf_token %}
-<input type="hidden" name="item_pk" value="{{ item.pk }}">
-<span style="font-size:0.85rem;color:#6B7280;">剩餘: {{ item.remaining_quantity }}</span>
-<input type="number" name="supplementary_qty" value="{{ item.remaining_quantity }}" class="qty-input" min="0.01" max="{{ item.remaining_quantity }}" step="0.01">
-<button type="submit" name="action" value="supplementary" class="action-btn supplementary">補撥</button>
-</form>
-{% endif %}
-</div>
-{% endif %}
-</div>
-{% empty %}
-<div class="empty-state">暫無物料項目</div>
-{% endfor %}
-</div>
+            // 點擊外部關閉
+            document.addEventListener("click", (e) => {
+                if (!container.contains(e.target) && !fab.contains(e.target)) {
+                    if (container.classList.contains("active")) {
+                        container.classList.remove("active");
+                        fab.innerHTML = "🔍";
+                    }
+                }
+            });
+        }
+
+        function filterItems(query) {
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(query) ? "" : "none";
+            });
+        }
+    })();
+</script>
 {% endblock %}
 
 {% block extra_js %}

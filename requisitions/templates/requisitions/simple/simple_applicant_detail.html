@@ -8,6 +8,7 @@
         margin: 0 auto;
         padding: 1rem;
     }
+
     .page-header {
         display: flex;
         align-items: center;
@@ -18,6 +19,7 @@
         background: #F3F4F6;
         padding: 0.75rem 0;
     }
+
     .back-btn {
         width: 40px;
         height: 40px;
@@ -32,14 +34,17 @@
         text-decoration: none;
         color: #374151;
     }
+
     .back-btn:hover {
         background: #E5E7EB;
     }
+
     .page-title {
         font-size: 1.5rem;
         font-weight: 700;
         color: #1F2937;
     }
+
     .info-card {
         background: white;
         border-radius: 16px;
@@ -47,10 +52,12 @@
         margin-bottom: 1rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
+
     .progress-section {
         text-align: center;
         margin-bottom: 1rem;
     }
+
     .progress-bar-large {
         width: 100%;
         height: 12px;
@@ -59,34 +66,41 @@
         overflow: hidden;
         margin-bottom: 0.5rem;
     }
+
     .progress-bar-fill {
         height: 100%;
         background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%);
         border-radius: 6px;
         transition: width 0.5s ease;
     }
+
     .progress-text {
         font-size: 1.2rem;
         font-weight: 600;
         color: #374151;
     }
+
     .info-row {
         display: flex;
         justify-content: space-between;
         padding: 0.5rem 0;
         border-bottom: 1px solid #F3F4F6;
     }
+
     .info-row:last-child {
         border-bottom: none;
     }
+
     .info-label {
         color: #6B7280;
         font-size: 0.9rem;
     }
+
     .info-value {
         font-weight: 600;
         color: #1F2937;
     }
+
     .status-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -94,22 +108,27 @@
         font-size: 0.85rem;
         font-weight: 500;
     }
+
     .status-pending {
         background: #FEF3C7;
         color: #92400E;
     }
+
     .status-in-progress {
         background: #DBEAFE;
         color: #1E40AF;
     }
+
     .status-completed {
         background: #D1FAE5;
         color: #065F46;
     }
+
     .status-signed-off {
         background: #ECFDF5;
         color: #047857;
     }
+
     .materials-card {
         background: white;
         border-radius: 16px;
@@ -117,12 +136,14 @@
         margin-bottom: 1rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
+
     .materials-title {
         font-size: 1.1rem;
         font-weight: 600;
         color: #1F2937;
         margin-bottom: 1rem;
     }
+
     .material-item {
         display: flex;
         justify-content: space-between;
@@ -132,44 +153,56 @@
         margin-bottom: 0.5rem;
         background: #F9FAFB;
     }
+
     .material-item.dispatched {
         background: #ECFDF5;
     }
+
     .material-item.shortage {
         background: #FEF2F2;
     }
+
     .material-info {
         flex: 1;
     }
+
     .material-number {
         font-weight: 600;
         color: #1F2937;
         font-size: 0.95rem;
     }
+
     .material-name {
         color: #6B7280;
         font-size: 0.85rem;
     }
+
     .material-qty {
         text-align: right;
     }
+
     .qty-text {
         font-size: 0.9rem;
         color: #374151;
     }
+
     .status-icon {
         margin-left: 0.75rem;
         font-size: 1.2rem;
     }
+
     .status-icon.success {
         color: #10B981;
     }
+
     .status-icon.pending {
         color: #F59E0B;
     }
+
     .status-icon.shortage {
         color: #EF4444;
     }
+
     .shortage-badge {
         display: inline-block;
         background: #FEE2E2;
@@ -179,6 +212,7 @@
         font-size: 0.75rem;
         margin-top: 0.25rem;
     }
+
     .sign-off-btn {
         width: 100%;
         padding: 1rem;
@@ -191,15 +225,18 @@
         transition: all 0.3s ease;
         box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
     }
+
     .sign-off-btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
     }
+
     .sign-off-btn:disabled {
         background: #9CA3AF;
         box-shadow: none;
         transform: none;
     }
+
     .item-sign-off-btn {
         padding: 0.35rem 0.75rem;
         font-size: 0.8rem;
@@ -211,9 +248,11 @@
         cursor: pointer;
         margin-left: 0.5rem;
     }
+
     .item-sign-off-btn:hover {
         background: #059669;
     }
+
     .signed-badge {
         display: inline-block;
         padding: 0.25rem 0.5rem;
@@ -224,6 +263,7 @@
         color: #065F46;
         margin-left: 0.5rem;
     }
+
     .edit-btn {
         background: none;
         border: none;
@@ -234,9 +274,11 @@
         opacity: 0.7;
         transition: opacity 0.2s;
     }
+
     .edit-btn:hover {
         opacity: 1;
     }
+
     .save-btn,
     .cancel-btn {
         padding: 0.25rem 0.6rem;
@@ -246,19 +288,98 @@
         cursor: pointer;
         margin-left: 0.25rem;
     }
+
     .save-btn {
         background: #3B82F6;
         color: white;
     }
+
     .save-btn:hover {
         background: #2563EB;
     }
+
     .cancel-btn {
         background: #E5E7EB;
         color: #374151;
     }
+
     .cancel-btn:hover {
         background: #D1D5DB;
+    }
+
+    /* 搜尋相關樣式 */
+    .search-wrapper {
+        position: fixed;
+        bottom: 2rem;
+        right: 1.5rem;
+        display: flex;
+        flex-direction: row-reverse;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 1000;
+        pointer-events: none;
+        /* 允許點擊穿過 wrapper，但子元素會覆蓋 */
+    }
+
+    .search-fab {
+        width: 56px;
+        height: 56px;
+        border-radius: 28px;
+        background: #3B82F6;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        font-size: 1.5rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: auto;
+        flex-shrink: 0;
+    }
+
+    .search-fab:active {
+        transform: scale(0.9);
+    }
+
+    .search-container {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        background: white;
+        border-radius: 28px;
+        padding: 0;
+        width: 0;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        opacity: 0;
+    }
+
+    .search-container.active {
+        width: calc(100vw - 100px);
+        max-width: 400px;
+        padding: 0.25rem 1rem;
+        opacity: 1;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 0.5rem;
+        border: none;
+        font-size: 1rem;
+        outline: none;
+        background: transparent;
+    }
+
+    .search-close {
+        padding: 0.25rem 0.5rem;
+        background: transparent;
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.9rem;
+        cursor: pointer;
     }
 </style>
 {% endblock %}
@@ -308,7 +429,7 @@
         <div class="info-row" id="process-type-row">
             {% if requisition.requisition_type == 'semi_finished' %}
             <span class="info-label">領料人</span>
-            <span class="info-value">{{ requisition.applicant.username }}</span>
+            <span class="info-value">{{ requisition.applicant.first_name }}{{ requisition.applicant.last_name }}{% if not requisition.applicant.first_name %}{{ requisition.applicant.username }}{% endif %}</span>
             {% else %}
             <span class="info-label">投料點</span>
             <span class="info-value" id="process-type-display">
@@ -400,7 +521,7 @@
                 <button type="submit" class="item-sign-off-btn">簽收</button>
             </form>
             {% elif item.is_signed_off %}
-            <span class="signed-badge">已簽收{% if item.sign_off_by %} ({{ item.sign_off_by.username }}){% endif %}</span>
+            <span class="signed-badge">已簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}){% endif %}</span>
             {% endif %}
         </div>
         {% empty %}
@@ -419,6 +540,68 @@
     <div class="alert alert-success text-center">此申請單已完成簽收</div>
     {% endif %}
 </div>
+
+<!-- 搜尋懸浮按鈕與搜尋框 -->
+<div class="search-wrapper">
+    <button id="search-fab" class="search-fab" title="搜尋">🔍</button>
+    <div id="search-container" class="search-container">
+        <input type="text" id="search-input" placeholder="搜尋物料..." class="search-input">
+        <button id="search-close" class="search-close">✖</button>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const fab = document.getElementById("search-fab");
+        const container = document.getElementById("search-container");
+        const input = document.getElementById("search-input");
+        const close = document.getElementById("search-close");
+        const items = document.querySelectorAll(".material-item");
+
+        if (fab && container && input && close) {
+            fab.addEventListener("click", () => {
+                container.classList.toggle("active");
+                if (container.classList.contains("active")) {
+                    input.focus();
+                    fab.innerHTML = "✖";
+                } else {
+                    input.value = "";
+                    filterItems("");
+                    fab.innerHTML = "🔍";
+                }
+            });
+
+            close.addEventListener("click", (e) => {
+                e.stopPropagation();
+                container.classList.remove("active");
+                input.value = "";
+                filterItems("");
+                fab.innerHTML = "🔍";
+            });
+
+            input.addEventListener("input", (e) => {
+                filterItems(e.target.value.toLowerCase());
+            });
+
+            // 點擊外部關閉
+            document.addEventListener("click", (e) => {
+                if (!container.contains(e.target) && !fab.contains(e.target)) {
+                    if (container.classList.contains("active")) {
+                        container.classList.remove("active");
+                        fab.innerHTML = "🔍";
+                    }
+                }
+            });
+        }
+
+        function filterItems(query) {
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(query) ? "" : "none";
+            });
+        }
+    })();
+</script>
 {% endblock %}
 {% block extra_js %}
 <script>
@@ -457,7 +640,7 @@
                             form.remove();
                             const badge = document.createElement('span');
                             badge.className = 'signed-badge';
-                            badge.textContent = '已簽收 ({{ user.username }})';
+                            badge.textContent = '已簽收 ({{ user.first_name }}{{ user.last_name }}{% if not user.first_name %}{{ user.username }}{% endif %})';
                             itemRow.appendChild(badge);
                         }
                         // 如果全部簽收完成，刷新頁面顯示完成狀態

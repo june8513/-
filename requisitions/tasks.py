@@ -28,7 +28,7 @@ class DummyRequest:
         self.GET = {} # handle_search/export might access request.GET
         self.method = 'GET' # Assume GET for assistant queries
 
-def run_ollama_task(task_id: str, query_text: str, user_id: int):
+def run_ollama_task(task_id: str, query_text: str, user_id: int, history: list = None):
     """
     Executes the Ollama query and subsequent data processing in a background thread.
     Stores the result or error in the global TASK_RESULTS dictionary.
@@ -40,17 +40,36 @@ def run_ollama_task(task_id: str, query_text: str, user_id: int):
         dummy_request = DummyRequest(user)
 
         # Call Ollama model to parse the natural language query
-        ollama_response = get_ollama_response(query_text, user_id)
+        ollama_response = get_ollama_response(query_text, user_id, history)
 
-        if "error" in ollama_response:
+        if "error" in ollama_response and "response_to_user" not in ollama_response:
             TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': ollama_response['error']})
             return
 
-        # Extract parameters from Ollama's structured response
-        intent = ollama_response.get("intent", "SEARCH")
-        data_source = ollama_response.get("data_source", "Requisition")
-        filters = ollama_response.get("filters", {})
-        aggregation = ollama_response.get("aggregation", {})
+        # Extract textual response
+        response_to_user = ollama_response.get("response_to_user", "好的，我為您處理中。")
+        action = ollama_response.get("action", {})
+
+        if not action:
+            # Just a conversational response, no system action needed
+            TASK_RESULTS[task_id].update({
+                'status': 'SUCCESS', 
+                'result': {'response_to_user': response_to_user, 'results': []}
+            })
+            return
+
+        # Extract parameters from Ollama's structured action
+        intent = action.get("intent", "SEARCH")
+        data_source = action.get("data_source")
+        filters = action.get("filters", {})
+        aggregation = action.get("aggregation", {})
+
+        if not data_source:
+             TASK_RESULTS[task_id].update({
+                'status': 'SUCCESS', 
+                'result': {'response_to_user': response_to_user, 'results': []}
+            })
+             return
 
         # Prepare parameters for action handlers
         parameters = {
@@ -61,24 +80,28 @@ def run_ollama_task(task_id: str, query_text: str, user_id: int):
 
         # Dispatch actions
         if intent == "EXPORT":
-            parameters['file_type'] = "Excel"
-            # handle_export returns HttpResponse, which is not directly JSON serializable.
-            # We need to store the file content and return a URL or base64 encoded data.
-            # For simplicity, let's assume handle_export can be modified to return file content.
-            # For now, we'll just indicate success.
-            # A better approach would be to save the file to media and return its URL.
-            TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': 'Export via async task not fully implemented yet. Please use search for now.'})
+            TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': '匯出功能目前需由手動點擊，建議先使用查詢查看結果。'})
             return
         elif intent == "SEARCH":
             # handle_search returns JsonResponse, extract its content
             search_response = handle_search(dummy_request, parameters)
             if isinstance(search_response, JsonResponse):
                 result_data = json.loads(search_response.content)
-                TASK_RESULTS[task_id].update({'status': 'SUCCESS', 'result': result_data})
+                # Combine conversational response with data results
+                final_result = {
+                    'response_to_user': response_to_user,
+                    'results': result_data.get('results', [])
+                }
+                TASK_RESULTS[task_id].update({'status': 'SUCCESS', 'result': final_result})
             else:
-                TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': 'Search handler returned unexpected response.'})
+                TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': '資料庫查詢回傳異常。'})
         else:
-            TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': '無法理解您的指令，請嘗試更明確的表達。'})
+            TASK_RESULTS[task_id].update({
+                'status': 'SUCCESS', 
+                'result': {'response_to_user': response_to_user, 'results': []}
+            })
+    except Exception as e:
+        TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': str(e)})
 
     except Exception as e:
         TASK_RESULTS[task_id].update({'status': 'FAILURE', 'error': str(e)})

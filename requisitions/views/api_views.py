@@ -9,24 +9,32 @@ import re # Import re for regex
 from .action_handlers import handle_search, handle_export
 from .ollama_integration import get_ollama_response # Import the new Ollama integration
 from requisitions.tasks import run_ollama_task, TASK_RESULTS # Import task runner and results store
+from requisitions.models import AIUserCorrection
 
 def natural_action_view(request):
     if request.method != 'GET':
         return JsonResponse({'error': 'Only GET requests are supported'}, status=405)
 
     query_text = request.GET.get('q', '')
+    history_str = request.GET.get('history', '[]')
+    
     if not query_text:
         return JsonResponse({'error': 'Query parameter "q" is missing'}, status=400)
+
+    try:
+        history = json.loads(history_str)
+    except Exception:
+        history = []
 
     # Generate a unique task ID
     task_id = str(uuid.uuid4())
 
     # Start the Ollama processing in a new thread
-    thread = threading.Thread(target=run_ollama_task, args=(task_id, query_text, request.user.id))
+    thread = threading.Thread(target=run_ollama_task, args=(task_id, query_text, request.user.id, history))
     thread.start()
 
     # Immediately return the task ID to the client
-    return JsonResponse({'task_id': task_id, 'status': 'PROCESSING', 'message': '正在處理您的請求，請稍候...'})
+    return JsonResponse({'task_id': task_id, 'status': 'PROCESSING', 'message': '正在思考中...'})
 
 def check_task_status(request, task_id):
     """
@@ -101,3 +109,34 @@ def shortage_materials_api(request):
         'count': len(result),
         'shortage_materials': result
     })
+
+def save_ai_correction(request):
+    """
+    API endpoint to save user-provided corrections for AI responses.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests are supported'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        query_text = data.get('query_text')
+        incorrect_response = data.get('incorrect_response')
+        correction_text = data.get('correction_text')
+
+        if not all([query_text, incorrect_response, correction_text]):
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
+
+        correction = AIUserCorrection.objects.create(
+            user=request.user,
+            query_text=query_text,
+            incorrect_response=incorrect_response,
+            correction_text=correction_text
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': '修正已記錄，我會記住的！',
+            'id': correction.id
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

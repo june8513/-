@@ -143,6 +143,163 @@
     .type-tab.semi-finished.active {
         color: #10B981;
     }
+
+    /* 公告欄樣式 */
+    .announcement-box {
+        background: #FFFBEB;
+        border: 1px solid #FDE68A;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .announcement-carousel {
+        position: relative;
+        min-height: 80px;
+    }
+
+    .announcement-item {
+        display: none;
+        padding: 1rem;
+        gap: 0.75rem;
+        align-items: flex-start;
+        animation: fadeIn 0.5s ease-in-out;
+    }
+
+    .announcement-item.active {
+        display: flex;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .announcement-icon {
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .announcement-content {
+        flex: 1;
+        color: #92400E;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+
+    .announcement-meta {
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+        color: #B45309;
+        opacity: 0.8;
+    }
+
+    .announcement-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-left: auto;
+        flex-shrink: 0;
+        z-index: 10;
+    }
+
+    .announcement-edit-btn,
+    .announcement-add-btn,
+    .announcement-delete-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1.1rem;
+        transition: transform 0.2s;
+    }
+
+    .announcement-edit-btn:hover,
+    .announcement-add-btn:hover,
+    .announcement-delete-btn:hover {
+        transform: scale(1.2);
+    }
+
+    .announcement-delete-btn {
+        color: #EF4444;
+        opacity: 0.7;
+    }
+
+    .announcement-delete-btn:hover {
+        opacity: 1;
+    }
+
+    .edit-form-container {
+        display: none;
+        padding: 1rem;
+        border-top: 1px solid #FDE68A;
+        background: #FFF;
+    }
+
+    .edit-textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #FDE68A;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        outline: none;
+    }
+
+    .edit-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .btn-save {
+        background: #F59E0B;
+        color: white;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-cancel {
+        background: #E5E7EB;
+        color: #374151;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .carousel-indicators {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #FDE68A;
+        cursor: pointer;
+    }
+
+    .indicator.active {
+        background: #F59E0B;
+    }
 </style>
 {% endblock %}
 
@@ -160,9 +317,60 @@
     <div class="page-header">
         <h1 class="page-title">撥料人員</h1>
         <div class="user-badge">
-            {{ user.username }}
+            {{ user.first_name }}{{ user.last_name }}{% if not user.first_name %}{{ user.username }}{% endif %}
         </div>
     </div>
+
+    {% if announcements or can_publish %}
+    <div class="announcement-box">
+        <div class="announcement-carousel" id="announcement-carousel">
+            {% for ann in announcements %}
+            <div class="announcement-item {% if forloop.first %}active{% endif %}" data-id="{{ ann.id }}">
+                <div class="announcement-icon">📢</div>
+                <div class="announcement-content">
+                    <div class="announcement-text">{{ ann.content }}</div>
+                    <div class="announcement-meta">發佈時間：{{ ann.created_at|date:"Y-m-d H:i" }}</div>
+                </div>
+                {% if can_publish %}
+                <div class="announcement-actions">
+                    <button class="announcement-add-btn" title="發佈新公告">➕</button>
+                    <button class="announcement-edit-btn" title="以此為範本編輯">✏️</button>
+                    <button class="announcement-delete-btn" title="刪除此公告">🗑️</button>
+                </div>
+                {% endif %}
+            </div>
+            {% empty %}
+            {% if can_publish %}
+            <div class="announcement-item active">
+                <div class="announcement-icon">📢</div>
+                <div class="announcement-content">目前無公告內容。</div>
+                <div class="announcement-actions">
+                    <button class="announcement-add-btn" title="發佈新公告">➕</button>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        {% if announcements.count > 1 %}
+        <div class="carousel-indicators">
+            {% for ann in announcements %}
+            <div class="indicator {% if forloop.first %}active{% endif %}" data-index="{{ forloop.counter0 }}"></div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if can_publish %}
+        <div class="edit-form-container" id="edit-form-container">
+            <textarea class="edit-textarea" id="announcement-textarea" placeholder="輸入公告內容..."></textarea>
+            <div class="edit-actions">
+                <button class="btn-cancel" id="cancel-edit-btn">取消</button>
+                <button class="btn-save" id="save-announcement-btn">發佈公告</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- 成品/半成品標籤切換 -->
     <div class="type-tabs">
@@ -197,4 +405,149 @@
         {% endfor %}
     </div>
 </div>
+
+{% if user.is_superuser or user.profile.can_publish_announcements %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const carousel = document.getElementById('announcement-carousel');
+        const items = document.querySelectorAll('.announcement-item');
+        const indicators = document.querySelectorAll('.indicator');
+        const formContainer = document.getElementById('edit-form-container');
+        const cancelBtn = document.getElementById('cancel-edit-btn');
+        const saveBtn = document.getElementById('save-announcement-btn');
+        const textarea = document.getElementById('announcement-textarea');
+
+        let currentIndex = 0;
+        let carouselInterval;
+
+        function showItem(index) {
+            items.forEach(item => item.classList.remove('active'));
+            indicators.forEach(ind => ind.classList.remove('active'));
+
+            items[index].classList.add('active');
+            if (indicators[index]) indicators[index].classList.add('active');
+            currentIndex = index;
+        }
+
+        function nextItem() {
+            let nextIndex = (currentIndex + 1) % items.length;
+            showItem(nextIndex);
+        }
+
+        function startCarousel() {
+            if (items.length > 1) {
+                carouselInterval = setInterval(nextItem, 5000); // 5 seconds
+            }
+        }
+
+        function stopCarousel() {
+            clearInterval(carouselInterval);
+        }
+
+        startCarousel();
+
+        // Indicators
+        indicators.forEach(ind => {
+            ind.addEventListener('click', function () {
+                stopCarousel();
+                showItem(parseInt(this.dataset.index));
+                startCarousel();
+            });
+        });
+
+        // Event Delegation for Actions
+        if (carousel) {
+            carousel.addEventListener('click', function (e) {
+                const addBtn = e.target.closest('.announcement-add-btn');
+                const editBtn = e.target.closest('.announcement-edit-btn');
+                const deleteBtn = e.target.closest('.announcement-delete-btn');
+
+                if (addBtn) {
+                    stopCarousel();
+                    carousel.style.display = 'none';
+                    formContainer.style.display = 'block';
+                    textarea.value = '';
+                    textarea.focus();
+                } else if (editBtn) {
+                    stopCarousel();
+                    const item = editBtn.closest('.announcement-item');
+                    const text = item.querySelector('.announcement-text').textContent;
+                    carousel.style.display = 'none';
+                    formContainer.style.display = 'block';
+                    textarea.value = text;
+                    textarea.focus();
+                } else if (deleteBtn) {
+                    if (confirm('確定要刪除此公告嗎？')) {
+                        const item = deleteBtn.closest('.announcement-item');
+                        const id = item.dataset.id;
+
+                        fetch("{% url 'requisitions:update_announcement' %}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: `action=delete&announcement_id=${id}`
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    location.reload();
+                                } else {
+                                    alert('刪除失敗：' + data.message);
+                                }
+                            });
+                    }
+                }
+            });
+        }
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () {
+                carousel.style.display = 'block';
+                formContainer.style.display = 'none';
+                startCarousel();
+            });
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function () {
+                const content = textarea.value.trim();
+                if (!content) {
+                    alert('請輸入公告內容');
+                    return;
+                }
+
+                saveBtn.disabled = true;
+                saveBtn.textContent = '發佈中...';
+
+                fetch("{% url 'requisitions:update_announcement' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: 'action=create&content=' + encodeURIComponent(content)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('發佈失敗：' + data.message);
+                            saveBtn.disabled = false;
+                            saveBtn.textContent = '發佈公告';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('發生錯誤，請稍後再試');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = '發佈公告';
+                    });
+            });
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}
