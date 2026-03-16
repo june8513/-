@@ -5,5 +5,9 @@
     },
     "[django-html]": {
         "editor.formatOnSave": false
-    }
+    },
+    "python.defaultInterpreterPath": "venv\\Scripts\\python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/requisitions"
+    ]
 }

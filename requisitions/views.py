@@ -1,8 +1,4 @@
-from .views.auth_views import *
-from .views.dispatch_views import *
-from .views.image_views import *
-from .views.material_data_views import *
-from .views.material_demand_views import *
-from .views.material_export_views import *
-from .views.material_upload_views import *
-from .views.requisition_management_views import *
+# LEGACY FILE - DO NOT ADD NEW VIEWS HERE
+# All views have been moved to the requisitions/views/ directory.
+# This file is kept as a placeholder to prevent potential import errors
+# during the transition period, but it's currently empty of logic.

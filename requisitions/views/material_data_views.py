@@ -424,35 +424,49 @@ def update_work_order_quantities(request):
           query_string = '?' + redirect_url.split('?', 1)[1]
           redirect_url = redirect_url.split('?', 1)[0]
 
-      # Check if process_type_filter is valid
-      if not process_type_filter:
-          messages.error(request, "請先選擇投料點再進行操作。")
-          return redirect(f'{redirect_url}{query_string}')
+      # Find current user roles for permission checking
+      is_admin = request.user.is_superuser
+      is_applicant = request.user.groups.filter(name='申請人員').exists()
+      can_edit_process_type = is_admin or is_applicant
 
-      # Find the ProcessType object by its ID
-      process_type_obj = get_object_or_404(ProcessType, pk=process_type_filter)
+      # Find the ProcessType object by its ID if filter is provided
+      process_type_obj = None
+      if process_type_filter:
+          process_type_obj = get_object_or_404(ProcessType, pk=process_type_filter)
 
-      # Get the unique Requisition associated with this order and process type
-      current_requisition = Requisition.objects.filter(
-          order_number=order_number,
-          process_type=process_type_obj.name # ProcessType name as CharField
-      ).first()
+      # Get the unique Requisition associated with this order and process type (if filter provided)
+      current_requisition = None
+      if process_type_obj:
+          current_requisition = Requisition.objects.filter(
+              order_number=order_number,
+              process_type=process_type_obj.name # ProcessType name as CharField
+          ).first()
       
       # Requisition is now optional for updating WorkOrderMaterial attributes
-      if not current_requisition:
-          messages.info(request, f"提示：目前尚未建立工單 {order_number} 的申請單，僅更新物料基本資料。")
+      if process_type_obj and not current_requisition:
+          messages.info(request, f"提示：目前尚未建立工單 {order_number} 的專屬申請單 ({process_type_obj.name})，僅更新物料基本資料。")
 
-      # Get all WorkOrderMaterials relevant to this order and process type
-      all_relevant_work_order_materials = WorkOrderMaterial.objects.filter(
-          order_number=order_number,
-          process_type=process_type_obj
-      )
+      # Get all WorkOrderMaterials relevant to this order and process type (if filtered)
+      if process_type_obj:
+          all_relevant_work_order_materials = WorkOrderMaterial.objects.filter(
+              order_number=order_number,
+              process_type=process_type_obj
+          )
+      else:
+          all_relevant_work_order_materials = WorkOrderMaterial.objects.filter(
+              order_number=order_number
+          )
+          
       processed_work_order_material_pks = set() # To track materials explicitly handled by user input
 
       for key, value in request.POST.items():
           print(f"Processing key: {key}, value: {value}") # DEBUG
           
           if key.startswith('processtype_'):
+              if not can_edit_process_type:
+                  # Skip if user doesn't have permission to edit process types
+                  continue
+                  
               try:
                   material_id = int(key.split('_')[1])
                   new_pt_name = value
@@ -475,6 +489,39 @@ def update_work_order_quantities(request):
                       material.save()
                       updated_materials.append(f"物料 {material.material_number} 投料點更新: {new_pt_name}")
                       
+                      # --- Synchronization Logic: Move existing un-signed items to new process type ---
+                      # Find all existing RequisitionItems for this material across all requisitions for this order
+                      # LOCK DISPATCHED ITEMS: Only move items that have NOT been dispatched (quantity is 0 or None)
+                      existing_items = RequisitionItem.objects.filter(
+                          order_number=material.order_number,
+                          material_number=material.material_number,
+                          is_signed_off=False # Only sync items that are not yet signed off
+                      ).filter(Q(confirmed_quantity__isnull=True) | Q(confirmed_quantity=0))
+                      
+                      if existing_items.exists():
+                          # Find or Create a requisition for the NEW process type
+                          target_requisition, pt_created = Requisition.objects.get_or_create(
+                              order_number=material.order_number,
+                              process_type=new_pt_name,
+                              defaults={
+                                  'applicant': request.user,
+                                  'request_date': timezone.now().date(),
+                                  'status': 'demand_submitted',
+                              }
+                          )
+                          if pt_created:
+                              messages.info(request, f"已為新投料點 '{new_pt_name}' 自動建立申請單。")
+                          
+                          for item in existing_items:
+                              old_req = item.requisition
+                              if old_req.pk != target_requisition.pk:
+                                  item.requisition = target_requisition
+                                  item.save()
+                                  affected_requisition_ids.add(old_req.pk)
+                                  affected_requisition_ids.add(target_requisition.pk)
+                                  messages.info(request, f"物料 {material.material_number} 已從 '{old_req.process_type}' 轉移至 '{new_pt_name}'。")
+                      # --- End Synchronization Logic ---
+
                       # Learning
                       from requisitions.models import MaterialProcessTypeRule
                       material_prefix = material.material_number[:10]
@@ -563,7 +610,9 @@ def update_work_order_quantities(request):
                           if created:
                               messages.info(request, f"為申請單 {req.order_number} ({req.process_type}) 新增物料 {material.material_number}。")
                           else:
-                              messages.info(request, f"更新申請單 {req.order_number} ({req.process_type}) 的物料 {material.material_number} 撥料數量。")
+                              # Only info message if there's a significant change or purely for tracking
+                              # To reduce message spam, we could skip this
+                              pass
                           
                           affected_requisition_ids.add(req.pk)
 

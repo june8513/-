@@ -38,12 +38,16 @@
                     <td data-label="儲格" class="responsive-group-item">{{ material.bin|default:"N/A" }}</td>
                     <td data-label="投料點" class="responsive-group-item">
                         {% if show_change_input %}
-                            <select name="processtype_{{ material.pk }}" class="form-select form-select-sm {% if not material.process_type %}border-danger bg-warning-subtle{% endif %}">
-                                <option value="">-- 未設定 --</option>
-                                {% for pt_name in all_process_type_names %}
-                                    <option value="{{ pt_name }}" {% if material.process_type.name == pt_name %}selected{% endif %}>{{ pt_name }}</option>
-                                {% endfor %}
-                            </select>
+                            {% if is_admin or is_applicant %}
+                                <select name="processtype_{{ material.pk }}" class="form-select form-select-sm {% if not material.process_type %}border-danger bg-warning-subtle{% endif %}">
+                                    <option value="">-- 未設定 --</option>
+                                    {% for pt_name in all_process_type_names %}
+                                        <option value="{{ pt_name }}" {% if material.process_type.name == pt_name %}selected{% endif %}>{{ pt_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                {{ material.process_type.name|default:"N/A" }}
+                            {% endif %}
                         {% else %}
                             {{ material.process_type.name|default:"N/A" }}
                         {% endif %}
