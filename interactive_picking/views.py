@@ -89,7 +89,7 @@ def picking_wizard(request, task_id):
         if not task.is_completed:
             task.is_completed = True
             task.save()
-        return redirect('interactive_picking:index') # 完成則回到首頁
+        # 原本這裡會 return redirect，現在拿掉，讓它繼續渲染 wizard.html 以顯示「完成畫面」與「復原按鈕」
         
     # 取得當前人員位置 (模擬從 session，如果沒有則從 0,0 起點計算)
     current_x = request.session.get('current_picking_x', 0.0)
@@ -99,14 +99,18 @@ def picking_wizard(request, task_id):
     next_item = _get_next_optimized_picking_item(task, current_x, current_y)
     
     # 防錯：如果有 pending item 但沒有 location 的極端情況
-    if not next_item:
+    if not next_item and pending_count > 0:
         next_item = task.items.filter(status='pending').first()
+
+    # 取得最後一筆被處理的項目 (依據 picked_at 排序)，用於「回上一步」功能
+    last_processed_item = task.items.exclude(status='pending').order_by('-picked_at').first()
 
     context = {
         'task': task,
         'item': next_item,
         'pending_count': pending_count,
-        'total_count': task.items.count()
+        'total_count': task.items.count(),
+        'last_processed_item': last_processed_item
     }
     
     return render(request, 'interactive_picking/wizard.html', context)
@@ -141,3 +145,34 @@ def process_picking_action(request, item_id):
                 request.session['current_picking_y'] = item.location.y_coordinate
                 
     return redirect('interactive_picking:wizard', task_id=item.task.id)
+
+
+@login_required
+def undo_last_action(request, task_id):
+    """
+    撤銷最後一次的動作：將最後處理的物料改回待處理狀態。
+    """
+    if request.method == 'POST':
+        task = get_object_or_404(MockPickingTask, id=task_id)
+        
+        # 找尋這個任務底下，最後一次被標記為 picked 或 shortage 的項目
+        last_item = task.items.exclude(status='pending').order_by('-picked_at').first()
+        
+        if last_item:
+            # 還原狀態
+            last_item.status = 'pending'
+            last_item.picked_at = None
+            last_item.quantity_picked = None
+            last_item.save()
+            
+            # 因為退回了物品，如果任務本來已經標記完成，也要改回未完成
+            if task.is_completed:
+                task.is_completed = False
+                task.save()
+                
+            # 將 Session 回推到上一個儲位（為了簡單起見，這裡我們讓演算法以退回的這個儲位為中心出發）
+            if last_item.location:
+                request.session['current_picking_x'] = last_item.location.x_coordinate
+                request.session['current_picking_y'] = last_item.location.y_coordinate
+                
+    return redirect('interactive_picking:wizard', task_id=task_id)

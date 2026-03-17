@@ -137,11 +137,22 @@
     <div class="wizard-container">
     
     <!-- 頂部返回與任務資訊 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 mt-2">
         <a href="{% url 'interactive_picking:index' %}" class="text-decoration-none text-secondary">
             <i class="fas fa-chevron-left fa-lg"></i> 離開任務
         </a>
-        <span class="badge bg-secondary p-2">{{ task.task_number }}</span>
+        
+        <div class="d-flex align-items-center gap-2">
+            {% if last_processed_item %}
+            <form action="{% url 'interactive_picking:undo_action' task.id %}" method="POST" class="d-inline m-0">
+                {% csrf_token %}
+                <button type="submit" class="badge rounded-pill bg-warning text-dark border-0 p-2 shadow-sm" onclick="return confirm('確定要復原上一筆 [ {{ last_processed_item.material_name }} ] 的操作嗎？');">
+                    <i class="fas fa-undo me-1"></i> 上一步
+                </button>
+            </form>
+            {% endif %}
+            <span class="badge bg-secondary p-2">{{ task.task_number }}</span>
+        </div>
     </div>
 
     {% if item %}
@@ -217,7 +228,18 @@
             </div>
             <h2 class="fw-bold">任務已處理完畢！</h2>
             <p class="text-muted">本任務已經沒有任何待揀品項了。</p>
-            <a href="{% url 'interactive_picking:index' %}" class="btn btn-primary btn-lg mt-3 px-5 rounded-pill">返回任務列表</a>
+            
+            <div class="d-flex flex-column gap-3 mt-4 mx-auto" style="max-width: 250px;">
+                <a href="{% url 'interactive_picking:index' %}" class="btn btn-primary btn-lg rounded-pill shadow-sm">返回任務列表</a>
+                {% if last_processed_item %}
+                <form action="{% url 'interactive_picking:undo_action' task.id %}" method="POST">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-warning w-100 rounded-pill">
+                        <i class="fas fa-undo me-1"></i> 哎呀，不小心按錯了！<br><small>復原 [ {{ last_processed_item.material_name }} ]</small>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
         </div>
     {% endif %}
 
