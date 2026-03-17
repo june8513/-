@@ -1,0 +1,53 @@
+from django import forms
+from .models import PeerRequest
+from django.contrib.auth.models import User
+
+class PeerRequestForm(forms.ModelForm):
+    recipient = forms.ModelChoiceField(
+        queryset=User.objects.all(),
+        label="收件人",
+        widget=forms.Select(attrs={'class': 'form-select select2-recipient'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Customize the labels in the recipient dropdown
+        self.fields['recipient'].label_from_instance = lambda obj: f"{obj.last_name}{obj.first_name}" if obj.last_name or obj.first_name else obj.username
+
+    request_date = forms.DateField(
+        label="需求日期",
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    description = forms.CharField(
+        label="需求內容",
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '請輸入需求描述或貼上照片...'})
+    )
+    request_photo = forms.ImageField(
+        label="需求照片",
+        required=False,
+        widget=forms.FileInput(attrs={'class': 'form-control'})
+    )
+
+    class Meta:
+        model = PeerRequest
+        fields = ['recipient', 'description', 'request_photo', 'request_date']
+
+class PeerReplyForm(forms.ModelForm):
+    delivery_date = forms.DateField(
+        label="撥料日期",
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    delivery_photo = forms.ImageField(
+        label="撥料照片",
+        required=False,
+        widget=forms.FileInput(attrs={'class': 'form-control'})
+    )
+    delivery_reply = forms.CharField(
+        label="備註/回覆",
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )
+
+    class Meta:
+        model = PeerRequest
+        fields = ['delivery_date', 'delivery_photo', 'delivery_reply']

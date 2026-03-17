@@ -8,6 +8,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('requisitions/', include('requisitions.urls')),
+    path('peer-requests/', include('peer_requests.urls')),
     path('inventory/', include('inventory.urls')),
     path('specifications/', include('specifications.urls')),
     path('', include('core.urls')),

@@ -1,0 +1,12 @@
+from django.urls import path
+from . import views
+
+app_name = 'peer_requests'
+
+urlpatterns = [
+    path('', views.peer_request_list, name='list'),
+    path('history/', views.peer_request_history, name='history'),
+    path('create/', views.peer_request_create, name='create'),
+    path('reply/<int:pk>/', views.peer_request_reply, name='reply'),
+    path('close/<int:pk>/', views.peer_request_close, name='close'),
+]

@@ -172,3 +172,15 @@ a:hover, .btn-link:hover {
     border-bottom: .3em solid transparent;
     border-top: .3em solid transparent;
 }
+
+/* Pulse Animation for Notifications */
+@keyframes pulse-red {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.animate-pulse {
+    animation: pulse-red 2s infinite;
+    z-index: 1051; /* So it's above the logo */
+}

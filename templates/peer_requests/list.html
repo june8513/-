@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // 當彈窗顯示後初始化 Select2 (因為隱藏元素無法正確計算寬度)
+    $('#createRequestModal').on('shown.bs.modal', function() {
+        $('.select2-recipient').select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#createRequestModal'), // 必須指定父層，否則在 Modal 中無法搜尋
+            placeholder: '請輸入姓名或帳號關鍵字...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() { return "找不到相符的人員"; }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
+{% block title %}物料申請{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 mb-0 text-gray-800"><i class="fas fa-exchange-alt me-2 text-primary"></i>物料申請</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRequestModal">
+            <i class="fas fa-plus me-1"></i> 發起新需求
+        </button>
+    </div>
+
+    <!-- 區塊 1：待處理 (收到的) -->
+    <div class="mb-5">
+        <h3 class="h5 mb-3 text-info"><i class="fas fa-inbox me-2"></i>待處理</h3>
+        <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-info-subtle text-info small text-uppercase">
+                        <tr>
+                            <th class="px-4 py-3">1. 申請人 / 狀態</th>
+                            <th class="py-3">2. 需求內容</th>
+                            <th class="py-3">3. 需求日期</th>
+                            <th class="py-3">4. 我的回覆</th>
+                            <th class="py-3 text-end px-4">5. 操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in received_requests %}
+                        <tr>
+                            <td class="px-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle bg-info-subtle text-info me-2">
+                                        {% if req.applicant.last_name %}{{ req.applicant.last_name|slice:":1"|upper }}{% else %}{{ req.applicant.username|slice:":1"|upper }}{% endif %}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</div>
+                                        <span class="badge 
+                                            {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                            {% elif req.status == 'shipped' %}bg-info-subtle text-info
+                                            {% else %}bg-success-subtle text-success{% endif %} rounded-pill">
+                                            {{ req.get_status_display }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-wrap" style="max-width: 300px;">
+                                    <p class="mb-1">{{ req.description }}</p>
+                                    {% if req.request_photo %}
+                                    <a href="{{ req.request_photo.url }}" target="_blank">
+                                        <img src="{{ req.request_photo.url }}" class="img-thumbnail mt-1" style="max-height: 50px;">
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>{{ req.request_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if req.delivery_date %}
+                                    <div class="small text-info fw-bold">撥料日期: {{ req.delivery_date|date:"Y-m-d" }}</div>
+                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                    {% if req.delivery_photo %}
+                                    <a href="{{ req.delivery_photo.url }}" target="_blank">
+                                        <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
+                                    </a>
+                                    {% endif %}
+                                {% elif req.status == 'pending' %}
+                                    <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#replyModal{{ req.pk }}">
+                                        回覆撥料
+                                    </button>
+                                {% endif %}
+                            </td>
+                            <td class="text-end px-4">
+                                {% if req.status == 'closed' %}
+                                    <i class="fas fa-check-circle text-success" title="已結案"></i>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="py-4 text-center text-muted small">暫無收到的需求</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if has_more_received %}
+            <div class="card-footer bg-white border-0 text-center py-3">
+                <a href="{% url 'peer_requests:history' %}" class="text-info small fw-bold text-decoration-none">
+                    <i class="fas fa-history me-1"></i> 查看所有歷史紀錄
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 區塊 2：我的申請 (寄出的) -->
+    <div>
+        <h3 class="h5 mb-3 text-primary"><i class="fas fa-paper-plane me-2"></i>我的申請</h3>
+        <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-primary-subtle text-primary small text-uppercase">
+                        <tr>
+                            <th class="px-4 py-3">1. 收件人 / 狀態</th>
+                            <th class="py-3">2. 需求內容</th>
+                            <th class="py-3">3. 需求日期</th>
+                            <th class="py-3">4. 收件人回覆</th>
+                            <th class="py-3 text-end px-4">5. 結案操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in sent_requests %}
+                        <tr>
+                            <td class="px-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle bg-primary-subtle text-primary me-2">
+                                        {% if req.recipient.last_name %}{{ req.recipient.last_name|slice:":1"|upper }}{% else %}{{ req.recipient.username|slice:":1"|upper }}{% endif %}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{% if req.recipient.last_name or req.recipient.first_name %}{{ req.recipient.last_name }}{{ req.recipient.first_name }}{% else %}{{ req.recipient.username }}{% endif %}</div>
+                                        <span class="badge 
+                                            {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                            {% elif req.status == 'shipped' %}bg-info-subtle text-info
+                                            {% else %}bg-success-subtle text-success{% endif %} rounded-pill">
+                                            {{ req.get_status_display }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-wrap" style="max-width: 300px;">
+                                    <p class="mb-1">{{ req.description }}</p>
+                                    {% if req.request_photo %}
+                                    <a href="{{ req.request_photo.url }}" target="_blank">
+                                        <img src="{{ req.request_photo.url }}" class="img-thumbnail mt-1" style="max-height: 50px;">
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>{{ req.request_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if req.delivery_date %}
+                                    <div class="small">撥料日期: {{ req.delivery_date|date:"Y-m-d" }}</div>
+                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                    {% if req.delivery_photo %}
+                                    <a href="{{ req.delivery_photo.url }}" target="_blank">
+                                        <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
+                                    </a>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">等待回覆...</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end px-4">
+                                {% if req.status == 'shipped' %}
+                                    <form action="{% url 'peer_requests:close' req.pk %}" method="post">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-success btn-sm">確認收貨</button>
+                                    </form>
+                                {% elif req.status == 'closed' %}
+                                    <div class="text-success small">已於 {{ req.closed_at|date:"m/d H:i" }} 結案</div>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="py-4 text-center text-muted small">暫無發起的申請</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if has_more_sent %}
+            <div class="card-footer bg-white border-0 text-center py-3">
+                <a href="{% url 'peer_requests:history' %}" class="text-primary small fw-bold text-decoration-none">
+                    <i class="fas fa-history me-1"></i> 查看所有歷史紀錄
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 回覆彈窗 (針對收到的需求) -->
+{% for req in received_requests %}
+{% if req.status == 'pending' %}
+<div class="modal fade" id="replyModal{{ req.pk }}" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{% url 'peer_requests:reply' req.pk %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">回覆對 {% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %} 的需求</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">撥料日期</label>
+                        {% render_field reply_form.delivery_date class="form-control" type="date" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">回覆說明 (選填)</label>
+                        {% render_field reply_form.delivery_reply class="form-control" rows="2" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">撥料照片 (選填)</label>
+                        {% render_field reply_form.delivery_photo class="form-control" %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-info text-white">確認撥料</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- 新增需求彈窗 -->
+<div class="modal fade" id="createRequestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{% url 'peer_requests:create' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-paper-plane me-2"></i>發起新需求</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">1. 收件人</label>
+                        {% render_field form.recipient class="form-select select2-recipient" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">2. 需求內容</label>
+                        {% render_field form.description class="form-control" rows="3" placeholder="請填寫物料名稱或需求詳情..." %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">上傳照片</label>
+                        {% render_field form.request_photo class="form-control" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">3. 需求日期</label>
+                        {% render_field form.request_date class="form-control" type="date" %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary px-4">確認發送</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .avatar-circle {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+    .img-thumbnail { border-radius: 8px; }
+</style>
+{% endblock %}

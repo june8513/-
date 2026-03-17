@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_extensions',
     'requisitions',
+    'peer_requests',
     'widget_tweaks', # Add widget_tweaks
     'sslserver',
     'inventory',
