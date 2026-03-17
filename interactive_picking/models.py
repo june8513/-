@@ -61,6 +61,7 @@ class MockPickingItem(models.Model):
     task = models.ForeignKey(MockPickingTask, on_delete=models.CASCADE, related_name='items')
     material_name = models.CharField('物料名稱', max_length=100)
     quantity_required = models.PositiveIntegerField('應拿數量')
+    quantity_picked = models.PositiveIntegerField('實際拿取數量', null=True, blank=True)
     location = models.ForeignKey(WarehouseLocation, on_delete=models.SET_NULL, null=True, related_name='picking_items')
     status = models.CharField('當前狀態', max_length=20, choices=STATUS_CHOICES, default='pending')
     picked_at = models.DateTimeField('處理時間', null=True, blank=True)

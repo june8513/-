@@ -120,10 +120,19 @@ def process_picking_action(request, item_id):
     if request.method == 'POST':
         item = get_object_or_404(MockPickingItem, id=item_id)
         action = request.POST.get('action') # 'picked' or 'shortage'
+        actual_quantity = request.POST.get('actual_quantity')
         
         if action in ['picked', 'shortage']:
             item.status = action
             item.picked_at = timezone.now()
+            
+            # 儲存實際拿取數量 (如果是缺料或未填寫則預設 0 或不存)
+            if actual_quantity and action == 'picked':
+                try:
+                    item.quantity_picked = int(actual_quantity)
+                except ValueError:
+                    item.quantity_picked = 0
+            
             item.save()
             
             # 更新 Session 中的當前座標，讓下一步演算法能從該點出發

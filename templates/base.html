@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}My Django App{% endblock %}</title>
     <!-- Bootstrap CSS (Local) -->
     <link rel="stylesheet" href="{% static 'vendor/css/bootstrap.min.css' %}">
@@ -88,9 +88,9 @@
                                     {% if is_admin or is_supervisor %}
                                     <li><a class="dropdown-item"
                                             href="{% url 'requisitions:semi_finished_process_type_list' %}">🏭 投料點管理</a></li>
+                                    {% endif %}
                                     <li><a class="dropdown-item fw-bold text-primary"
                                             href="{% url 'interactive_picking:index' %}"><i class="fas fa-route me-1"></i> 互動式揀料 ✨</a></li>
-                                    {% endif %}
                                     {% endif %}
                                     <li><a class="dropdown-item text-muted" href="#">（更多功能開發中...）</a></li>
                                 </ul>

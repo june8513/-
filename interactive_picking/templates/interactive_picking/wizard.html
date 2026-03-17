@@ -5,13 +5,32 @@
 
 {% block extra_css %}
 <style>
+    /* 隱藏全域系統導覽列與外層預設留白，實現真正的全螢幕沉浸式體驗 */
+    header, 
+    body > .container.mt-3 {
+        display: none !important;
+    }
+
     /* 專為手機端設計的全螢幕導航風格 */
-    body { background-color: #f8f9fa; }
+    body { 
+        background-color: #f8f9fa; 
+    }
+    
+    .wizard-wrapper {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        /* 頂部加入 iOS 瀏海/動態島的安全高度 */
+        padding-top: calc(15px + env(safe-area-inset-top));
+    }
     
     .wizard-container {
         max-width: 600px;
+        width: 100%;
         margin: 0 auto;
-        padding-bottom: 120px; /* 留給底部固定按鈕空間 */
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
     
     .location-header {
@@ -67,27 +86,13 @@
         line-height: 1;
     }
     
-    /* 底部固定動態區 (大按鈕) */
-    .fixed-bottom-actions {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding: 15px 20px;
-        box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
-        z-index: 1000;
+    /* 底部動態區 (大按鈕) */
+    .bottom-actions {
+        padding: 20px 0 calc(20px + env(safe-area-inset-bottom)) 0;
         display: flex;
         gap: 15px;
         justify-content: center;
-    }
-    
-    /* 使底部按鈕在非滿版螢幕也對齊中間的最大寬度 */
-    .fixed-bottom-actions-inner {
-        max-width: 600px;
-        width: 100%;
-        display: flex;
-        gap: 15px;
+        margin-top: auto; /* 自動填補上方剩餘空間，讓按鈕靠齊螢幕底端 */
     }
     
     .btn-massive {
@@ -99,7 +104,6 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        text-transform: uppercase;
         letter-spacing: 1px;
     }
     
@@ -129,7 +133,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-3 wizard-container">
+<div class="wizard-wrapper px-3 pb-2">
+    <div class="wizard-container">
     
     <!-- 頂部返回與任務資訊 -->
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -167,27 +172,41 @@
                 <div class="quantity-number">{{ item.quantity_required }}</div>
                 <div class="fw-bold text-muted small">應拿數量</div>
             </div>
+            
+            <hr class="my-3 mx-4 text-muted">
+            
+            <div class="px-4 pb-3">
+                <label for="actualQuantity" class="form-label fw-bold text-primary">實際拿取數量：</label>
+                <div class="input-group input-group-lg">
+                    <button class="btn btn-outline-secondary" type="button" id="btn-minus-qty" onclick="document.getElementById('actualQuantity').stepDown()">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <input type="number" class="form-control text-center fw-bold fs-4 text-primary" id="actualQuantity" name="actual_quantity" form="form-picked" value="{{ item.quantity_required }}" min="0" required>
+                    <button class="btn btn-outline-secondary" type="button" id="btn-plus-qty" onclick="document.getElementById('actualQuantity').stepUp()">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- 底部固定按鈕 -->
-        <div class="fixed-bottom-actions">
-            <div class="fixed-bottom-actions-inner">
-                <form action="{% url 'interactive_picking:process_action' item.id %}" method="POST" class="w-50">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="shortage">
-                    <button type="submit" class="btn btn-danger btn-massive w-100 shadow-sm">
-                        <i class="fas fa-times-circle me-2"></i>缺料
-                    </button>
-                </form>
+        <!-- 底部大按鈕 -->
+        <div class="bottom-actions">
+            <form action="{% url 'interactive_picking:process_action' item.id %}" method="POST" class="w-50" id="form-shortage">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="shortage">
+                <button type="submit" class="btn btn-danger btn-massive w-100 shadow-sm">
+                    <i class="fas fa-times-circle me-1"></i>缺料
+                </button>
+            </form>
 
-                <form action="{% url 'interactive_picking:process_action' item.id %}" method="POST" class="w-50">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="picked">
-                    <button type="submit" class="btn btn-success btn-massive w-100 shadow-lg">
-                        <i class="fas fa-check-circle me-2"></i>已拿取
-                    </button>
-                </form>
-            </div>
+            <form action="{% url 'interactive_picking:process_action' item.id %}" method="POST" class="w-50" id="form-picked">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="picked">
+                <!-- 實際數量的 input 在上面的卡片裡，透過 form="form-picked" 綁定到這裡 -->
+                <button type="submit" class="btn btn-success btn-massive w-100 shadow-lg">
+                    <i class="fas fa-check-circle me-1"></i>已拿取
+                </button>
+            </form>
         </div>
 
     {% else %}
@@ -202,5 +221,6 @@
         </div>
     {% endif %}
 
+    </div>
 </div>
 {% endblock %}
