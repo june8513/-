@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'inventory',
     'specifications',
     'core',
+    'interactive_picking',
 ]
 
 MIDDLEWARE = [

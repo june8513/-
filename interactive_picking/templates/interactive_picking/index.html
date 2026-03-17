@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}互動式揀料系統 - 任務列表{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 mb-0 text-gray-800"><i class="fas fa-route me-2 text-primary"></i>互動式動線揀料系統</h2>
+        <a href="{% url 'interactive_picking:generate_mock_task' %}" class="btn btn-warning shadow-sm">
+            <i class="fas fa-magic me-1"></i> 產生模擬測試任務
+        </a>
+    </div>
+
+    <div class="card shadow mb-4 border-0">
+        <div class="card-header py-3 bg-white">
+            <h6 class="m-0 font-weight-bold text-primary">所有的揀料任務</h6>
+        </div>
+        <div class="card-body">
+            {% if tasks %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>任務單號</th>
+                            <th>建立時間</th>
+                            <th>進度</th>
+                            <th>狀態</th>
+                            <th class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td class="fw-bold">{{ task.task_number }}</td>
+                            <td>{{ task.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>
+                                <!-- 跑個簡單的進度條算式，雖然模板不能直接過濾除法，先簡單顯示文字 -->
+                                <div><small>{{ task.items.filter.status_picked }} / {{ task.items.count }} 項</small></div>
+                            </td>
+                            <td>
+                                {% if task.is_completed %}
+                                <span class="badge bg-success">已完成</span>
+                                {% else %}
+                                <span class="badge bg-primary">進行中</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if not task.is_completed %}
+                                <a href="{% url 'interactive_picking:wizard' task.id %}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-play me-1"></i> 進入揀料引導
+                                </a>
+                                {% else %}
+                                <button class="btn btn-secondary btn-sm" disabled>已結案</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-box-open text-muted fa-3x mb-3"></i>
+                <h5 class="text-muted">目前沒有任何揀料任務</h5>
+                <p class="text-muted mb-0">請點擊右上角按鈕產生模擬任務來進行測試。</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

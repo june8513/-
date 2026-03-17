@@ -9,6 +9,7 @@ urlpatterns = [
 
     path('requisitions/', include('requisitions.urls')),
     path('peer-requests/', include('peer_requests.urls')),
+    path('interactive-picking/', include('interactive_picking.urls')),
     path('inventory/', include('inventory.urls')),
     path('specifications/', include('specifications.urls')),
     path('', include('core.urls')),

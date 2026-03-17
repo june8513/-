@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}揀料導航 - {{ task.task_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 專為手機端設計的全螢幕導航風格 */
+    body { background-color: #f8f9fa; }
+    
+    .wizard-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding-bottom: 120px; /* 留給底部固定按鈕空間 */
+    }
+    
+    .location-header {
+        background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(78, 115, 223, 0.4);
+        text-align: center;
+    }
+    
+    .location-text {
+        font-size: 2.5rem;
+        font-weight: 800;
+        letter-spacing: 2px;
+        margin: 0;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    }
+    
+    .material-card {
+        background: white;
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    
+    .material-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+    
+    .quantity-circle {
+        width: 120px;
+        height: 120px;
+        background-color: #f1f3f9;
+        border: 5px solid #4e73df;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        margin: 1.5rem auto;
+    }
+    
+    .quantity-number {
+        font-size: 3rem;
+        font-weight: 800;
+        color: #4e73df;
+        line-height: 1;
+    }
+    
+    /* 底部固定動態區 (大按鈕) */
+    .fixed-bottom-actions {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 15px 20px;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+        z-index: 1000;
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+    }
+    
+    /* 使底部按鈕在非滿版螢幕也對齊中間的最大寬度 */
+    .fixed-bottom-actions-inner {
+        max-width: 600px;
+        width: 100%;
+        display: flex;
+        gap: 15px;
+    }
+    
+    .btn-massive {
+        padding: 18px 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        border-radius: 12px;
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    /* 進度條 */
+    .progress-container {
+        margin-bottom: 1.5rem;
+    }
+    .progress-text {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    .progress-bar-custom {
+        height: 12px;
+        border-radius: 6px;
+        background-color: #e9ecef;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        background-color: #1cc88a;
+        transition: width 0.5s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-3 wizard-container">
+    
+    <!-- 頂部返回與任務資訊 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <a href="{% url 'interactive_picking:index' %}" class="text-decoration-none text-secondary">
+            <i class="fas fa-chevron-left fa-lg"></i> 離開任務
+        </a>
+        <span class="badge bg-secondary p-2">{{ task.task_number }}</span>
+    </div>
+
+    {% if item %}
+        <!-- 進度條 -->
+        <div class="progress-container">
+            <div class="progress-text">
+                <span>目前進度</span>
+                <span>剩餘: {{ pending_count }} / 總數: {{ total_count }}</span>
+            </div>
+            <div class="progress-bar-custom">
+                <!-- 計算已完成比例 -->
+                <div class="progress-fill" style="width: calc(100% * ({{ total_count }} - {{ pending_count }}) / {{ total_count }});"></div>
+            </div>
+        </div>
+
+        <!-- 核心導航：儲位座標 -->
+        <div class="location-header shadow-lg">
+            <div class="text-white-50 small fw-bold mb-1 text-uppercase"><i class="fas fa-map-marker-alt me-1"></i> 前往儲位</div>
+            <h1 class="location-text">{{ item.location.name|default:"未指定儲位" }}</h1>
+        </div>
+
+        <!-- 應揀物料資訊 -->
+        <div class="card material-card text-center p-4">
+            <h2 class="material-title">{{ item.material_name }}</h2>
+            <div class="text-muted mb-2">請確認物料規格與名稱相符</div>
+            
+            <div class="quantity-circle shadow-sm">
+                <div class="quantity-number">{{ item.quantity_required }}</div>
+                <div class="fw-bold text-muted small">應拿數量</div>
+            </div>
+        </div>
+
+        <!-- 底部固定按鈕 -->
+        <div class="fixed-bottom-actions">
+            <div class="fixed-bottom-actions-inner">
+                <form action="{% url 'interactive_picking:process_action' item.id %}" method="POST" class="w-50">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="shortage">
+                    <button type="submit" class="btn btn-danger btn-massive w-100 shadow-sm">
+                        <i class="fas fa-times-circle me-2"></i>缺料
+                    </button>
+                </form>
+
+                <form action="{% url 'interactive_picking:process_action' item.id %}" method="POST" class="w-50">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="picked">
+                    <button type="submit" class="btn btn-success btn-massive w-100 shadow-lg">
+                        <i class="fas fa-check-circle me-2"></i>已拿取
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- 例外狀況處理：當沒有物品時 -->
+        <div class="text-center py-5 mt-5">
+            <div class="mb-4">
+                <i class="fas fa-check-circle text-success" style="font-size: 5rem;"></i>
+            </div>
+            <h2 class="fw-bold">任務已處理完畢！</h2>
+            <p class="text-muted">本任務已經沒有任何待揀品項了。</p>
+            <a href="{% url 'interactive_picking:index' %}" class="btn btn-primary btn-lg mt-3 px-5 rounded-pill">返回任務列表</a>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}
