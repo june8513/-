@@ -25,6 +25,9 @@ def role_context(request):
         is_simple_applicant = request.user.groups.filter(name=GROUP_NAMES['APPLICANT']).exists() or is_applicant_supervisor or is_admin
         is_simple_dispatcher = request.user.groups.filter(name=GROUP_NAMES['DISPATCHER']).exists() or is_dispatcher_supervisor or is_admin
     
+    # 是否為任意主管
+    is_supervisor = is_applicant_supervisor or is_dispatcher_supervisor
+    
     return {
         'is_admin': is_admin,
         'is_applicant': is_applicant,
@@ -32,4 +35,7 @@ def role_context(request):
         'pending_peer_requests_count': pending_peer_requests_count,
         'is_simple_applicant': is_simple_applicant,
         'is_simple_dispatcher': is_simple_dispatcher,
+        'is_applicant_supervisor': is_applicant_supervisor,
+        'is_dispatcher_supervisor': is_dispatcher_supervisor,
+        'is_supervisor': is_supervisor,
     }

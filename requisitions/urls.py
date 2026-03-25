@@ -42,6 +42,7 @@ urlpatterns = [
     path('api/check_task_status/<str:task_id>/', api_views.check_task_status, name='check_task_status'),
     path('api/save_ai_correction/', api_views.save_ai_correction, name='save_ai_correction'),
     path('api/shortage_materials/', api_views.shortage_materials_api, name='shortage_materials_api'),
+    path('api/requisition_items/shortages/', api_views.requisition_items_shortages_api, name='requisition_items_shortages_api'),
     path('finished_goods_dispatch/', dispatch_views.finished_goods_dispatch, name='finished_goods_dispatch'),
     path('<int:pk>/images/', image_views.view_requisition_images, name='view_requisition_images'),
     path('<int:pk>/upload_page/', image_views.upload_requisition_images_page, name='upload_requisition_images_page'),

@@ -12,7 +12,46 @@ from django.db.models.functions import Coalesce
 
 @login_required
 def finished_goods_dispatch(request):
-    return render(request, 'requisitions/finished_goods_dispatch.html')
+    is_admin = request.user.is_superuser
+    is_applicant_supervisor = request.user.groups.filter(name='申請人員主管').exists()
+    is_dispatcher_supervisor = request.user.groups.filter(name='撥料人員主管').exists()
+    is_supervisor = is_applicant_supervisor or is_dispatcher_supervisor
+    
+    context = {}
+    
+    # 如果是主管或管理員，撈取額外看板數據
+    if is_admin or is_supervisor:
+        from requisitions.models import RequisitionItem
+        from django.db.models import Prefetch
+        
+        # 定義預加載邏輯：僅抓取狀態為 backordered 的項目
+        short_items_prefetch = Prefetch(
+            'items', 
+            queryset=RequisitionItem.objects.filter(dispatch_status='backordered'),
+            to_attr='short_items'
+        )
+
+        # 成品看板數據：所有申請單
+        context['all_requisitions'] = Requisition.objects.filter(requisition_type='finished').order_by('-created_at')[:20]
+        
+        # 成品看板數據：有缺料的申請單 (單號分組)
+        context['shortage_requisitions'] = Requisition.objects.filter(
+            requisition_type='finished',
+            is_archived=False,
+            items__dispatch_status='backordered'
+        ).distinct().prefetch_related(short_items_prefetch).order_by('-created_at')
+        
+        # 半成品看板數據：所有申請單
+        context['semi_all_requisitions'] = Requisition.objects.filter(requisition_type='semi_finished').order_by('-created_at')[:20]
+        
+        # 半成品看板數據：有缺料的申請單 (單號分組)
+        context['semi_shortage_requisitions'] = Requisition.objects.filter(
+            requisition_type='semi_finished',
+            is_archived=False,
+            items__dispatch_status='backordered'
+        ).distinct().prefetch_related(short_items_prefetch).order_by('-created_at')
+        
+    return render(request, 'requisitions/finished_goods_dispatch.html', context)
 
 @login_required
 def update_dispatch_note(request, pk):

@@ -1,6 +1,5 @@
 from django.http import JsonResponse
-from django.http import JsonResponse
-from django.http import JsonResponse
+from django.db.models import Q
 import json
 import threading
 import uuid
@@ -108,6 +107,52 @@ def shortage_materials_api(request):
         'success': True,
         'count': len(result),
         'shortage_materials': result
+    })
+
+def requisition_items_shortages_api(request):
+    """
+    回傳詳細的申請單缺料清單。
+    支援 query parameter:
+    - type: 'finished' 或 'semi_finished'
+    - req_id: 指定單號 ID
+    """
+    from requisitions.models import RequisitionItem
+    
+    requisition_type = request.GET.get('type')
+    req_id = request.GET.get('req_id')
+    
+    # 基礎過濾條件：未歸檔且狀態為 backordered
+    filters = Q(dispatch_status='backordered', requisition__is_archived=False)
+    
+    if requisition_type:
+        filters &= Q(requisition__requisition_type=requisition_type)
+    
+    if req_id:
+        filters &= Q(requisition_id=req_id)
+        
+    items = RequisitionItem.objects.filter(filters).select_related('requisition', 'requisition__applicant')
+    
+    data = []
+    for item in items:
+        data.append({
+            'requisition_id': item.requisition.id,
+            'order_number': item.order_number,
+            'material_number': item.material_number,
+            'item_name': item.item_name,
+            'required_quantity': float(item.required_quantity),
+            'confirmed_quantity': float(item.confirmed_quantity or 0),
+            'shortage_quantity': float(item.required_quantity - (item.confirmed_quantity or 0)),
+            'storage_bin': item.storage_bin,
+            'request_date': str(item.requisition.request_date),
+            'applicant': item.requisition.applicant.username,
+            'requisition_type': item.requisition.requisition_type,
+            'status': item.requisition.get_status_display()
+        })
+    
+    return JsonResponse({
+        'success': True,
+        'count': len(data),
+        'items': data
     })
 
 def save_ai_correction(request):
