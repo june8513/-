@@ -17,6 +17,107 @@ $(document).ready(function() {
                 noResults: function() { return "找不到相符的人員"; }
             }
         });
+        $('.select2-cc').select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#createRequestModal'),
+            placeholder: '可搜尋並選擇多位副本通知對象...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() { return "找不到相符的人員"; }
+            }
+        });
+    });
+
+    // 1. 套用快速模板
+    $('.btn-apply-template').click(function() {
+        var recipientId = $(this).attr('data-recipient');
+        if (recipientId) {
+            $('.select2-recipient').val(recipientId).trigger('change');
+        } else {
+            $('.select2-recipient').val(null).trigger('change');
+        }
+        
+        var ccIdsStr = $(this).attr('data-cc');
+        var ccIds = ccIdsStr ? ccIdsStr.split(',') : [];
+        $('.select2-cc').val(ccIds).trigger('change');
+        
+        var desc = $(this).attr('data-description');
+        $('[name="description"]').val(desc);
+    });
+
+    // 刪除模板
+    $('.btn-delete-template').click(function(e) {
+        e.stopPropagation();
+        var templateId = $(this).data('id');
+        var btnGroup = $(this).closest('.btn-group');
+        
+        if (confirm("確定要刪除這個快速模板嗎？")) {
+            var csrfToken = $('#createRequestModal input[name=csrfmiddlewaretoken]').val() || $('input[name=csrfmiddlewaretoken]').val();
+            
+            fetch("/peer-requests/delete-template/" + templateId + "/", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    btnGroup.fadeOut(300, function() { $(this).remove(); });
+                } else {
+                    alert("❌ 刪除失敗：" + data.error);
+                }
+            })
+            .catch(err => {
+                alert("❌ 刪除發生錯誤。");
+                console.error(err);
+            });
+        }
+    });
+
+    // 2. 儲存新模板
+    $('#btnSaveTemplate').click(function() {
+        var templateName = prompt("📝 請輸入「快速模板」的名稱：\n(可輸入如：常規原物料、每週耗材等名稱)");
+        if (!templateName) return;
+        
+        var recipientId = $('.select2-recipient').val();
+        var ccUserIds = $('.select2-cc').val() || [];
+        var description = $('[name="description"]').val();
+        
+        // 抓取彈窗表單內的 CSRF Token
+        var csrfToken = $('#createRequestModal input[name=csrfmiddlewaretoken]').val();
+        if (!csrfToken) {
+            // Fallback 若找不到則從全域抓
+            csrfToken = $('input[name=csrfmiddlewaretoken]').val();
+        }
+        
+        fetch("{% url 'peer_requests:save_template' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                name: templateName,
+                recipient_id: recipientId,
+                cc_user_ids: ccUserIds,
+                description: description
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("✅ 模板儲存成功！");
+                location.reload(); // 重整頁面讓新模板出現
+            } else {
+                alert("❌ 儲存失敗：" + data.error);
+            }
+        })
+        .catch(err => {
+            alert("❌ 儲存發生錯誤，請檢查網路連線。");
+            console.error(err);
+        });
     });
 });
 </script>
@@ -58,6 +159,9 @@ $(document).ready(function() {
                                     </div>
                                     <div>
                                         <div class="fw-bold">{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</div>
+                                        {% if req.cc_users.exists %}
+                                        <div class="small text-muted mb-1"><i class="fas fa-copy me-1"></i>cc: {% for cc in req.cc_users.all %}{% if cc.last_name or cc.first_name %}{{ cc.last_name }}{{ cc.first_name }}{% else %}{{ cc.username }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                                        {% endif %}
                                         <span class="badge 
                                             {% if req.status == 'pending' %}bg-warning-subtle text-warning
                                             {% elif req.status == 'shipped' %}bg-info-subtle text-info
@@ -140,6 +244,9 @@ $(document).ready(function() {
                                     </div>
                                     <div>
                                         <div class="fw-bold">{% if req.recipient.last_name or req.recipient.first_name %}{{ req.recipient.last_name }}{{ req.recipient.first_name }}{% else %}{{ req.recipient.username }}{% endif %}</div>
+                                        {% if req.cc_users.exists %}
+                                        <div class="small text-muted mb-1"><i class="fas fa-copy me-1"></i>cc: {% for cc in req.cc_users.all %}{% if cc.last_name or cc.first_name %}{{ cc.last_name }}{{ cc.first_name }}{% else %}{{ cc.username }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                                        {% endif %}
                                         <span class="badge 
                                             {% if req.status == 'pending' %}bg-warning-subtle text-warning
                                             {% elif req.status == 'shipped' %}bg-info-subtle text-info
@@ -199,6 +306,87 @@ $(document).ready(function() {
             {% endif %}
         </div>
     </div>
+
+    <!-- 區塊 3：副本通知 (CC) 給我 -->
+    <div class="mt-5">
+        <h3 class="h5 mb-3 text-secondary"><i class="fas fa-copy me-2"></i>副本通知我 (CC)</h3>
+        <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-secondary-subtle text-secondary small text-uppercase">
+                        <tr>
+                            <th class="px-4 py-3">1. 申請人 -> 收件人</th>
+                            <th class="py-3">2. 需求內容</th>
+                            <th class="py-3">3. 需求日期</th>
+                            <th class="py-3">4. 目前狀態 / 回覆</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in cc_requests %}
+                        <tr>
+                            <td class="px-4">
+                                <div class="fw-bold">
+                                    <span class="text-primary">
+                                        {% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}
+                                    </span>
+                                    <i class="fas fa-arrow-right mx-1 text-muted"></i>
+                                    <span class="text-info">
+                                        {% if req.recipient.last_name or req.recipient.first_name %}{{ req.recipient.last_name }}{{ req.recipient.first_name }}{% else %}{{ req.recipient.username }}{% endif %}
+                                    </span>
+                                </div>
+                                {% if req.cc_users.exists %}
+                                <div class="small text-muted mb-1"><i class="fas fa-copy me-1"></i>cc: {% for cc in req.cc_users.all %}{% if cc.last_name or cc.first_name %}{{ cc.last_name }}{{ cc.first_name }}{% else %}{{ cc.username }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                                {% endif %}
+                                <span class="badge 
+                                    {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                    {% elif req.status == 'shipped' %}bg-info-subtle text-info
+                                    {% else %}bg-success-subtle text-success{% endif %} rounded-pill mt-1">
+                                    {{ req.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="text-wrap" style="max-width: 300px;">
+                                    <p class="mb-1">{{ req.description }}</p>
+                                    {% if req.request_photo %}
+                                    <a href="{{ req.request_photo.url }}" target="_blank">
+                                        <img src="{{ req.request_photo.url }}" class="img-thumbnail mt-1" style="max-height: 50px;">
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>{{ req.request_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if req.delivery_date %}
+                                    <div class="small">撥料: {{ req.delivery_date|date:"Y-m-d" }}</div>
+                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                    {% if req.delivery_photo %}
+                                    <a href="{{ req.delivery_photo.url }}" target="_blank">
+                                        <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
+                                    </a>
+                                    {% endif %}
+                                    {% if req.status == 'closed' %}
+                                    <div class="text-success small mt-1"><i class="fas fa-check-circle"></i> 已於 {{ req.closed_at|date:"m/d H:i" }} 結案</div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">等待處理中...</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="py-4 text-center text-muted small">暫無副本通知</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if has_more_cc %}
+            <div class="card-footer bg-white border-0 text-center py-3">
+                <a href="{% url 'peer_requests:history' %}" class="text-secondary small fw-bold text-decoration-none">
+                    <i class="fas fa-history me-1"></i> 查看所有歷史紀錄
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <!-- 回覆彈窗 (針對收到的需求) -->
@@ -249,9 +437,35 @@ $(document).ready(function() {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- 快速模板按鈕區 -->
+                    <div class="mb-4 p-3 bg-light rounded border">
+                        <label class="form-label fw-bold text-primary mb-2"><i class="fas fa-magic me-2"></i>我的快速模板 (點擊套用)</label>
+                        <div class="d-flex flex-wrap gap-2" id="template-buttons">
+                            {% for tmp in personal_templates %}
+                            <div class="d-inline-flex align-items-center bg-white border border-primary-subtle rounded-pill shadow-sm mb-2 me-2 overflow-hidden">
+                                <button type="button" class="btn btn-sm btn-link text-decoration-none text-primary fw-bold px-3 py-1 btn-apply-template border-0"
+                                    data-recipient="{{ tmp.recipient.id|default:'' }}"
+                                    data-cc="{% for cc in tmp.cc_users.all %}{{ cc.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                    data-description="{{ tmp.description|escape }}">
+                                    🏷️ {{ tmp.name }}
+                                </button>
+                                <button type="button" class="btn btn-sm text-danger px-2 py-1 btn-delete-template border-0 border-start" data-id="{{ tmp.pk }}" title="刪除此模板" style="background-color: #fff0f0;">
+                                    <strong>&times;</strong>
+                                </button>
+                            </div>
+                            {% empty %}
+                            <span class="text-muted small">尚未建立模板</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label fw-bold">1. 收件人</label>
                         {% render_field form.recipient class="form-select select2-recipient" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">副本通知 (CC) (選填)</label>
+                        {% render_field form.cc_users class="form-select select2-cc" multiple="multiple" style="width: 100%;" %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">2. 需求內容</label>
@@ -266,9 +480,14 @@ $(document).ready(function() {
                         {% render_field form.request_date class="form-control" type="date" %}
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-primary px-4">確認發送</button>
+                <div class="modal-footer d-flex justify-content-between">
+                    <button type="button" class="btn btn-info text-white px-3" id="btnSaveTemplate">
+                        <i class="fas fa-save me-1"></i> 畫面內容另存為新模板
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary px-4">確認發送</button>
+                    </div>
                 </div>
             </div>
         </form>

@@ -17,6 +17,16 @@ $(document).ready(function() {
                 noResults: function() { return "找不到相符的人員"; }
             }
         });
+        $('.select2-cc').select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#createRequestModal'),
+            placeholder: '可搜尋並選擇多位副本通知對象...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() { return "找不到相符的人員"; }
+            }
+        });
     });
 });
 </script>
@@ -199,6 +209,84 @@ $(document).ready(function() {
             {% endif %}
         </div>
     </div>
+
+    <!-- 區塊 3：副本通知 (CC) 給我 -->
+    <div class="mt-5">
+        <h3 class="h5 mb-3 text-secondary"><i class="fas fa-copy me-2"></i>副本通知我 (CC)</h3>
+        <div class="card shadow-sm border-0 overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-secondary-subtle text-secondary small text-uppercase">
+                        <tr>
+                            <th class="px-4 py-3">1. 申請人 -> 收件人</th>
+                            <th class="py-3">2. 需求內容</th>
+                            <th class="py-3">3. 需求日期</th>
+                            <th class="py-3">4. 目前狀態 / 回覆</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in cc_requests %}
+                        <tr>
+                            <td class="px-4">
+                                <div class="fw-bold">
+                                    <span class="text-primary">
+                                        {% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}
+                                    </span>
+                                    <i class="fas fa-arrow-right mx-1 text-muted"></i>
+                                    <span class="text-info">
+                                        {% if req.recipient.last_name or req.recipient.first_name %}{{ req.recipient.last_name }}{{ req.recipient.first_name }}{% else %}{{ req.recipient.username }}{% endif %}
+                                    </span>
+                                </div>
+                                <span class="badge 
+                                    {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                    {% elif req.status == 'shipped' %}bg-info-subtle text-info
+                                    {% else %}bg-success-subtle text-success{% endif %} rounded-pill mt-1">
+                                    {{ req.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="text-wrap" style="max-width: 300px;">
+                                    <p class="mb-1">{{ req.description }}</p>
+                                    {% if req.request_photo %}
+                                    <a href="{{ req.request_photo.url }}" target="_blank">
+                                        <img src="{{ req.request_photo.url }}" class="img-thumbnail mt-1" style="max-height: 50px;">
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>{{ req.request_date|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if req.delivery_date %}
+                                    <div class="small">撥料: {{ req.delivery_date|date:"Y-m-d" }}</div>
+                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                    {% if req.delivery_photo %}
+                                    <a href="{{ req.delivery_photo.url }}" target="_blank">
+                                        <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
+                                    </a>
+                                    {% endif %}
+                                    {% if req.status == 'closed' %}
+                                    <div class="text-success small mt-1"><i class="fas fa-check-circle"></i> 已於 {{ req.closed_at|date:"m/d H:i" }} 結案</div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">等待處理中...</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="py-4 text-center text-muted small">暫無副本通知</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if has_more_cc %}
+            <div class="card-footer bg-white border-0 text-center py-3">
+                <a href="{% url 'peer_requests:history' %}" class="text-secondary small fw-bold text-decoration-none">
+                    <i class="fas fa-history me-1"></i> 查看所有歷史紀錄
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <!-- 回覆彈窗 (針對收到的需求) -->
@@ -252,6 +340,10 @@ $(document).ready(function() {
                     <div class="mb-3">
                         <label class="form-label fw-bold">1. 收件人</label>
                         {% render_field form.recipient class="form-select select2-recipient" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">副本通知 (CC) (選填)</label>
+                        {% render_field form.cc_users class="form-select select2-cc" multiple="multiple" style="width: 100%;" %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">2. 需求內容</label>

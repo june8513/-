@@ -1,6 +1,13 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+<script>
+    // 防閃爍：在 DOM 渲染前就套用上次儲存的主題
+    (function() {
+        var t = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+</script>
 
 <head>
     <meta charset="UTF-8">
@@ -9,9 +16,9 @@
     <!-- Bootstrap CSS (Local) -->
     <link rel="stylesheet" href="{% static 'vendor/css/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'css/flatpickr.min.css' %}">
-    <!-- Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <!-- Select2 CSS (Local) -->
+    <link rel="stylesheet" href="{% static 'vendor/css/select2.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/css/select2-bootstrap-5-theme.min.css' %}">
     <!-- Bootstrap Icons (Local) -->
     <link rel="stylesheet" href="{% static 'vendor/css/bootstrap-icons.css' %}">
     <!-- jQuery (Local) -->
@@ -43,6 +50,12 @@
                         <ul class="dropdown-menu" aria-labelledby="dropdownMenuLink">
                             <li><a class="dropdown-item" href="{% url 'core:homepage' %}">儀表板</a></li>
                             <li><a class="dropdown-item" href="{% url 'requisitions:assistant' %}">智慧助理</a></li>
+                            {% if is_simple_applicant %}
+                            <li><a class="dropdown-item text-success fw-bold" href="{% url 'requisitions:simple_applicant_home' %}"><i class="fas fa-mobile-alt me-1"></i> 簡易申請介面</a></li>
+                            {% endif %}
+                            {% if is_simple_dispatcher %}
+                            <li><a class="dropdown-item text-success fw-bold" href="{% url 'requisitions:simple_dispatcher_home' %}"><i class="fas fa-tablet-alt me-1"></i> 簡易撥料介面</a></li>
+                            {% endif %}
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
@@ -151,10 +164,16 @@
                         <li class="nav-item me-3">
                             <span class="navbar-text">歡迎, {{ user.username }}!</span>
                         </li>
+                        <li class="nav-item me-2">
+                            <button class="theme-toggle" id="themeToggle" title="切換暗黑/亮色模式">🌙</button>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'requisitions:logout' %}">登出</a>
                         </li>
                         {% else %}
+                        <li class="nav-item me-2">
+                            <button class="theme-toggle" id="themeToggle" title="切換暗黑/亮色模式">🌙</button>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'requisitions:login' %}">登入</a>
                         </li>
@@ -180,9 +199,29 @@
     </div>
     <!-- Bootstrap JS (Local) -->
     <script src="{% static 'vendor/js/bootstrap.bundle.min.js' %}"></script>
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Select2 JS (Local) -->
+    <script src="{% static 'vendor/js/select2.min.js' %}"></script>
     {% block extra_js %}{% endblock %}
+    <script>
+        // 🌙 Dark Mode Toggle
+        (function() {
+            var btn = document.getElementById('themeToggle');
+            if (!btn) return;
+            function updateIcon() {
+                var current = document.documentElement.getAttribute('data-theme');
+                btn.textContent = current === 'dark' ? '☀️' : '🌙';
+                btn.title = current === 'dark' ? '切換為亮色模式' : '切換為暗黑模式';
+            }
+            updateIcon();
+            btn.addEventListener('click', function() {
+                var current = document.documentElement.getAttribute('data-theme');
+                var next = current === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+                updateIcon();
+            });
+        })();
+    </script>
 </body>
 
 </html>

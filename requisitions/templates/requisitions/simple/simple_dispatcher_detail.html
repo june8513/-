@@ -647,7 +647,7 @@
 </script>
 <script>
     (function () {
-        const csrfToken = '{{ csrf_token }}';
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]') ? document.querySelector('input[name="csrfmiddlewaretoken"]').value : '{{ csrf_token }}';
         function showToast(message, isSuccess) {
             const toast = document.createElement('div');
             toast.className = 'toast-message ' + (isSuccess ? 'success' : 'error');

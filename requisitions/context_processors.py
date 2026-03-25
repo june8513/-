@@ -22,13 +22,13 @@ def role_context(request):
             name=GROUP_NAMES['DISPATCHER_SUPERVISOR']
         ).exists()
         
-        # 檢查一般人員群組
+        # 檢查一般人員群組 (開放主管與管理員存取簡易介面功能)
         is_simple_applicant = request.user.groups.filter(
             name=GROUP_NAMES['APPLICANT']
-        ).exists() and not is_applicant_supervisor
+        ).exists() or is_applicant_supervisor or is_admin
         is_simple_dispatcher = request.user.groups.filter(
             name=GROUP_NAMES['DISPATCHER']
-        ).exists() and not is_dispatcher_supervisor
+        ).exists() or is_dispatcher_supervisor or is_admin
         
         # 相容舊版：任何申請/撥料人員（主管或一般）都設為 True
         is_applicant = is_applicant_supervisor or is_simple_applicant or \

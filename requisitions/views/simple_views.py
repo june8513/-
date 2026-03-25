@@ -14,23 +14,22 @@ from django.http import JsonResponse
 from decimal import Decimal
 from datetime import date
 
-from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement
+from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement, MachineModel
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
 
 
 def is_simple_applicant(user):
-    """檢查是否為簡易申請人員（包含主管）"""
-    return user.groups.filter(name__in=[GROUP_NAMES['APPLICANT'], GROUP_NAMES['APPLICANT_SUPERVISOR']]).exists() and \
-           not user.is_superuser
+    """檢查是否為簡易申請人員（包含主管與管理員）"""
+    return user.groups.filter(name__in=[GROUP_NAMES['APPLICANT'], GROUP_NAMES['APPLICANT_SUPERVISOR']]).exists() or \
+           user.is_superuser
 
 
 def is_simple_dispatcher(user):
-    """檢查是否為簡易撥料人員（非主管）"""
-    return user.groups.filter(name=GROUP_NAMES['DISPATCHER']).exists() and \
-           not user.groups.filter(name=GROUP_NAMES['DISPATCHER_SUPERVISOR']).exists() and \
-           not user.is_superuser
+    """檢查是否為簡易撥料人員（包含主管與管理員）"""
+    return user.groups.filter(name__in=[GROUP_NAMES['DISPATCHER'], GROUP_NAMES['DISPATCHER_SUPERVISOR']]).exists() or \
+           user.is_superuser
 
 
 # =====================
@@ -1145,7 +1144,6 @@ def simple_dispatcher_detail(request, category, pk):
     
     if target_material_numbers:
         # 1. 找出相同物料在其他工單的未撥需求（欠料大於 0）
-        from ..models import WorkOrderMaterial
         
         other_shortages = WorkOrderMaterial.objects.filter(
             material_number__in=target_material_numbers,

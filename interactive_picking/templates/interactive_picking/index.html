@@ -7,14 +7,28 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="h3 mb-0 text-gray-800"><i class="fas fa-route me-2 text-primary"></i>互動式動線揀料系統</h2>
-        <a href="{% url 'interactive_picking:generate_mock_task' %}" class="btn btn-warning shadow-sm">
-            <i class="fas fa-magic me-1"></i> 產生模擬測試任務
-        </a>
+        {% if user.is_superuser %}
+            <a href="{% url 'interactive_picking:upload_locations' %}" class="btn btn-outline-secondary btn-sm" title="設定倉儲地圖座標">
+                <i class="fas fa-cog"></i> 地圖設定
+            </a>
+        {% endif %}
     </div>
 
     <div class="card shadow mb-4 border-0">
-        <div class="card-header py-3 bg-white">
+        <div class="card-header py-3 bg-white d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">所有的揀料任務</h6>
+            
+            <!-- 篩選器表單 -->
+            <form method="get" class="d-flex align-items-center" id="filterForm">
+                <label for="processTypeFilter" class="me-2 text-muted fw-bold mb-0 text-nowrap"><i class="fas fa-filter me-1"></i>投料點：</label>
+                <select name="process_type" id="processTypeFilter" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit()">
+                    <option value="">全部顯示</option>
+                    {% for p_type in process_types %}
+                        <option value="{{ p_type }}" {% if selected_process_type == p_type %}selected{% endif %}>{{ p_type }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            
         </div>
         <div class="card-body">
             {% if tasks %}
@@ -23,6 +37,7 @@
                     <thead class="bg-light">
                         <tr>
                             <th>任務單號</th>
+                            <th>投料點</th>
                             <th>建立時間</th>
                             <th>進度</th>
                             <th>狀態</th>
@@ -33,10 +48,10 @@
                         {% for task in tasks %}
                         <tr>
                             <td class="fw-bold">{{ task.task_number }}</td>
+                            <td><span class="badge bg-info text-dark">{{ task.process_type|default:"未指定" }}</span></td>
                             <td>{{ task.created_at|date:"Y-m-d H:i" }}</td>
                             <td>
-                                <!-- 跑個簡單的進度條算式，雖然模板不能直接過濾除法，先簡單顯示文字 -->
-                                <div><small>{{ task.items.filter.status_picked }} / {{ task.items.count }} 項</small></div>
+                                <div><small>總數: {{ task.total_count }} / 待揀: {{ task.pending_count }} 項</small></div>
                             </td>
                             <td>
                                 {% if task.is_completed %}
@@ -62,8 +77,8 @@
             {% else %}
             <div class="text-center py-5">
                 <i class="fas fa-box-open text-muted fa-3x mb-3"></i>
-                <h5 class="text-muted">目前沒有任何揀料任務</h5>
-                <p class="text-muted mb-0">請點擊右上角按鈕產生模擬任務來進行測試。</p>
+                <h5 class="text-muted">目前沒有可揀料的真實派工單</h5>
+                <p class="text-muted mb-0">請先在主系統中建立撥料需求，這邊才會出現待處理單據。</p>
             </div>
             {% endif %}
         </div>

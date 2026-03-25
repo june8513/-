@@ -239,8 +239,9 @@
 </style>
 {% endblock %}
 {% block extra_js %}
-<!-- QuaggaJS CDN -->
-<script src="https://cdn.jsdelivr.net/npm/quagga/dist/quagga.min.js"></script>
+{% load static %}
+<!-- QuaggaJS (Local) -->
+<script src="{% static 'vendor/js/quagga.min.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Image Modal Logic

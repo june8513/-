@@ -158,7 +158,9 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% load static %}
+<!-- Chart.js (Local) -->
+<script src="{% static 'vendor/js/chart.min.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         {% if order_number %}
