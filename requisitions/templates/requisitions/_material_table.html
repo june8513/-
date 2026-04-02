@@ -37,6 +37,7 @@
                     <td data-label="品名" class="text-truncate-cell">{{ material.item_name }}</td>
                     <td data-label="儲格" class="responsive-group-item">{{ material.bin|default:"N/A" }}</td>
                     <td data-label="投料點" class="responsive-group-item">
+                        <div class="d-flex align-items-center gap-1">
                         {% if show_change_input %}
                             {% if is_admin or is_applicant %}
                                 <select name="processtype_{{ material.pk }}" class="form-select form-select-sm {% if not material.process_type %}border-danger bg-warning-subtle{% endif %}">
@@ -46,11 +47,19 @@
                                     {% endfor %}
                                 </select>
                             {% else %}
-                                {{ material.process_type.name|default:"N/A" }}
+                                <span>{{ material.process_type.name|default:"N/A" }}</span>
                             {% endif %}
                         {% else %}
-                            {{ material.process_type.name|default:"N/A" }}
+                            <span>{{ material.process_type.name|default:"N/A" }}</span>
                         {% endif %}
+                        {% if material.has_pt_history %}
+                            <a href="javascript:void(0)" class="pt-history-btn"
+                                data-material-id="{{ material.pk }}" title="檢視此料號修改紀錄"
+                                style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;background:#EEF2FF;color:#4338CA;font-size:0.75rem;font-weight:600;text-decoration:none;white-space:nowrap;border:1px solid #C7D2FE;cursor:pointer;transition:all 0.2s;">
+                                🕘 紀錄
+                            </a>
+                        {% endif %}
+                        </div>
                     </td>
                     <td data-label="簽收狀態" class="responsive-group-item dispatch-status-{{ material.pk }}">
                         {% if material.total_confirmed_quantity == material.required_quantity and material.is_signed_off %}
@@ -98,6 +107,47 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<!-- Modal for Process Type History -->
+<div class="modal fade" id="ptHistoryModal" tabindex="-1" aria-labelledby="ptHistoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ptHistoryModalLabel">同機型投料點修改紀錄</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="ptHistoryLoading" class="text-center p-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">載入中...</span>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 d-none" id="ptHistoryTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>物料</th>
+                        <th>品名</th>
+                        <th>原投料點</th>
+                        <th>新投料點</th>
+                        <th>修改人</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody id="ptHistoryTbody">
+                </tbody>
+            </table>
+        </div>
+        <div id="ptHistoryEmpty" class="text-center py-4 d-none text-muted">
+            查無修改紀錄。
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -241,6 +291,61 @@
                     // Format to 2 decimal places to avoid floating point issues
                     changeInput.value = suggestion.toFixed(2);
                 }
+            });
+
+            // Handle Process Type History Button Click
+            tbody.addEventListener('click', function(event) {
+                const btn = event.target.closest('.pt-history-btn');
+                if (!btn) return;
+                
+                const materialId = btn.getAttribute('data-material-id');
+                
+                const modal = new bootstrap.Modal(document.getElementById('ptHistoryModal'));
+                const loading = document.getElementById('ptHistoryLoading');
+                const table = document.getElementById('ptHistoryTable');
+                const tbody = document.getElementById('ptHistoryTbody');
+                const empty = document.getElementById('ptHistoryEmpty');
+                
+                table.classList.add('d-none');
+                empty.classList.add('d-none');
+                loading.classList.remove('d-none');
+                tbody.innerHTML = '';
+                
+                modal.show();
+                
+                fetch(`{% url 'requisitions:get_model_process_type_history' %}?material_id=${materialId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        loading.classList.add('d-none');
+                        if (data.logs && data.logs.length > 0) {
+                            data.logs.forEach(log => {
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                                    <td>${log.material_number}</td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="${log.item_name}">${log.item_name}</td>
+                                    <td><span class="badge bg-secondary">${log.old_process_type}</span></td>
+                                    <td><span class="badge bg-primary">${log.new_process_type}</span></td>
+                                    <td>${log.user_name}</td>
+                                    <td><small class="text-muted">${log.timestamp}</small></td>
+                                `;
+                                tbody.appendChild(tr);
+                            });
+                            table.classList.remove('d-none');
+                        } else {
+                            if (data.error) {
+                                empty.textContent = '發生錯誤：' + data.error;
+                            } else {
+                                empty.textContent = '查無修改紀錄。';
+                            }
+                            empty.classList.remove('d-none');
+                        }
+                    })
+                    .catch(error => {
+                        loading.classList.add('d-none');
+                        empty.textContent = '取得資料時發生錯誤。';
+                        empty.classList.remove('d-none');
+                        console.error('Error fetching history:', error);
+                    });
             });
         }
     });

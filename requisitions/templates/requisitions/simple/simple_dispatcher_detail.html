@@ -106,6 +106,9 @@
         padding: 1rem;
         margin-bottom: 0.75rem;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
     }
 
     .material-card.dispatched {
@@ -118,29 +121,47 @@
         border: 1px solid #FECACA;
     }
 
-    .material-header {
+    .material-info-area {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .material-top-row {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
     }
 
-    .material-info h4 {
+    .mat-number {
         font-size: 1rem;
-        font-weight: 600;
+        font-weight: 700;
         color: #1F2937;
-        margin: 0 0 0.25rem 0;
     }
 
-    .material-info p {
+    .mat-bin {
         font-size: 0.85rem;
         color: #6B7280;
-        margin: 0;
+        background: #F3F4F6;
+        padding: 1px 6px;
+        border-radius: 4px;
     }
 
-    .material-qty-info {
-        text-align: right;
+    .mat-detail {
         font-size: 0.9rem;
+    }
+
+    .material-bottom-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .mat-name {
+        font-size: 0.85rem;
+        color: #6B7280;
     }
 
     .qty-label {
@@ -156,6 +177,7 @@
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        align-items: center;
     }
 
     .action-btn {
@@ -206,12 +228,6 @@
     .status-badge.backordered {
         background: #FEE2E2;
         color: #DC2626;
-    }
-
-    .storage-bin {
-        font-size: 0.8rem;
-        color: #6B7280;
-        margin-top: 0.25rem;
     }
 
     .backlog-alert {
@@ -468,19 +484,16 @@
 
     {% for item in items %}
     <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
-        <div class="material-header">
-            <div class="material-info">
-                <h4>{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}){% endif %}</span>{% endif %}</h4>
-                <p>{{ item.item_name }}</p>
-                {% if item.storage_bin %}<p class="storage-bin">儲格: {{ item.storage_bin }}</p>{% endif %}
-                {% if item.has_backlog %}<div class="backlog-alert">⚠ 有更早工單需先撥料</div>{% endif %}
+        <div class="material-info-area">
+            <div class="material-top-row">
+                <span class="mat-number">{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}){% endif %}</span>{% endif %}</span>
+                {% if item.storage_bin %}<span class="mat-bin">{{ item.storage_bin }}</span>{% endif %}
+                <span class="mat-detail"><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></span>
+                <span class="mat-detail"><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</span>
             </div>
-            <div class="material-qty-info">
-                <div><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span>
-                </div>
-                <div><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}
-                        style="color:#DC2626;font-weight:700;" {% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}
-                </div>
+            <div class="material-bottom-row">
+                <span class="mat-name">{{ item.item_name }}</span>
+                {% if item.has_backlog %}<span class="backlog-alert">⚠ 有更早工單需先撥料</span>{% endif %}
                 {% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
             </div>
         </div>
@@ -627,7 +640,7 @@
     function copyDispatchedMaterials() {
         var items = [];
         document.querySelectorAll('.material-card.dispatched').forEach(function (card) {
-            var num = card.querySelector('.material-info h4').textContent.trim().split(' ')[0];
+            var num = card.querySelector('.mat-number').textContent.trim().split(' ')[0];
             items.push(num);
         });
         if (items.length === 0) {
@@ -666,18 +679,18 @@
         function updateCardUI(card, newStatus, dispatchedQty) {
             const actionsForm = card.querySelector('.material-actions');
             const statusBadge = card.querySelector('.status-badge');
-            const qtyInfo = card.querySelector('.material-qty-info');
+            const bottomRow = card.querySelector('.material-bottom-row');
             card.classList.remove('dispatched', 'backordered');
             if (newStatus === 'dispatched') {
                 card.classList.add('dispatched');
                 const statusText = dispatchedQty ? '已撥 ' + dispatchedQty : '已撥';
                 if (statusBadge) { statusBadge.className = 'status-badge dispatched'; statusBadge.textContent = statusText; }
-                else { const newBadge = document.createElement('span'); newBadge.className = 'status-badge dispatched'; newBadge.textContent = statusText; qtyInfo.appendChild(newBadge); }
+                else if (bottomRow) { const newBadge = document.createElement('span'); newBadge.className = 'status-badge dispatched'; newBadge.textContent = statusText; bottomRow.appendChild(newBadge); }
                 actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
             } else if (newStatus === 'backordered') {
                 card.classList.add('backordered');
                 if (statusBadge) { statusBadge.className = 'status-badge backordered'; statusBadge.textContent = '缺料'; }
-                else { const newBadge = document.createElement('span'); newBadge.className = 'status-badge backordered'; newBadge.textContent = '缺料'; qtyInfo.appendChild(newBadge); }
+                else if (bottomRow) { const newBadge = document.createElement('span'); newBadge.className = 'status-badge backordered'; newBadge.textContent = '缺料'; bottomRow.appendChild(newBadge); }
                 actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
             } else if (newStatus === 'pending') {
                 if (statusBadge) statusBadge.remove();

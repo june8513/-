@@ -210,6 +210,24 @@ class WorkOrderMaterialTransaction(models.Model):
     def __str__(self):
         return f"{self.timestamp.strftime('%Y-%m-%d %H:%M')} - {self.work_order_material.material_number} - {self.get_transaction_type_display()}: {self.quantity_change}"
 
+class WorkOrderMaterialProcessTypeLog(models.Model):
+    """
+    紀錄單筆訂單物料的投料點異動歷史
+    """
+    work_order_material = models.ForeignKey(WorkOrderMaterial, on_delete=models.CASCADE, related_name='process_type_logs', verbose_name="訂單物料")
+    old_process_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="原投料點")
+    new_process_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="新投料點")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="操作人員")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="操作時間")
+
+    class Meta:
+        verbose_name = "物料投料點異動紀錄"
+        verbose_name_plural = "物料投料點異動紀錄"
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.timestamp.strftime('%Y-%m-%d %H:%M')} - {self.work_order_material.material_number}: {self.old_process_type} -> {self.new_process_type}"
+
 class WorkOrderMaterialImage(models.Model):
     requisition = models.ForeignKey(Requisition, on_delete=models.CASCADE, related_name='work_order_material_images', verbose_name="所屬撥料單", null=True, blank=True)
     process_type = models.ForeignKey(ProcessType, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="投料點")

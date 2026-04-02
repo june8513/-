@@ -86,6 +86,7 @@ urlpatterns = [
     path('archived_material_list/', material_data_views.archived_work_order_material_list, name='archived_work_order_material_list'),
     path('update_work_order_quantities/', material_data_views.update_work_order_quantities, name='update_work_order_quantities'),
     path('sync_storage_bins/', material_data_views.sync_storage_bins, name='sync_storage_bins'),
+    path('get_model_process_type_history/', material_data_views.get_model_process_type_history, name='get_model_process_type_history'),
 
     path('<int:pk>/generate_dispatch_note/', material_export_views.generate_dispatch_note, name='generate_dispatch_note'),
     path('<int:pk>/generate_dispatch_note/excel/', material_export_views.generate_dispatch_note, name='generate_dispatch_note_excel'),

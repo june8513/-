@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageForm, WorkOrderMaterialImageUploadForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage, WorkOrder
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage, WorkOrder, WorkOrderMaterialProcessTypeLog
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -153,7 +153,8 @@ def work_order_material_list(request):
             import_count=Count('requisition_items'),
             bin=material_subquery_bin,
             stock_quantity=inventory_subquery_stock_quantity,
-            total_confirmed_quantity=Coalesce(Subquery(total_confirmed_subquery, output_field=DecimalField()), Decimal('0.0'))
+            total_confirmed_quantity=Coalesce(Subquery(total_confirmed_subquery, output_field=DecimalField()), Decimal('0.0')),
+            has_pt_history=Exists(WorkOrderMaterialProcessTypeLog.objects.filter(work_order_material=OuterRef('pk')))
         )
         # Apply is_active filter
         if not show_inactive:
@@ -215,6 +216,8 @@ def work_order_material_list(request):
         order_field = f'{'-' if order == "desc" else ""}{model_sort_by}'
         materials = materials.order_by(order_field)
 
+        materials_list = list(materials)
+
         # --- Check for Earlier Shortages (Queue Jumping Alert) ---
         backlog_map = {}
         current_req_dates = {}
@@ -225,18 +228,23 @@ def work_order_material_list(request):
             for req in current_reqs:
                 current_req_dates[req.process_type] = req.request_date
 
-        if order_number and materials:
-            target_material_numbers = list(materials.values_list('material_number', flat=True))
+        if order_number and materials_list:
+            target_material_numbers = list(set([m.material_number for m in materials_list if m.material_number]))
             
-            if current_req_dates:
-                 # Find all *other* active shortages for these materials
-                 other_shortages = WorkOrderMaterial.objects.filter(
-                    material_number__in=target_material_numbers,
-                    is_active=True,
-                    required_quantity__gt=Coalesce(F('confirmed_quantity'), 0)
-                ).exclude(
-                    order_number=order_number
-                ).select_related('process_type')
+            if current_req_dates and target_material_numbers:
+                 # Find all *other* active shortages for these materials using chunking
+                 other_shortages = []
+                 chunk_size = 500
+                 for i in range(0, len(target_material_numbers), chunk_size):
+                     chunk = target_material_numbers[i:i + chunk_size]
+                     shortages_chunk = WorkOrderMaterial.objects.filter(
+                        material_number__in=chunk,
+                        is_active=True,
+                        required_quantity__gt=Coalesce(F('confirmed_quantity'), 0)
+                     ).exclude(
+                        order_number=order_number
+                     ).select_related('process_type')
+                     other_shortages.extend(list(shortages_chunk))
                 
                  shortage_groups = {}
                  for s in other_shortages:
@@ -246,16 +254,17 @@ def work_order_material_list(request):
                      shortage_groups[key].append(s)
                      
                  if shortage_groups:
-                    date_q = Q()
-                    for (o_num, p_name) in shortage_groups.keys():
-                        if p_name: date_q |= Q(order_number=o_num, process_type=p_name)
-                        else: date_q |= Q(order_number=o_num, process_type__isnull=True)
-                    
-                    other_reqs = Requisition.objects.filter(
-                        date_q,
-                        status__in=['demand_submitted', 'dispatch_in_progress'],
-                        is_archived=False
-                    ).values('order_number', 'process_type', 'request_date')
+                    # Gather all relevant Requisitions by chunking order_numbers
+                    shortage_orders = list(set([s.order_number for s in other_shortages]))
+                    other_reqs = []
+                    for i in range(0, len(shortage_orders), chunk_size):
+                        chunk = shortage_orders[i:i + chunk_size]
+                        req_chunk = Requisition.objects.filter(
+                            order_number__in=chunk,
+                            status__in=['demand_submitted', 'dispatch_in_progress'],
+                            is_archived=False
+                        ).values('order_number', 'process_type', 'request_date')
+                        other_reqs.extend(list(req_chunk))
                     
                     other_req_map = { (r['order_number'], r['process_type']): r['request_date'] for r in other_reqs }
                     
@@ -271,8 +280,7 @@ def work_order_material_list(request):
                                     'shortage': s.required_quantity - (s.confirmed_quantity or 0)
                                 })
         
-        # Convert queryset to list and attach info
-        materials_list = list(materials)
+        # Attach info to our list
         for m in materials_list:
             m_process_name = m.process_type.name if m.process_type else None
             current_date = current_req_dates.get(m_process_name)
@@ -487,6 +495,15 @@ def update_work_order_quantities(request):
                       
                       material.process_type = new_pt_obj
                       material.save()
+                      
+                      # --- Create Process Type Modification Log ---
+                      WorkOrderMaterialProcessTypeLog.objects.create(
+                          work_order_material=material,
+                          old_process_type=current_pt_name,
+                          new_process_type=new_pt_name,
+                          user=request.user
+                      )
+                      
                       updated_materials.append(f"物料 {material.material_number} 投料點更新: {new_pt_name}")
                       
                       # --- Synchronization Logic: Move existing un-signed items to new process type ---
@@ -787,6 +804,37 @@ def get_process_types_for_model(request):
     try:
         process_types = ProcessType.objects.filter(machine_model_id=int(machine_model_id)).values('id', 'name')
         return JsonResponse(list(process_types), safe=False)
+    except Exception as e:
+        import traceback
+        return JsonResponse({'error': traceback.format_exc()}, status=500)
+
+@login_required
+def get_model_process_type_history(request):
+    """
+    取得單一物料的投料點修改紀錄
+    """
+    material_id = request.GET.get('material_id')
+
+    if not material_id:
+        return JsonResponse({'error': '缺少必要參數'}, status=400)
+
+    try:
+        logs = WorkOrderMaterialProcessTypeLog.objects.filter(
+            work_order_material_id=material_id
+        ).select_related('work_order_material', 'user').order_by('-timestamp')
+
+        data = []
+        for log in logs:
+            data.append({
+                'material_number': log.work_order_material.material_number,
+                'item_name': log.work_order_material.item_name,
+                'old_process_type': log.old_process_type or '未設定',
+                'new_process_type': log.new_process_type or '未設定',
+                'user_name': log.user.username if log.user else '系統',
+                'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            })
+
+        return JsonResponse({'logs': data})
     except Exception as e:
         import traceback
         return JsonResponse({'error': traceback.format_exc()}, status=500)
