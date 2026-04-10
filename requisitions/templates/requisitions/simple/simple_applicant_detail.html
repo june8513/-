@@ -393,12 +393,15 @@
     </div>
     {% endfor %}
     {% endif %}
-    <div class="page-header">
-        <a href="{% url 'requisitions:simple_applicant_home' %}" class="back-btn">←</a>
-        <h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span
-                style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
+    <div class="page-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; align-items: center;">
+            <a href="{% url 'requisitions:simple_applicant_home' %}" class="back-btn">←</a>
+            <h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span
+                    style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
+        </div>
+        <a href="{% url 'requisitions:export_single_requisition_excel' pk=requisition.pk %}" class="btn btn-sm btn-outline-primary d-flex align-items-center" style="border-radius: 10px; font-weight: 600; padding: 0.5rem 0.75rem;">📊 匯出 Excel</a>
     </div>
-    {% if requisition.has_alert %}
+    {% if has_over_dispatched_items %}
     <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert"
         style="border-radius: 12px;">
         <div>
@@ -472,13 +475,22 @@
                 {% endif %}
             </span>
         </div>
+        {% if requisition.has_alert %}
+        <div class="info-row" style="border-bottom: none; padding-top: 1rem; justify-content: flex-end; gap: 0.5rem;">
+            <a href="{% url 'requisitions:simple_requisition_change_detail' pk=requisition.pk %}" class="btn btn-warning btn-sm d-flex align-items-center" style="border-radius: 10px; font-weight: 600; padding: 0.5rem 0.75rem;">
+                ⚠️ 處理需求變更
+            </a>
+        </div>
+        {% endif %}
+
         {% if requisition.status == 'demand_submitted' %}
         <div class="info-row" style="border-bottom: none; padding-top: 1rem; justify-content: flex-end;">
             <form action="{% url 'requisitions:simple_applicant_delete' pk=requisition.pk %}" method="post"
-                onsubmit="return confirm('確定要刪除這張申請單嗎？此動作無法復原。');">
+                onsubmit="return confirm('確定要刪除此申請單嗎？');">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger btn-sm" style="border-radius: 8px;">🗑️
-                    刪除申請單</button>
+                <button type="submit" class="btn btn-outline-danger btn-sm d-flex align-items-center" style="border-radius: 10px; font-weight: 600; padding: 0.5rem 0.75rem;">
+                    <i class="fas fa-trash-alt me-1"></i> 刪除申請單
+                </button>
             </form>
         </div>
         {% endif %}
@@ -504,6 +516,11 @@
                 <div class="qty-text">
                     {% if item.dispatch_status == 'dispatched' %}
                     {{ item.confirmed_quantity|floatformat:0 }}/{{ item.required_quantity|floatformat:0 }}
+                    <span style="font-size: 0.75rem; color: #6B7280; display: block;">
+                        {% if item.dispatched_by %}
+                        ({{ item.dispatched_by.first_name }}{{ item.dispatched_by.last_name }}{% if not item.dispatched_by.first_name %}{{ item.dispatched_by.username }}{% endif %})
+                        {% endif %}
+                    </span>
                     {% else %}
                     0/{{ item.required_quantity|floatformat:0 }}
                     {% endif %}

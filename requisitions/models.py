@@ -150,6 +150,15 @@ class RequisitionItem(models.Model):
     sign_off_date = models.DateTimeField(null=True, blank=True, verbose_name="簽收日期")
     dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, null=True, blank=True, verbose_name="撥料狀態")
     
+    # 新增：追蹤撥料人員與時間
+    dispatched_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='items_dispatched', verbose_name="撥料人員")
+    dispatched_at = models.DateTimeField(null=True, blank=True, verbose_name="撥料時間")
+    
+    # 新增：追蹤需求變更警示解除
+    alert_dismissed = models.BooleanField(default=False, verbose_name="警示已解除")
+    alert_dismissed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='items_alert_dismissed', verbose_name="警示解除人員")
+    alert_dismissed_at = models.DateTimeField(null=True, blank=True, verbose_name="警示解除時間")
+    
     # 補撥相關欄位
     is_supplementary = models.BooleanField(default=False, verbose_name="是否為補撥")
     parent_item = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='supplementary_items', verbose_name="原始項目")

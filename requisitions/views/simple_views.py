@@ -2,6 +2,7 @@
 簡易介面視圖 - 給一般申請人員和撥料人員使用
 """
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
@@ -10,9 +11,11 @@ from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q, Count, Sum, Case, When, Value, IntegerField, F, DecimalField
 from django.db.models.functions import Coalesce
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from decimal import Decimal
 from datetime import date
+import pandas as pd
+import io
 
 from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement, MachineModel
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
@@ -442,6 +445,14 @@ def simple_applicant_detail(request, pk):
     if wom and wom.machine_model:
         machine_model_name = wom.machine_model.name
 
+    # 檢查是否包含「已撥料需退料」的項目
+    has_over_dispatched_items = False
+    if requisition.has_alert:
+        has_over_dispatched_items = items.filter(
+            confirmed_quantity__gt=F('required_quantity'),
+            alert_dismissed=False
+        ).exists()
+
     context = {
         'requisition': requisition,
         'items': items,
@@ -449,6 +460,7 @@ def simple_applicant_detail(request, pk):
         'dispatched_count': dispatched,
         'total_count': total,
         'machine_model_name': machine_model_name,
+        'has_over_dispatched_items': has_over_dispatched_items,
     }
     return render(request, 'requisitions/simple/simple_applicant_detail.html', context)
 
@@ -994,9 +1006,9 @@ def simple_dispatcher_detail(request, category, pk):
         items = requisition.items.all().order_by('storage_bin', 'material_number')
     elif sort_param == 'name':
         items = requisition.items.all().order_by('item_name', 'material_number')
-    elif sort_param == 'status':
+    if sort_param == 'status':
         # Status sort: Pending (None/Empty) -> Backordered -> Dispatched
-        items = requisition.items.all().annotate(
+        items = requisition.items.all().select_related('dispatched_by').annotate(
             status_order=Case(
                 When(dispatch_status__isnull=True, then=Value(1)),
                 When(dispatch_status='', then=Value(1)),
@@ -1008,7 +1020,7 @@ def simple_dispatcher_detail(request, category, pk):
         ).order_by('status_order', 'material_number')
     else:
         # Default: material number
-        items = requisition.items.all().order_by('material_number')
+        items = requisition.items.all().select_related('dispatched_by').order_by('material_number')
     
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1028,8 +1040,23 @@ def simple_dispatcher_detail(request, category, pk):
                         dispatched_qty = Decimal(dispatched_qty)
                         item.confirmed_quantity = dispatched_qty
                         item.dispatch_status = 'dispatched'
+                        item.dispatched_by = request.user
+                        item.dispatched_at = timezone.now()
                         item.save()
-                        result = {'success': True, 'message': f'物料 {item.material_number} 撥料 {dispatched_qty} 成功。', 'new_status': 'dispatched', 'dispatched_qty': str(dispatched_qty)}
+                        
+                        # 自定義顯示名稱
+                        dispatcher_display_name = f"{request.user.first_name}{request.user.last_name}"
+                        if not (request.user.first_name or request.user.last_name):
+                            dispatcher_display_name = request.user.username
+
+                        result = {
+                            'success': True, 
+                            'message': f'物料 {item.material_number} 撥料 {dispatched_qty} 成功。', 
+                            'new_status': 'dispatched', 
+                            'dispatched_qty': str(dispatched_qty),
+                            'dispatched_by_name': dispatcher_display_name,
+                            'dispatched_by_id': request.user.id
+                        }
                         if not is_ajax:
                             messages.success(request, result['message'])
                     except Exception as e:
@@ -1054,6 +1081,8 @@ def simple_dispatcher_detail(request, category, pk):
                     else:
                         item.confirmed_quantity = Decimal('0')
                         item.dispatch_status = None
+                        item.dispatched_by = None
+                        item.dispatched_at = None
                         item.save()
                         result = {'success': True, 'message': f'物料 {item.material_number} 已取消撥料。', 'new_status': 'pending'}
                         if not is_ajax:
@@ -1223,7 +1252,15 @@ def simple_dispatcher_detail(request, category, pk):
         if item.dispatch_status == 'dispatched':
             item.card_class = 'dispatched'
             qty_display = item.confirmed_quantity if item.confirmed_quantity else item.required_quantity
-            item.status_text = f'已撥 {qty_display}'
+            # 取得撥料人員名稱
+            dispatcher_name = ""
+            if item.dispatched_by:
+                dispatcher_name = f" ({item.dispatched_by.first_name}{item.dispatched_by.last_name}"
+                if not (item.dispatched_by.first_name or item.dispatched_by.last_name):
+                    dispatcher_name = f" ({item.dispatched_by.username}"
+                dispatcher_name += ")"
+            
+            item.status_text = f'已撥 {qty_display}{dispatcher_name}'
         elif item.dispatch_status == 'backordered':
             item.card_class = 'backordered'
             item.status_text = '缺料'
@@ -1254,7 +1291,15 @@ def simple_dispatcher_detail(request, category, pk):
             if supp.dispatch_status == 'dispatched':
                 supp.card_class = 'dispatched'
                 supp_qty = supp.confirmed_quantity if supp.confirmed_quantity else supp.required_quantity
-                supp.status_text = f'已撥 {supp_qty}'
+                # 取得撥料人員名稱
+                supp_dispatcher = ""
+                if supp.dispatched_by:
+                    supp_dispatcher = f" ({supp.dispatched_by.first_name}{supp.dispatched_by.last_name}"
+                    if not (supp.dispatched_by.first_name or supp.dispatched_by.last_name):
+                        supp_dispatcher = f" ({supp.dispatched_by.username}"
+                    supp_dispatcher += ")"
+                
+                supp.status_text = f'已撥 {supp_qty}{supp_dispatcher}'
             elif supp.dispatch_status == 'backordered':
                 supp.card_class = 'backordered'
                 supp.status_text = '缺料'
@@ -1289,6 +1334,14 @@ def simple_dispatcher_detail(request, category, pk):
     if wom and wom.machine_model:
         machine_model_name = wom.machine_model.name
 
+    # 檢查是否包含「已撥料需退料」的項目
+    has_over_dispatched_items = False
+    if requisition.has_alert:
+        has_over_dispatched_items = items.filter(
+            confirmed_quantity__gt=F('required_quantity'),
+            alert_dismissed=False
+        ).exists()
+
     context = {
         'requisition': requisition,
         'items': items_list,
@@ -1301,6 +1354,7 @@ def simple_dispatcher_detail(request, category, pk):
         'current_type': current_type,
         'current_sort': sort_param,
         'machine_model_name': machine_model_name,
+        'has_over_dispatched_items': has_over_dispatched_items,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_detail.html', context)
 
@@ -1337,3 +1391,243 @@ def update_announcement(request):
             return JsonResponse({'success': False, 'message': '內容不能為空'})
     
     return JsonResponse({'success': False, 'message': '無效的請求'})
+
+
+@login_required
+def export_simple_applicant_requisitions_excel(request):
+    """申請人員匯出 Excel"""
+    if not is_simple_applicant(request.user) and not request.user.is_superuser:
+        return redirect('requisitions:requisition_list')
+    
+    current_type = request.GET.get('type', 'finished')
+    
+    # 取得被授權查看的使用者列表
+    share_groups = request.user.requisition_share_groups.all()
+    viewable_owners = User.objects.filter(requisition_share_groups__in=share_groups).distinct()
+    
+    base_qs = Requisition.objects.filter(
+        Q(applicant=request.user) | Q(applicant__in=viewable_owners)
+    ).filter(requisition_type=current_type)
+    
+    # 如果是主管，顯示所有申請單
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if is_supervisor:
+        base_qs = Requisition.objects.filter(requisition_type=current_type)
+
+    # 包含所有狀態
+    requisitions = base_qs.order_by('-created_at')
+    return _generate_simple_export_excel(requisitions, f"applicant_requisitions_{current_type}")
+
+
+@login_required
+def export_simple_dispatcher_requisitions_excel(request, category):
+    """撥料人員匯出 Excel (特定分類)"""
+    if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
+        return redirect('requisitions:requisition_list')
+    
+    current_type = request.GET.get('type', 'finished')
+    
+    if current_type == 'semi_finished':
+        # 半成品：category 是 applicant.username
+        requisitions = Requisition.objects.filter(
+            applicant__username=category,
+            requisition_type='semi_finished'
+        ).order_by('-created_at')
+    else:
+        # 成品：category 是 process_type 的一部分
+        requisitions = Requisition.objects.filter(
+            process_type__icontains=category,
+            requisition_type='finished'
+        ).order_by('-created_at')
+
+    return _generate_simple_export_excel(requisitions, f"dispatcher_requisitions_{category}_{current_type}")
+
+
+def _generate_simple_export_excel(requisitions, filename_prefix):
+    """通用產生 Excel 函數 - 調整為以物料清單為主，並對齊系統標準格式"""
+    
+    # 1. 準備申請單摘要資料 (將用於第二個分頁)
+    req_list_data = []
+    for r in requisitions:
+        # 取得申請人顯示名稱 (與網頁一致)
+        applicant_name = f"{r.applicant.first_name}{r.applicant.last_name}"
+        if not applicant_name:
+            applicant_name = r.applicant.username
+
+        req_list_data.append({
+            "訂單": r.order_number,
+            "需求流程": r.process_type,
+            "申請人": applicant_name,
+            "需求日期": r.request_date.strftime('%Y-%m-%d') if r.request_date else '',
+            "狀態": r.get_status_display(),
+            "建立時間": r.created_at.strftime('%Y-%m-%d %H:%M'),
+        })
+    df_reqs = pd.DataFrame(req_list_data)
+
+    # 2. 準備物料清單資料 (主表，第一個分頁)
+    item_data = []
+    # 使用 select_related 抓取撥料人員，避免 N+1 查詢
+    items = RequisitionItem.objects.filter(requisition__in=requisitions).select_related('requisition', 'requisition__applicant', 'dispatched_by').order_by('requisition__order_number', 'material_number')
+    for item in items:
+        # 取得申請人顯示名稱
+        applicant_name = f"{item.requisition.applicant.first_name}{item.requisition.applicant.last_name}"
+        if not applicant_name:
+            applicant_name = item.requisition.applicant.username
+
+        # 取得撥料人員顯示名稱
+        dispatched_name = ""
+        if item.dispatched_by:
+            dispatched_name = f"{item.dispatched_by.first_name}{item.dispatched_by.last_name}"
+            if not dispatched_name:
+                dispatched_name = item.dispatched_by.username
+
+        item_data.append({
+            "訂單單號": item.requisition.order_number,
+            "需求流程": item.requisition.process_type,
+            "物料": item.material_number,
+            "品名": item.item_name,
+            "需求數量": item.required_quantity,
+            "庫存數量": item.stock_quantity if item.stock_quantity is not None else 0,
+            "撥料數量 (實際撥出)": item.confirmed_quantity if item.confirmed_quantity is not None else '',
+            "最終簽收已確認": "是" if item.is_signed_off else "否",
+            "儲格": item.storage_bin,
+            "撥料人員": dispatched_name,
+            "申請人": applicant_name,
+        })
+    df_items = pd.DataFrame(item_data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # 重要：將「物料明細」放在第一個分頁索引，確保使用者一開啟就能看到
+        if not df_items.empty:
+            df_items.to_excel(writer, index=False, sheet_name='撥料物料明細')
+        else:
+            # 若無物料，建立帶有標題的空工作表
+            empty_df_items = pd.DataFrame(columns=[
+                "訂單單號", "需求流程", "物料", "品名", "需求數量", "庫存數量", "撥料數量 (實際撥出)", "最終簽收已確認"
+            ])
+            empty_df_items.to_excel(writer, index=False, sheet_name='撥料物料明細')
+            
+        # 將「申請單摘要」放在第二個分頁
+        df_reqs.to_excel(writer, index=False, sheet_name='撥料申請單')
+    
+    output.seek(0)
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"{filename_prefix}_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    # 確保檔名是 ASCII 或是經過編碼，這裡簡單使用英文
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def export_single_requisition_excel(request, pk):
+    """單張申請單詳情匯出 Excel"""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    
+    # 權限檢查邏輯與詳情頁面一致
+    is_applicant = requisition.applicant == request.user
+    is_dispatcher = is_simple_dispatcher(request.user)
+    is_supervisor = request.user.groups.filter(name__in=[GROUP_NAMES['APPLICANT_SUPERVISOR'], GROUP_NAMES['DISPATCHER_SUPERVISOR']]).exists()
+    
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    
+    if not (is_applicant or is_dispatcher or is_supervisor or request.user.is_superuser or is_group_member):
+        return redirect('requisitions:requisition_list')
+        
+    # 重用之前的導出函數，傳入只包含此單的 queryset
+    requisitions = Requisition.objects.filter(pk=pk)
+    return _generate_simple_export_excel(requisitions, f"requisition_{requisition.order_number}")
+
+@login_required
+def simple_requisition_change_detail(request, pk):
+    """
+    需求變更管理分頁 - 簡易版
+    分成上下兩個欄位：
+    1. 上：已撥料需退料（confirmed > required && not dismissed）
+    2. 下：新增的、未撥料的，以及上面已解除的明細
+    """
+    requisition = get_object_or_404(Requisition, pk=pk)
+    
+    # 基本權限檢查
+    if not is_simple_applicant(request.user) and not is_simple_dispatcher(request.user) and not request.user.is_superuser:
+        messages.error(request, "您沒有權限訪問此頁面。")
+        return redirect('core:homepage')
+
+    items = requisition.items.all().select_related('alert_dismissed_by', 'dispatched_by')
+    
+    # 分類
+    to_return_items = []
+    other_changes = []
+    
+    for item in items:
+        # 已撥料需退料: 已撥 > 需求 且 尚未解除
+        if item.confirmed_quantity > item.required_quantity and not item.alert_dismissed:
+            to_return_items.append(item)
+        else:
+            # 排除掉完全沒變更且也沒警示的項目嗎？
+            # 使用者需求是：新增的、沒有撥料數量的、以及上面已解除的
+            # 新增的/未撥料 通常指 confirmed_quantity == 0
+            # 或者我們可以顯示所有與警示訊息相關的項目
+            
+            # 如果 item.alert_dismissed 為 True，一定要出現在下面
+            if item.alert_dismissed:
+                other_changes.append(item)
+            elif item.confirmed_quantity == 0:
+                other_changes.append(item)
+            elif item.confirmed_quantity <= item.required_quantity and requisition.has_alert:
+                # 這裡可能需要更細的邏輯判斷哪些是「變更」過但不需要退料的
+                # 目前先照字面意思：新增或沒有撥料數量
+                other_changes.append(item)
+
+    context = {
+        'requisition': requisition,
+        'to_return_items': to_return_items,
+        'other_changes': other_changes,
+    }
+    return render(request, 'requisitions/simple/simple_requisition_change_detail.html', context)
+
+
+@login_required
+def dismiss_requisition_item_alert(request, item_pk):
+    """
+    解除單筆物料的警示
+    """
+    item = get_object_or_404(RequisitionItem, pk=item_pk)
+    requisition = item.requisition
+    
+    if request.method == 'POST':
+        item.alert_dismissed = True
+        item.alert_dismissed_by = request.user
+        item.alert_dismissed_at = timezone.now()
+        item.save()
+        
+        # 檢查是否所有項目都已處理
+        # 如果所有 confirmed > required 的項目都已解除，
+        # 且沒有其他未處理的新增項目（這部分邏輯可以視需求調整）
+        remaining_alerts = requisition.items.filter(
+            confirmed_quantity__gt=F('required_quantity'),
+            alert_dismissed=False
+        ).exists()
+        
+        if not remaining_alerts:
+             # 如果沒有待退料的了，可以考慮是否自動關閉全單警示
+             # 或者留給使用者手動關閉。照計畫書先保留全單警示手動關閉，
+             # 但如果使用者所有單項都按了解除，全單警示可能也該關閉。
+             pass
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True, 
+                'dismissed_by': request.user.username,
+                'dismissed_at': item.alert_dismissed_at.strftime('%Y-%m-%d %H:%M')
+            })
+            
+        messages.success(request, f"物料 {item.material_number} 的警示已解除。")
+        return redirect('requisitions:simple_requisition_change_detail', pk=requisition.pk)
+
+    return HttpResponse("method not allowed", status=405)

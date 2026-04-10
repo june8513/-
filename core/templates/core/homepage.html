@@ -303,9 +303,15 @@
                             <path d="M8 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2"/>
                         </svg> 簡易導航頁面
                     </h5>
-                    <p class="card-text">進入專為申請人員設計的行動化簡易操作介面。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'requisitions:simple_applicant_home' %}" class="btn btn-info text-white">開啟簡易版</a>
+                    <p class="card-text">進入專為行動化作業設計的簡易操作介面。</p>
+                    <div class="mt-auto d-flex flex-wrap justify-content-center gap-2">
+                        {% if is_admin or is_material_handler or is_dispatcher_supervisor %}
+                        <a href="{% url 'requisitions:simple_dispatcher_home' %}" class="btn btn-success text-white">開啟簡易撥料版</a>
+                        {% endif %}
+                        
+                        {% if is_admin or is_applicant or is_applicant_supervisor %}
+                        <a href="{% url 'requisitions:simple_applicant_home' %}" class="btn btn-info text-white">開啟簡易申請版</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

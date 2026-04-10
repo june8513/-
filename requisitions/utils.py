@@ -226,6 +226,9 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
     Returns a tuple (created_count, updated_count, deactivated_count).
     """
     try:
+        from requisitions.models import Requisition, RequisitionItem, WorkOrderMaterial, WorkOrder, ProcessType, MachineModel
+        from inventory.models import Material as InvMaterial
+        
         # Step 1: Read the process type mapping from the local DB file
         try:
             db_path = os.path.join(settings.BASE_DIR, 'output.xlsx')
@@ -306,9 +309,57 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
 
         # Optimization: Move data preparation OUTSIDE of the transaction to reduce lock time
         materials_to_create = []
-        materials_to_update = []
+        materials_to_update_dict = {} # 使用字典防止重複 ID
+        materials_to_update = []      # 初始化，避免 UnboundLocalError
         uploaded_material_keys = set()
         created_material_keys = set()
+        
+        # [Healing] 在處理前，嘗試修復那些缺失 source_material 連結的舊資料
+        unique_orders = df_upload[order_col].unique()
+        orphans = RequisitionItem.objects.filter(source_material__isnull=True, order_number__in=unique_orders)
+        if orphans.exists():
+            healing_lookup = {}
+            for wom in WorkOrderMaterial.objects.filter(order_number__in=unique_orders).select_related('process_type'):
+                key = (str(wom.order_number).strip(), str(wom.material_number).strip(), wom.process_type.name if wom.process_type else "")
+                healing_lookup[key] = wom.id
+            
+            healed_items = []
+            # 使用 select_related 減少查詢
+            for item in orphans.select_related('requisition'):
+                pt_name = item.requisition.process_type if item.requisition else ""
+                key = (str(item.order_number).strip(), str(item.material_number).strip(), str(pt_name).strip())
+                wom_id = healing_lookup.get(key)
+                if wom_id:
+                    item.source_material_id = wom_id
+                    healed_items.append(item)
+            
+            if healed_items:
+                RequisitionItem.objects.bulk_update(healed_items, ['source_material'], batch_size=2000)
+                print(f"[Healing] 修復了 {len(healed_items)} 筆缺失連結的申請細目")
+                
+        # [Healing 2] 修復那些連結已存在但數量或名稱因舊Bug而未同步的項目
+        from django.db.models import F, Q
+        mismatched_items = RequisitionItem.objects.filter(
+            source_material__isnull=False, 
+            order_number__in=unique_orders
+        ).exclude(
+            Q(required_quantity=F('source_material__required_quantity')) &
+            Q(item_name=F('source_material__item_name'))
+        ).select_related('source_material')
+        
+        if mismatched_items.exists():
+            fixes = []
+            for item in mismatched_items:
+                new_qty = item.source_material.required_quantity
+                item.required_quantity = Decimal(str(new_qty)) if new_qty is not None else Decimal('0')
+                if item.source_material.item_name:
+                    item.item_name = item.source_material.item_name
+                item.alert_dismissed = False # Reset alert state
+                fixes.append(item)
+            
+            if fixes:
+                RequisitionItem.objects.bulk_update(fixes, ['required_quantity', 'item_name', 'alert_dismissed'], batch_size=2000)
+                print(f"[Healing 2] 自動修正了 {len(fixes)} 筆因歷史原因而數量/品名不同步的項目")
         
         # Pre-process order numbers
         all_order_numbers_in_upload = df_upload[order_col].astype(str).str.strip().unique()
@@ -471,6 +522,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 excel_name = str(item_name_clean).strip()
                 if db_name != excel_name:
                     material_instance.item_name = excel_name
+                    material_instance._sync_needed = True
                     is_dirty = True
                 
                 # Quantity comparison
@@ -481,6 +533,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                     excel_qty = float(required_quantity_clean or 0)
                     if abs(db_qty - excel_qty) > 0.0001:
                         material_instance.required_quantity = required_quantity_clean
+                        material_instance._sync_needed = True
                         is_dirty = True
                         
                         diff = excel_qty - db_qty
@@ -494,6 +547,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 except (ValueError, TypeError):
                     if str(material_instance.required_quantity) != str(required_quantity_clean):
                             material_instance.required_quantity = required_quantity_clean
+                            material_instance._sync_needed = True
                             is_dirty = True
                 
                 # Process Type comparison (ID) - 記錄舊投料點用於後續同步 RequisitionItem
@@ -510,7 +564,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                     is_dirty = True
 
                 if is_dirty:
-                    materials_to_update.append(material_instance)
+                    materials_to_update_dict[material_instance.id] = material_instance
                     updated_count += 1
             else:
                 if current_material_key not in created_material_keys:
@@ -541,9 +595,6 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 WorkOrderMaterial.objects.bulk_create(materials_to_create, batch_size=2000)
                 
                 # 自動為新增物料建立 RequisitionItem（加入現有未歸檔的申請單）
-                from requisitions.models import RequisitionItem, Requisition
-                from inventory.models import Material as InvMaterial
-                
                 for new_material in materials_to_create:
                     pt_name = new_material.process_type.name if new_material.process_type else None
                     if not pt_name:
@@ -591,11 +642,33 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                             )
                             print(f"[Auto-Add] 新增物料 {new_material.material_number} 至申請單 {req.order_number} ({pt_name})")
                 
+            # 將字典轉回列表供後續循環使用
+            materials_to_update = list(materials_to_update_dict.values())
+
             if materials_to_update:
                 WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active'], batch_size=2000)
+                
+                # 批次同步 RequisitionItem 的品名與數量
+                sync_materials = [m for m in materials_to_update if getattr(m, '_sync_needed', False)]
+                if sync_materials:
+                    material_ids = [m.id for m in sync_materials]
+                    # 強制轉換為 list，確保 bulk_update 執行時使用的是記憶體中已修改的物件
+                    items_to_sync = list(RequisitionItem.objects.filter(source_material_id__in=material_ids))
+                    
+                    material_map = {m.id: m for m in sync_materials}
+                    for item in items_to_sync:
+                        m = material_map.get(item.source_material_id)
+                        if m:
+                            item.item_name = m.item_name
+                            # 確保使用 Decimal 類型以維持精準度
+                            item.required_quantity = Decimal(str(m.required_quantity))
+                            item.alert_dismissed = False
+                    
+                    if items_to_sync:
+                        RequisitionItem.objects.bulk_update(items_to_sync, ['item_name', 'required_quantity', 'alert_dismissed'], batch_size=2000)
+                        print(f"[Sync] 批次同步了 {len(items_to_sync)} 筆撥料明細項目")
             
             # 同步 RequisitionItem 到正確的申請單（當投料點變更時）
-            from requisitions.models import RequisitionItem, Requisition
             for material in materials_to_update:
                 if hasattr(material, '_old_process_type_name') and hasattr(material, '_new_process_type_name'):
                     old_pt = material._old_process_type_name
@@ -669,10 +742,6 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                         f"移除物料: {material.material_number} (原需求: {material.required_quantity})",
                         is_demand_increase=False
                     )
-                    
-                    # Sync RequisitionItems (Needs care, as this modifies related DB rows directly)
-                    # We'll do this in the final atomic block
-                    
                     messages_to_update.add(order_num)
         
         # Final Atomic Block for Deactivations and Synced Changes
@@ -680,25 +749,34 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
             if materials_to_deactivate:
                 WorkOrderMaterial.objects.bulk_update(materials_to_deactivate, ['is_active'])
                 
-                # Handle RequisitionItems synchronization here inside transaction
-                # Warning: Iterate over materials_to_deactivate again might be slow if list is huge
-                # But necessary for data integrity
-                for material in materials_to_deactivate:
-                     from requisitions.models import RequisitionItem
-                     req_items = RequisitionItem.objects.filter(source_material=material)
-
-                     for item in req_items:
-                         confirmed = item.confirmed_quantity or Decimal('0')
-                         if confirmed > 0:
-                             # Has dispatch: Close the shortage by setting required = confirmed
-                             item.required_quantity = confirmed
-                             if "(已刪除)" not in item.item_name:
-                                 item.item_name += " (已刪除)"
-                             item.dispatch_status = 'dispatched'
-                             item.save()
-                         else:
-                             # No dispatch: Delete item completely
-                             item.delete()
+                # 批次處理 RequisitionItems 的同步與刪除
+                m_deactivate_ids = [m.id for m in materials_to_deactivate]
+                all_affected_items = RequisitionItem.objects.filter(source_material_id__in=m_deactivate_ids)
+                
+                items_to_save = []
+                ids_to_delete = []
+                
+                for item in all_affected_items:
+                    confirmed = item.confirmed_quantity or Decimal('0')
+                    if confirmed > 0:
+                        # 有撥料：設為待退料
+                        item.required_quantity = Decimal('0')
+                        item.alert_dismissed = False
+                        if "(已刪除)" not in item.item_name:
+                            item.item_name += " (已刪除)"
+                        item.dispatch_status = 'dispatched'
+                        items_to_save.append(item)
+                    else:
+                        # 無撥料：直接刪除
+                        ids_to_delete.append(item.id)
+                
+                if items_to_save:
+                    RequisitionItem.objects.bulk_update(items_to_save, ['required_quantity', 'alert_dismissed', 'item_name', 'dispatch_status'], batch_size=2000)
+                    print(f"[Sync] 批次標記了 {len(items_to_save)} 筆待退料項目")
+                
+                if ids_to_delete:
+                    deleted_count_items, _ = RequisitionItem.objects.filter(id__in=ids_to_delete).delete()
+                    print(f"[Sync] 批次刪除了 {deleted_count_items} 筆無撥料的申請項目")
 
                 for order_num in messages_to_update:
                     WorkOrder.objects.filter(order_number=order_num).update(

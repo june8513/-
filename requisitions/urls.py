@@ -34,6 +34,13 @@ urlpatterns = [
     path('simple/dispatcher/<str:category>/<int:pk>/', simple_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
     path('simple/dispatcher/announcement/update/', simple_views.update_announcement, name='update_announcement'),
 
+    # Excel export for simple interface
+    path('simple/applicant/export/excel/', simple_views.export_simple_applicant_requisitions_excel, name='export_simple_applicant_requisition_excel'),
+    path('simple/dispatcher/<str:category>/export/excel/', simple_views.export_simple_dispatcher_requisitions_excel, name='export_simple_dispatcher_requisition_excel'),
+    path('simple/requisition/<int:pk>/export/excel/', simple_views.export_single_requisition_excel, name='export_single_requisition_excel'),
+    path('simple/requisition/<int:pk>/change-alert/', simple_views.simple_requisition_change_detail, name='simple_requisition_change_detail'),
+    path('simple/requisition-item/<int:item_pk>/dismiss-alert/', simple_views.dismiss_requisition_item_alert, name='dismiss_requisition_item_alert'),
+
     path('work_orders/', work_order_views.work_order_list, name='work_order_list'),
     path('work_orders/<str:order_number>/toggle_archive/', work_order_views.toggle_work_order_archive, name='toggle_work_order_archive'),
     path('work_orders/<str:order_number>/requisitions/', work_order_views.work_order_requisitions_list, name='work_order_requisitions_list'),

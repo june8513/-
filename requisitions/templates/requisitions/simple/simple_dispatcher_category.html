@@ -458,9 +458,10 @@
         </h1>
     </div>
 
-    <div class="copy-btns">
+    <div class="copy-btns" style="flex-wrap: wrap;">
         <button type="button" class="copy-btn" onclick="copyAllOrders()">📋 複製所有工單號</button>
         <button type="button" class="shortage-btn" onclick="toggleShortageModal(true)">🚨 查看待撥欠料物料</button>
+        <a href="{% url 'requisitions:export_simple_dispatcher_requisition_excel' category=category %}?type={{ current_type }}" class="copy-btn" style="text-decoration: none; background: #E0E7FF; border-color: #C7D2FE; color: #3730A3;">📊 匯出 Excel</a>
     </div>
 
     <!-- 待撥料申請單 -->

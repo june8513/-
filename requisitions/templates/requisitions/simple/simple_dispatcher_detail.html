@@ -431,7 +431,7 @@
                 style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
     </div>
 
-    {% if requisition.has_alert %}
+    {% if has_over_dispatched_items %}
     <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert"
         style="border-radius: 12px;">
         <div>
@@ -461,11 +461,15 @@
         <div class="info-row"><span class="info-label">需求日期</span><span class="info-value">{{ requisition.request_date|date:"Y-m-d" }}</span></div>
     </div>
 
-    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-        <button type="button" class="action-btn" style="background:#E5E7EB;color:#374151;flex:1;"
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+        <button type="button" class="action-btn" style="background:#E5E7EB;color:#374151;flex:1;min-width: 120px;"
             onclick="copyOrderNumber()">📋 複製工單號</button>
-        <button type="button" class="action-btn" style="background:#D1FAE5;color:#065F46;flex:1;"
+        <button type="button" class="action-btn" style="background:#D1FAE5;color:#065F46;flex:1;min-width: 120px;"
             onclick="copyDispatchedMaterials()">📋 複製已撥料物料</button>
+        <a href="{% url 'requisitions:export_single_requisition_excel' pk=requisition.pk %}" class="action-btn" style="background:#E0E7FF;color:#3730A3;flex:1;min-width: 120px;text-decoration:none;display:flex;align-items:center;justify-content:center;">📊 匯出 Excel</a>
+        {% if requisition.has_alert %}
+        <a href="{% url 'requisitions:simple_requisition_change_detail' pk=requisition.pk %}" class="action-btn" style="background:#FEF3C7;color:#92400E;flex:1;min-width: 120px;text-decoration:none;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #F59E0B;">⚠️ 處理需求變更</a>
+        {% endif %}
     </div>
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 1rem;">
@@ -483,7 +487,7 @@
     </div>
 
     {% for item in items %}
-    <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}">
+    <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}" data-dispatched-by-id="{{ item.dispatched_by_id|default:'' }}">
         <div class="material-info-area">
             <div class="material-top-row">
                 <span class="mat-number">{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}){% endif %}</span>{% endif %}</span>
@@ -517,7 +521,7 @@
             <div class="supplementary-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▶ 補撥項目 ({{ item.supplementary_list|length }})</div>
             <div class="supplementary-list">
                 {% for supp in item.supplementary_list %}
-                <div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}">
+                <div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}" data-dispatched-by-id="{{ supp.dispatched_by_id|default:'' }}">
                     <div class="supp-item-header">
                         <span class="supp-label">補撥 #{{ forloop.counter }}</span>
                         <span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% if supp.sign_off_by %} ({{ supp.sign_off_by.first_name }}{{ supp.sign_off_by.last_name }}{% if not supp.sign_off_by.first_name %}{{ supp.sign_off_by.username }}{% endif %}){% endif %}{% endif %}</span>
@@ -639,9 +643,25 @@
     }
     function copyDispatchedMaterials() {
         var items = [];
-        document.querySelectorAll('.material-card.dispatched').forEach(function (card) {
-            var num = card.querySelector('.mat-number').textContent.trim().split(' ')[0];
-            items.push(num);
+        const currentUserId = "{{ request.user.id }}";
+        // 同時選取主項目與補撥項目的已撥料卡片
+        const selector = '.material-card.dispatched, .supp-item.dispatched';
+        document.querySelectorAll(selector).forEach(function (card) {
+            // 只過濾出由當前登入者撥料的項目
+            if (card.dataset.dispatchedById === currentUserId) {
+                var num = card.querySelector('.mat-number');
+                if (!num) {
+                    // 如果是補撥項目，物料號在父層或需要從畫面上抓
+                    // 這裡簡化處理：從最近的 material-card 抓號碼
+                    const parentCard = card.closest('.material-card');
+                    num = parentCard ? parentCard.querySelector('.mat-number') : null;
+                }
+                
+                if (num) {
+                    var text = num.textContent.trim().split(' ')[0];
+                    items.push(text);
+                }
+            }
         });
         if (items.length === 0) {
             showCopyToast('目前沒有已撥料的物料', true);
@@ -676,24 +696,32 @@
                 progressText.textContent = data.dispatched_count + '/' + data.total_count + ' 已撥料 (' + data.progress + '%)';
             }
         }
-        function updateCardUI(card, newStatus, dispatchedQty) {
+        function updateCardUI(card, newStatus, dispatchedQty, data) {
             const actionsForm = card.querySelector('.material-actions');
             const statusBadge = card.querySelector('.status-badge');
             const bottomRow = card.querySelector('.material-bottom-row');
             card.classList.remove('dispatched', 'backordered');
             if (newStatus === 'dispatched') {
                 card.classList.add('dispatched');
-                const statusText = dispatchedQty ? '已撥 ' + dispatchedQty : '已撥';
+                if (data && data.dispatched_by_id) {
+                    card.dataset.dispatchedById = data.dispatched_by_id;
+                }
+                let statusText = dispatchedQty ? '已撥 ' + dispatchedQty : '已撥';
+                if (data && data.dispatched_by_name) {
+                    statusText += ' (' + data.dispatched_by_name + ')';
+                }
                 if (statusBadge) { statusBadge.className = 'status-badge dispatched'; statusBadge.textContent = statusText; }
                 else if (bottomRow) { const newBadge = document.createElement('span'); newBadge.className = 'status-badge dispatched'; newBadge.textContent = statusText; bottomRow.appendChild(newBadge); }
                 actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
             } else if (newStatus === 'backordered') {
                 card.classList.add('backordered');
+                card.dataset.dispatchedById = '';
                 if (statusBadge) { statusBadge.className = 'status-badge backordered'; statusBadge.textContent = '缺料'; }
                 else if (bottomRow) { const newBadge = document.createElement('span'); newBadge.className = 'status-badge backordered'; newBadge.textContent = '缺料'; bottomRow.appendChild(newBadge); }
                 actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>';
             } else if (newStatus === 'pending') {
                 if (statusBadge) statusBadge.remove();
+                card.dataset.dispatchedById = '';
                 const reqQty = card.querySelector('.qty-value').textContent;
                 actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><input type="number" name="dispatched_qty" value="' + reqQty + '" class="qty-input" min="0" step="1"><button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button><button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>';
             }
@@ -715,7 +743,7 @@
                     showToast(data.message, data.success);
                     if (data.success) {
                         if (action === 'supplementary') { const scrollPos = window.scrollY; sessionStorage.setItem('scroll_pos', scrollPos); window.location.reload(); }
-                        else { updateCardUI(card, data.new_status, data.dispatched_qty); updateProgress(data); }
+                        else { updateCardUI(card, data.new_status, data.dispatched_qty, data); updateProgress(data); }
                     } else { buttons.forEach(btn => btn.disabled = false); }
                 })
                 .catch(error => { showToast('操作失敗，請重試', false); buttons.forEach(btn => btn.disabled = false); });
