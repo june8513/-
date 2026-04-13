@@ -315,10 +315,12 @@
     <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">
         {% if current_type == 'finished' %}
         <a href="{% url 'requisitions:simple_applicant_create' %}" class="create-btn" style="flex: 3; margin-bottom: 0; display: flex; align-items: center; justify-content: center;">建立申請單</a>
+        <a href="{% url 'requisitions:work_order_material_list' %}" class="create-btn" style="flex: 2; margin-bottom: 0; background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); display: flex; align-items: center; justify-content: center; font-size: 1rem;">📝 主物料清單</a>
         <a href="{% url 'requisitions:export_simple_applicant_requisition_excel' %}?type=finished" class="create-btn" style="flex: 1; margin-bottom: 0; background: #F3F4F6; color: #374151; box-shadow: none; border: 1px solid #D1D5DB; display: flex; align-items: center; justify-content: center; font-size: 1rem;">📊 匯出</a>
         {% else %}
         <a href="{% url 'requisitions:simple_applicant_create' %}?type=semi_finished" class="create-btn"
             style="flex: 3; margin-bottom: 0; background: linear-gradient(135deg, #10B981 0%, #059669 100%); box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); display: flex; align-items: center; justify-content: center;">建立半成品申請單</a>
+        <a href="{% url 'requisitions:work_order_material_list' %}" class="create-btn" style="flex: 2; margin-bottom: 0; background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); display: flex; align-items: center; justify-content: center; font-size: 1rem;">📝 主物料清單</a>
         <a href="{% url 'requisitions:export_simple_applicant_requisition_excel' %}?type=semi_finished" class="create-btn" style="flex: 1; margin-bottom: 0; background: #F3F4F6; color: #374151; box-shadow: none; border: 1px solid #D1D5DB; display: flex; align-items: center; justify-content: center; font-size: 1rem;">📊 匯出</a>
         {% endif %}
     </div>
