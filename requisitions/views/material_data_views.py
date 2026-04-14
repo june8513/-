@@ -506,38 +506,7 @@ def update_work_order_quantities(request):
                       
                       updated_materials.append(f"物料 {material.material_number} 投料點更新: {new_pt_name}")
                       
-                      # --- Synchronization Logic: Move existing un-signed items to new process type ---
-                      # Find all existing RequisitionItems for this material across all requisitions for this order
-                      # LOCK DISPATCHED ITEMS: Only move items that have NOT been dispatched (quantity is 0 or None)
-                      existing_items = RequisitionItem.objects.filter(
-                          order_number=material.order_number,
-                          material_number=material.material_number,
-                          is_signed_off=False # Only sync items that are not yet signed off
-                      ).filter(Q(confirmed_quantity__isnull=True) | Q(confirmed_quantity=0))
-                      
-                      if existing_items.exists():
-                          # Find or Create a requisition for the NEW process type
-                          target_requisition, pt_created = Requisition.objects.get_or_create(
-                              order_number=material.order_number,
-                              process_type=new_pt_name,
-                              defaults={
-                                  'applicant': request.user,
-                                  'request_date': timezone.now().date(),
-                                  'status': 'demand_submitted',
-                              }
-                          )
-                          if pt_created:
-                              messages.info(request, f"已為新投料點 '{new_pt_name}' 自動建立申請單。")
-                          
-                          for item in existing_items:
-                              old_req = item.requisition
-                              if old_req.pk != target_requisition.pk:
-                                  item.requisition = target_requisition
-                                  item.save()
-                                  affected_requisition_ids.add(old_req.pk)
-                                  affected_requisition_ids.add(target_requisition.pk)
-                                  messages.info(request, f"物料 {material.material_number} 已從 '{old_req.process_type}' 轉移至 '{new_pt_name}'。")
-                      # --- End Synchronization Logic ---
+
 
                       # Learning
                       from requisitions.models import MaterialProcessTypeRule
