@@ -41,10 +41,13 @@ class PeerRequestForm(forms.ModelForm):
         model = PeerRequest
         fields = ['recipient', 'cc_users', 'description', 'request_photo', 'request_date']
 
+from django.utils import timezone
+
 class PeerReplyForm(forms.ModelForm):
     delivery_date = forms.DateField(
         label="撥料日期",
-        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        initial=timezone.localdate
     )
     delivery_photo = forms.ImageField(
         label="撥料照片",
@@ -60,3 +63,19 @@ class PeerReplyForm(forms.ModelForm):
     class Meta:
         model = PeerRequest
         fields = ['delivery_date', 'delivery_photo', 'delivery_reply']
+
+
+class PeerAcceptForm(forms.ModelForm):
+    expected_delivery_date = forms.DateField(
+        label="預計完成日期",
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    delivery_reply = forms.CharField(
+        label="備註/初步回覆 (選填)",
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '可先留言給申請人...'})
+    )
+
+    class Meta:
+        model = PeerRequest
+        fields = ['expected_delivery_date', 'delivery_reply']

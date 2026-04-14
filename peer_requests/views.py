@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 import json
 from .models import PeerRequest, PeerRequestTemplate
-from .forms import PeerRequestForm, PeerReplyForm
+from .forms import PeerRequestForm, PeerReplyForm, PeerAcceptForm
 
 
 @login_required
@@ -31,6 +31,7 @@ def peer_request_list(request):
     
     form = PeerRequestForm()
     reply_form = PeerReplyForm()
+    accept_form = PeerAcceptForm()
     
     context = {
         'sent_requests': sent_requests,
@@ -42,6 +43,7 @@ def peer_request_list(request):
         'personal_templates': personal_templates,
         'form': form,
         'reply_form': reply_form,
+        'accept_form': accept_form,
     }
     return render(request, 'peer_requests/list.html', context)
 
@@ -57,6 +59,7 @@ def peer_request_history(request):
         'received_requests': received_requests,
         'cc_requests': cc_requests,
         'reply_form': PeerReplyForm(),
+        'accept_form': PeerAcceptForm(),
     }
     return render(request, 'peer_requests/history.html', context)
 
@@ -75,6 +78,20 @@ def peer_request_create(request):
     return redirect('peer_requests:list')
 
 @login_required
+def peer_request_accept(request, pk):
+    peer_request = get_object_or_404(PeerRequest, pk=pk, recipient=request.user)
+    if request.method == 'POST':
+        form = PeerAcceptForm(request.POST, instance=peer_request)
+        if form.is_valid():
+            peer_request = form.save(commit=False)
+            peer_request.status = 'processing'
+            peer_request.save()
+            messages.success(request, "已接受申請並押上預計完成日期！")
+        else:
+            messages.error(request, "接受處理失敗，請檢查內容。")
+    return redirect(request.META.get('HTTP_REFERER', 'peer_requests:list'))
+
+@login_required
 def peer_request_reply(request, pk):
     peer_request = get_object_or_404(PeerRequest, pk=pk, recipient=request.user)
     if request.method == 'POST':
@@ -83,7 +100,7 @@ def peer_request_reply(request, pk):
             peer_request = form.save(commit=False)
             peer_request.status = 'shipped'
             peer_request.save()
-            messages.success(request, "已成功回覆撥料資訊！")
+            messages.success(request, "已成功回覆撥料資訊並完成！")
         else:
             messages.error(request, "回覆失敗，請檢查內容。")
     return redirect(request.META.get('HTTP_REFERER', 'peer_requests:list'))

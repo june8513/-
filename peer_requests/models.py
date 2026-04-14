@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 class PeerRequest(models.Model):
     STATUS_CHOICES = [
         ('pending', '待處理'),
+        ('processing', '處理中'),
         ('shipped', '已撥料'),
         ('closed', '已結案'),
     ]
@@ -19,7 +20,8 @@ class PeerRequest(models.Model):
     request_date = models.DateField(verbose_name="需求日期")
     
     # 回覆部分 (第4欄)
-    delivery_date = models.DateField(null=True, blank=True, verbose_name="撥料日期")
+    expected_delivery_date = models.DateField(null=True, blank=True, verbose_name="預計完成日期")
+    delivery_date = models.DateField(null=True, blank=True, verbose_name="實際撥料日期")
     delivery_photo = models.ImageField(upload_to='peer_requests/deliveries/', null=True, blank=True, verbose_name="撥料照片")
     delivery_reply = models.TextField(null=True, blank=True, verbose_name="收件人回覆文字")
     

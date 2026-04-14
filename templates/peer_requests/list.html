@@ -164,6 +164,7 @@ $(document).ready(function() {
                                         {% endif %}
                                         <span class="badge 
                                             {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                            {% elif req.status == 'processing' %}bg-primary-subtle text-primary
                                             {% elif req.status == 'shipped' %}bg-info-subtle text-info
                                             {% else %}bg-success-subtle text-success{% endif %} rounded-pill">
                                             {{ req.get_status_display }}
@@ -183,17 +184,25 @@ $(document).ready(function() {
                             </td>
                             <td>{{ req.request_date|date:"Y-m-d" }}</td>
                             <td>
-                                {% if req.delivery_date %}
-                                    <div class="small text-info fw-bold">撥料日期: {{ req.delivery_date|date:"Y-m-d" }}</div>
-                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                {% if req.expected_delivery_date and req.status != 'pending' %}
+                                    <div class="small text-primary fw-bold">預計處理: {{ req.expected_delivery_date|date:"Y-m-d" }}</div>
+                                {% endif %}
+                                {% if req.delivery_reply %}<div class="small text-muted mb-1">{{ req.delivery_reply }}</div>{% endif %}
+
+                                {% if req.status == 'shipped' or req.status == 'closed' %}
+                                    <div class="small text-info fw-bold mt-1">實際撥料: {{ req.delivery_date|date:"Y-m-d" }}</div>
                                     {% if req.delivery_photo %}
                                     <a href="{{ req.delivery_photo.url }}" target="_blank">
                                         <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
                                     </a>
                                     {% endif %}
                                 {% elif req.status == 'pending' %}
-                                    <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#replyModal{{ req.pk }}">
-                                        回覆撥料
+                                    <button class="btn btn-outline-primary btn-sm mt-1" data-bs-toggle="modal" data-bs-target="#acceptModal{{ req.pk }}">
+                                        接受與排程
+                                    </button>
+                                {% elif req.status == 'processing' %}
+                                    <button class="btn btn-outline-info btn-sm mt-1" data-bs-toggle="modal" data-bs-target="#replyModal{{ req.pk }}">
+                                        完成撥料
                                     </button>
                                 {% endif %}
                             </td>
@@ -249,6 +258,7 @@ $(document).ready(function() {
                                         {% endif %}
                                         <span class="badge 
                                             {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                            {% elif req.status == 'processing' %}bg-primary-subtle text-primary
                                             {% elif req.status == 'shipped' %}bg-info-subtle text-info
                                             {% else %}bg-success-subtle text-success{% endif %} rounded-pill">
                                             {{ req.get_status_display }}
@@ -268,16 +278,22 @@ $(document).ready(function() {
                             </td>
                             <td>{{ req.request_date|date:"Y-m-d" }}</td>
                             <td>
-                                {% if req.delivery_date %}
-                                    <div class="small">撥料日期: {{ req.delivery_date|date:"Y-m-d" }}</div>
-                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                {% if req.expected_delivery_date and req.status != 'pending' %}
+                                    <div class="small text-primary fw-bold">預計處理: {{ req.expected_delivery_date|date:"Y-m-d" }}</div>
+                                {% endif %}
+                                {% if req.delivery_reply %}<div class="small text-muted mb-1">{{ req.delivery_reply }}</div>{% endif %}
+
+                                {% if req.status == 'shipped' or req.status == 'closed' %}
+                                    <div class="small text-info fw-bold mt-1">實際撥料: {{ req.delivery_date|date:"Y-m-d" }}</div>
                                     {% if req.delivery_photo %}
                                     <a href="{{ req.delivery_photo.url }}" target="_blank">
                                         <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
                                     </a>
                                     {% endif %}
+                                {% elif req.status == 'processing' %}
+                                    <span class="text-primary small">對方處理中...</span>
                                 {% else %}
-                                    <span class="text-muted small">等待回覆...</span>
+                                    <span class="text-muted small">等待接收...</span>
                                 {% endif %}
                             </td>
                             <td class="text-end px-4">
@@ -339,6 +355,7 @@ $(document).ready(function() {
                                 {% endif %}
                                 <span class="badge 
                                     {% if req.status == 'pending' %}bg-warning-subtle text-warning
+                                    {% elif req.status == 'processing' %}bg-primary-subtle text-primary
                                     {% elif req.status == 'shipped' %}bg-info-subtle text-info
                                     {% else %}bg-success-subtle text-success{% endif %} rounded-pill mt-1">
                                     {{ req.get_status_display }}
@@ -356,9 +373,13 @@ $(document).ready(function() {
                             </td>
                             <td>{{ req.request_date|date:"Y-m-d" }}</td>
                             <td>
-                                {% if req.delivery_date %}
-                                    <div class="small">撥料: {{ req.delivery_date|date:"Y-m-d" }}</div>
-                                    {% if req.delivery_reply %}<div class="small">{{ req.delivery_reply }}</div>{% endif %}
+                                {% if req.expected_delivery_date and req.status != 'pending' %}
+                                    <div class="small text-primary fw-bold">預計處理: {{ req.expected_delivery_date|date:"Y-m-d" }}</div>
+                                {% endif %}
+                                {% if req.delivery_reply %}<div class="small text-muted mb-1">{{ req.delivery_reply }}</div>{% endif %}
+
+                                {% if req.status == 'shipped' or req.status == 'closed' %}
+                                    <div class="small text-info fw-bold mt-1">實際撥料: {{ req.delivery_date|date:"Y-m-d" }}</div>
                                     {% if req.delivery_photo %}
                                     <a href="{{ req.delivery_photo.url }}" target="_blank">
                                         <img src="{{ req.delivery_photo.url }}" class="img-thumbnail mt-1" style="max-height: 40px;">
@@ -367,8 +388,10 @@ $(document).ready(function() {
                                     {% if req.status == 'closed' %}
                                     <div class="text-success small mt-1"><i class="fas fa-check-circle"></i> 已於 {{ req.closed_at|date:"m/d H:i" }} 結案</div>
                                     {% endif %}
+                                {% elif req.status == 'processing' %}
+                                    <span class="text-primary small">處理中...</span>
                                 {% else %}
-                                    <span class="text-muted small">等待處理中...</span>
+                                    <span class="text-muted small">等待接收...</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -389,25 +412,58 @@ $(document).ready(function() {
     </div>
 </div>
 
-<!-- 回覆彈窗 (針對收到的需求) -->
+<!-- 第一步驟：接受申請並排程彈窗 (針對收到且待處理的 pending 需求) -->
 {% for req in received_requests %}
 {% if req.status == 'pending' %}
+<div class="modal fade" id="acceptModal{{ req.pk }}" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{% url 'peer_requests:accept' req.pk %}" method="post">
+            {% csrf_token %}
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">接受排程 {% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %} 的需求</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-primary fw-bold">預計完成日期</label>
+                        {% render_field accept_form.expected_delivery_date class="form-control" type="date" required="required" %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">備註/初步留言 (選填)</label>
+                        {% render_field accept_form.delivery_reply class="form-control" rows="2" placeholder="可先留言給申請人..." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary text-white">確認排程</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- 第二步驟：完成撥料彈窗 (針對收到且處理中的 processing 需求) -->
+{% for req in received_requests %}
+{% if req.status == 'processing' %}
 <div class="modal fade" id="replyModal{{ req.pk }}" tabindex="-1">
     <div class="modal-dialog">
         <form action="{% url 'peer_requests:reply' req.pk %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">回覆對 {% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %} 的需求</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">回報完成 {% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %} 的需求</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">撥料日期</label>
-                        {% render_field reply_form.delivery_date class="form-control" type="date" %}
+                        <label class="form-label text-info fw-bold">實際撥料日期</label>
+                        {% render_field reply_form.delivery_date class="form-control" type="date" required="required" %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">回覆說明 (選填)</label>
+                        <label class="form-label">最終回覆/補充說明 (選填)</label>
                         {% render_field reply_form.delivery_reply class="form-control" rows="2" %}
                     </div>
                     <div class="mb-3">
@@ -417,7 +473,7 @@ $(document).ready(function() {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-info text-white">確認撥料</button>
+                    <button type="submit" class="btn btn-info text-white">確認完成</button>
                 </div>
             </div>
         </form>
