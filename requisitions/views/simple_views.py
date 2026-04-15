@@ -1006,7 +1006,7 @@ def simple_dispatcher_detail(request, category, pk):
         items = requisition.items.all().order_by('storage_bin', 'material_number')
     elif sort_param == 'name':
         items = requisition.items.all().order_by('item_name', 'material_number')
-    if sort_param == 'status':
+    elif sort_param == 'status':
         # Status sort: Pending (None/Empty) -> Backordered -> Dispatched
         items = requisition.items.all().select_related('dispatched_by').annotate(
             status_order=Case(
