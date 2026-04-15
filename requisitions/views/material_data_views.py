@@ -800,7 +800,7 @@ def get_model_process_type_history(request):
                 'old_process_type': log.old_process_type or '未設定',
                 'new_process_type': log.new_process_type or '未設定',
                 'user_name': log.user.username if log.user else '系統',
-                'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                'timestamp': timezone.localtime(log.timestamp).strftime('%Y-%m-%d %H:%M:%S')
             })
 
         return JsonResponse({'logs': data})
