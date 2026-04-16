@@ -467,6 +467,7 @@
         <button type="button" class="action-btn" style="background:#D1FAE5;color:#065F46;flex:1;min-width: 120px;"
             onclick="copyDispatchedMaterials()">📋 複製已撥料物料</button>
         <a href="{% url 'requisitions:export_single_requisition_excel' pk=requisition.pk %}" class="action-btn" style="background:#E0E7FF;color:#3730A3;flex:1;min-width: 120px;text-decoration:none;display:flex;align-items:center;justify-content:center;">📊 匯出 Excel</a>
+        <button type="button" class="action-btn" style="background:#FEE2E2;color:#DC2626;flex:1;min-width: 120px;" data-bs-toggle="modal" data-bs-target="#shortageModal">📋 缺料項目</button>
         {% if requisition.has_alert %}
         <a href="{% url 'requisitions:simple_requisition_change_detail' pk=requisition.pk %}" class="action-btn" style="background:#FEF3C7;color:#92400E;flex:1;min-width: 120px;text-decoration:none;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #F59E0B;">⚠️ 處理需求變更</a>
         {% endif %}
@@ -754,5 +755,80 @@
         const savedScroll = sessionStorage.getItem('scroll_pos');
         if (savedScroll) { window.scrollTo(0, parseInt(savedScroll, 10)); sessionStorage.removeItem('scroll_pos'); }
     })();
+</script>
+
+<!-- 缺料項目彈窗 -->
+<div class="modal fade" id="shortageModal" tabindex="-1" aria-labelledby="shortageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 10px 25px rgba(220, 38, 38, 0.1);">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6; padding: 1.25rem;">
+                <h5 class="modal-title" id="shortageModalLabel" style="font-weight: 700; color: #DC2626;">📋 缺料項目清單</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding: 0; max-height: 70vh; overflow-y: auto;">
+                <div class="modal-shortage-list list-group list-group-flush">
+                    {% for item in items %}
+                        {% if item.dispatch_status == 'backordered' %}
+                        <div class="list-group-item modal-shortage-item" style="padding: 1.25rem; border-bottom: 1px solid #F3F4F6;">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <span style="font-weight: 700; color: #1F2937; font-size: 1.05rem;">{{ item.material_number }}</span>
+                                <span class="badge" style="background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;">缺料</span>
+                            </div>
+                            <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">{{ item.item_name }}</div>
+                            <div class="d-flex gap-3" style="font-size: 0.85rem;">
+                                <span>需求: <strong style="color: #1F2937;">{{ item.required_quantity|floatformat:"-2g" }}</strong></span>
+                                <span>欠料: <strong style="color: #DC2626;">{{ item.required_quantity|floatformat:"-2g" }}</strong></span>
+                                {% if item.expected_date %}
+                                <span style="color: #059669;">📅 預計: {{ item.expected_date|date:"Y-m-d" }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% for supp in item.supplementary_list %}
+                            {% if supp.dispatch_status == 'backordered' %}
+                            <div class="list-group-item modal-shortage-item" style="padding: 1.25rem; border-bottom: 1px solid #F3F4F6; background: #FDF2F9;">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span style="font-weight: 700; color: #1F2937; font-size: 1.05rem;">{{ supp.material_number }} (補撥)</span>
+                                    <span class="badge" style="background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;">缺料</span>
+                                </div>
+                                <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">{{ supp.item_name }}</div>
+                                <div class="d-flex gap-3" style="font-size: 0.85rem;">
+                                    <span>需求: <strong style="color: #1F2937;">{{ supp.required_quantity|floatformat:"-2g" }}</strong></span>
+                                    <span>欠料: <strong style="color: #DC2626;">{{ supp.required_quantity|floatformat:"-2g" }}</strong></span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                    
+                    <div id="no-shortage-msg" class="p-5 text-center text-muted d-none">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
+                        目前無缺料項目
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #F3F4F6; padding: 1rem;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 10px;">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('shortageModal');
+        if (modal) {
+            modal.addEventListener('show.bs.modal', function() {
+                const items = modal.querySelectorAll('.modal-shortage-item');
+                const msg = document.getElementById('no-shortage-msg');
+                if (items.length === 0) {
+                    msg.classList.remove('d-none');
+                } else {
+                    msg.classList.add('d-none');
+                }
+            });
+        }
+    });
 </script>
 {% endblock %}
