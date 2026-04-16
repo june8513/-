@@ -118,7 +118,7 @@ def work_order_material_list(request):
     machine_models_for_display = []
     order_numbers = WorkOrder.objects.filter(is_archived=False).values_list('order_number', flat=True).order_by('-order_number')
     
-    all_process_type_names = ['機械', '系統', '電裝', '鑄件', '護蓋', '刀庫', '出貨', '組件']
+    all_process_type_names = ['機械', '系統', '電裝', '鑄件', '護蓋', '刀庫', '出貨', '組件', '軟體研發部', '其他']
 
     # Check if the requested order_number is archived
     if order_number:
