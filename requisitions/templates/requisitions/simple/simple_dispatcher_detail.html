@@ -490,7 +490,7 @@
     <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}" data-dispatched-by-id="{{ item.dispatched_by_id|default:'' }}">
         <div class="material-info-area">
             <div class="material-top-row">
-                <span class="mat-number">{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}){% endif %}</span>{% endif %}</span>
+                <span class="mat-number">{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}{% if item.sign_off_date %} {{ item.sign_off_date|date:"Y-m-d" }}{% endif %}){% endif %}</span>{% endif %}</span>
                 {% if item.storage_bin %}<span class="mat-bin">{{ item.storage_bin }}</span>{% endif %}
                 <span class="mat-detail"><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></span>
                 <span class="mat-detail"><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</span>
@@ -524,7 +524,7 @@
                 <div class="supp-item {{ supp.card_class }}" data-item-pk="{{ supp.pk }}" data-dispatched-by-id="{{ supp.dispatched_by_id|default:'' }}">
                     <div class="supp-item-header">
                         <span class="supp-label">補撥 #{{ forloop.counter }}</span>
-                        <span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% if supp.sign_off_by %} ({{ supp.sign_off_by.first_name }}{{ supp.sign_off_by.last_name }}{% if not supp.sign_off_by.first_name %}{{ supp.sign_off_by.username }}{% endif %}){% endif %}{% endif %}</span>
+                        <span class="supp-status">{% if supp.status_text %}{{ supp.status_text }}{% else %}待撥{% endif %}{% if supp.is_signed_off %} ✓簽收{% if supp.sign_off_by %} ({{ supp.sign_off_by.first_name }}{{ supp.sign_off_by.last_name }}{% if not supp.sign_off_by.first_name %}{{ supp.sign_off_by.username }}{% endif %}{% if supp.sign_off_date %} {{ supp.sign_off_date|date:"Y-m-d" }}{% endif %}){% endif %}{% endif %}</span>
                     </div>
                     <form method="post" class="material-actions">
                         {% csrf_token %}
