@@ -502,7 +502,15 @@
         <div
             class="material-item {% if item.dispatch_status == 'dispatched' %}dispatched{% elif item.is_shortage %}shortage{% endif %}">
             <div class="material-info">
-                <div class="material-number">{{ item.material_number }}</div>
+                <div class="material-number">
+                    {{ item.material_number }}
+                    {% if item.dispatch_status == 'dispatched' %}
+                    <span class="material-dispatch-info" style="font-size: 0.8rem; color: #6B7280; margin-left: 0.5rem; font-weight: normal;">
+                        {% if item.dispatched_at %}📅 {{ item.dispatched_at|date:"Y-m-d" }}{% endif %}
+                        {% if item.dispatched_by %} 👤 {{ item.dispatched_by.first_name }}{{ item.dispatched_by.last_name }}{% if not item.dispatched_by.first_name %}{{ item.dispatched_by.username }}{% endif %}{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
                 <div class="material-name">{{ item.item_name }}</div>
                 {% if item.is_insufficient_stock %}
                 <span class="shortage-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA;">⚠️
