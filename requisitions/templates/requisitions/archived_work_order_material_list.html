@@ -61,3 +61,45 @@
 </div>
 
 {% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const orderNumberInput = document.getElementById('order_number');
+        const processTypeSelect = document.getElementById('process_type');
+
+        function fetchProcessTypes() {
+            const orderNumber = orderNumberInput.value.trim();
+            if (orderNumber) {
+                const apiUrl = "{% url 'requisitions:get_process_types_for_order' %}?order_number=" + encodeURIComponent(orderNumber);
+                fetch(apiUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        const currentValue = processTypeSelect.value;
+                        processTypeSelect.innerHTML = '<option value="">所有投料點</option>';
+                        data.forEach(pt => {
+                            const option = document.createElement('option');
+                            option.value = pt.id;
+                            option.textContent = pt.name;
+                            if (String(pt.id) === currentValue) {
+                                option.selected = true;
+                            }
+                            processTypeSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error('Error fetching process types:', error));
+            } else {
+                processTypeSelect.innerHTML = '<option value="">所有投料點</option>';
+            }
+        }
+
+        if (orderNumberInput && processTypeSelect) {
+            orderNumberInput.addEventListener('blur', fetchProcessTypes);
+            // Optionally fetch on load if order number exists but no choices were rendered
+            if (orderNumberInput.value && processTypeSelect.options.length <= 1) {
+                fetchProcessTypes();
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -778,6 +778,35 @@ def get_process_types_for_model(request):
         return JsonResponse({'error': traceback.format_exc()}, status=500)
 
 @login_required
+def get_process_types_for_order(request):
+    order_number = request.GET.get('order_number')
+    if not order_number:
+        return JsonResponse([], safe=False)
+    
+    try:
+        # Get unique process type IDs for this order number
+        unique_process_type_ids = WorkOrderMaterial.objects.filter(
+            order_number=order_number
+        ).values_list('process_type__id', flat=True).distinct()
+        
+        # Get ProcessType objects and format them
+        process_types = ProcessType.objects.filter(
+            id__in=unique_process_type_ids
+        ).values('id', 'name').order_by('name')
+        
+        seen_names = set()
+        unique_types = []
+        for pt in process_types:
+            if pt['name'] not in seen_names:
+                unique_types.append({'id': pt['id'], 'name': pt['name']})
+                seen_names.add(pt['name'])
+                
+        return JsonResponse(unique_types, safe=False)
+    except Exception as e:
+        import traceback
+        return JsonResponse({'error': traceback.format_exc()}, status=500)
+
+@login_required
 def get_model_process_type_history(request):
     """
     取得單一物料的投料點修改紀錄

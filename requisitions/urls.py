@@ -108,6 +108,7 @@ urlpatterns = [
     path('process_type_database/', material_data_views.view_process_type_database, name='view_process_type_database'),
     path('update_material_process_type/<int:material_id>/', material_data_views.update_material_process_type, name='update_material_process_type'),
     path('get_process_types_for_model/', material_data_views.get_process_types_for_model, name='get_process_types_for_model'),
+    path('api/get_process_types_for_order/', material_data_views.get_process_types_for_order, name='get_process_types_for_order'),
     path('process_types_management/', material_data_views.process_types_management, name='process_types_management'),
     path('<int:pk>/details_json/', requisition_management_views.get_requisition_details_json, name='get_requisition_details_json'), # New URL for JSON details
     path('<int:pk>/images_json/', requisition_management_views.get_requisition_images_json, name='get_requisition_images_json'), # New URL for images JSON
