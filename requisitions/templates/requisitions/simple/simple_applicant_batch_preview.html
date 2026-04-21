@@ -191,9 +191,10 @@
                     <thead>
                         <tr>
                             <th style="width: 15%;" class="sortable" onclick="sortTable(0)">工單單號</th>
-                            <th style="width: 50%;" class="sortable" onclick="sortTable(1)">對應機型</th>
+                            <th style="width: 35%;" class="sortable" onclick="sortTable(1)">對應機型</th>
                             <th style="width: 15%;" class="sortable" onclick="sortTable(2)">領料人員</th>
-                            <th style="width: 20%;" class="sortable" onclick="sortTable(3)">需求日期</th>
+                            <th style="width: 15%;" class="sortable" onclick="sortTable(3)">需求日期</th>
+                            <th style="width: 20%;" class="sortable" onclick="sortTable(4)">備註</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -216,6 +217,9 @@
                             </td>
                             <td>
                                 <input type="date" class="form-control-sm" name="request_date" value="{{ item.request_date|default:today }}" required>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control-sm" name="remarks" value="{{ item.remarks|default:'' }}" placeholder="選填">
                             </td>
                         </tr>
                         {% endfor %}

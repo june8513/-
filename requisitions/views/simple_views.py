@@ -143,7 +143,8 @@ def simple_applicant_create(request):
                         'order_number': order_number,
                         'machine_model': machine_model_name,
                         'applicant_id': default_applicant_id,
-                        'request_date': default_request_date
+                        'request_date': default_request_date,
+                        'remarks': request.POST.get('remarks', '')
                     })
                 
                 return render(request, 'requisitions/simple/simple_applicant_batch_preview.html', {
@@ -157,6 +158,7 @@ def simple_applicant_create(request):
                 applicant_ids = request.POST.getlist('applicant_id')
                 request_dates = request.POST.getlist('request_date')
                 machine_models = request.POST.getlist('machine_model')
+                remarks_list = request.POST.getlist('remarks')
 
                 created_count = 0
                 error_count = 0
@@ -171,6 +173,7 @@ def simple_applicant_create(request):
                         applicant_id = applicant_ids[i]
                         request_date_str = request_dates[i]
                         model_name = machine_models[i]
+                        remark = remarks_list[i] if i < len(remarks_list) else ''
 
                         if not (order_number and applicant_id and request_date_str):
                              continue
@@ -216,7 +219,8 @@ def simple_applicant_create(request):
                                     process_type='SEMI',
                                     status='demand_submitted',
                                     requisition_type='semi_finished',
-                                    request_date=request_date_str or date.today()
+                                    request_date=request_date_str or date.today(),
+                                    remarks=remark
                                 )
                                 
                                 # Auto-add semi-finished materials
@@ -272,6 +276,7 @@ def simple_applicant_create(request):
             order_number = request.POST.get('order_number')
             process_type_id = request.POST.get('process_type')
             request_date = request.POST.get('request_date')
+            remarks = request.POST.get('remarks')
             
             # Check if the work order is archived
             try:
@@ -312,7 +317,8 @@ def simple_applicant_create(request):
                     process_type=process_type_obj.name,
                     status='demand_submitted',
                     requisition_type='finished',
-                    request_date=request_date or date.today()
+                    request_date=request_date or date.today(),
+                    remarks=remarks
                 )
 
                 # 新增物料項目
@@ -806,7 +812,7 @@ def simple_dispatcher_category(request, category):
             applicant__username=target_username,
             requisition_type='semi_finished',
             status__in=['demand_submitted', 'dispatch_in_progress']
-        ).order_by('-created_at')
+        ).order_by('request_date', '-created_at')
         
         # 已撥料申請單 (依領料人過濾)
         completed_requisitions = Requisition.objects.filter(
@@ -827,7 +833,7 @@ def simple_dispatcher_category(request, category):
         pending_requisitions = Requisition.objects.filter(
             process_type__icontains=category,
             status__in=['demand_submitted', 'dispatch_in_progress']
-        ).order_by('-created_at')
+        ).order_by('request_date', '-created_at')
         
         # 已撥料申請單
         completed_requisitions = Requisition.objects.filter(
@@ -919,12 +925,15 @@ def simple_dispatcher_merge(request, category):
             except Exception as e:
                 return JsonResponse({'success': False, 'message': str(e)})
 
-        elif action == 'dispatch_all':
+        elif action == 'dispatch_material':
+            material_number = request.POST.get('material_number')
             try:
                 items = RequisitionItem.objects.filter(
                     requisition__order_number__in=order_numbers,
                     requisition__process_type__icontains=category,
+                    material_number=material_number
                 ).exclude(dispatch_status='dispatched')
+                
                 count = 0
                 affected_reqs = set()
                 for item in items:
@@ -944,7 +953,26 @@ def simple_dispatcher_merge(request, category):
                         req.status = 'dispatch_in_progress'
                     req.save()
 
-                return JsonResponse({'success': True, 'message': f'已完成 {count} 筆撥料'})
+                return JsonResponse({'success': True, 'message': f'已將物料 {material_number} 的 {count} 筆需求完成撥料'})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)})
+
+        elif action == 'backorder_material':
+            material_number = request.POST.get('material_number')
+            try:
+                items = RequisitionItem.objects.filter(
+                    requisition__order_number__in=order_numbers,
+                    requisition__process_type__icontains=category,
+                    material_number=material_number
+                ).exclude(dispatch_status='dispatched')
+                
+                count = 0
+                for item in items:
+                    item.dispatch_status = 'backordered'
+                    item.save()
+                    count += 1
+
+                return JsonResponse({'success': True, 'message': f'已將物料 {material_number} 的 {count} 筆需求標記為缺料'})
             except Exception as e:
                 return JsonResponse({'success': False, 'message': str(e)})
 
@@ -954,7 +982,18 @@ def simple_dispatcher_merge(request, category):
     undispatched_items = RequisitionItem.objects.filter(
         requisition__order_number__in=order_numbers,
         requisition__process_type__icontains=category,
-    ).exclude(dispatch_status='dispatched').select_related('requisition').order_by('storage_bin', 'material_number')
+    ).exclude(dispatch_status='dispatched').select_related('requisition')
+
+    sort_param = request.GET.get('sort', 'bin')
+    if sort_param == 'material':
+        sort_args = ['material_number']
+    elif sort_param == 'name':
+        sort_args = ['item_name', 'material_number']
+    else:
+        sort_args = ['storage_bin', 'material_number']
+        sort_param = 'bin'
+
+    undispatched_items = undispatched_items.order_by(*sort_args)
 
     # 按物料編號分組合併
     from collections import OrderedDict
@@ -974,8 +1013,14 @@ def simple_dispatcher_merge(request, category):
             'order_number': item.requisition.order_number,
             'required_quantity': item.required_quantity,
             'status': item.dispatch_status,
+            'request_date': item.requisition.request_date,
         })
         merged[key]['total_qty'] += item.required_quantity
+
+    from datetime import date
+    # Ensure orders within each material are sorted by request_date
+    for mat_data in merged.values():
+        mat_data['orders'] = sorted(mat_data['orders'], key=lambda x: x['request_date'] or date.today())
 
     category_color = PROCESS_CATEGORY_COLORS.get(category, '#6B7280')
 
@@ -986,6 +1031,7 @@ def simple_dispatcher_merge(request, category):
         'order_numbers': order_numbers,
         'merged_items': list(merged.values()),
         'total_items': undispatched_items.count(),
+        'sort_param': sort_param,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_merge.html', context)
 
@@ -1426,19 +1472,25 @@ def export_simple_dispatcher_requisitions_excel(request, category):
         return redirect('requisitions:requisition_list')
     
     current_type = request.GET.get('type', 'finished')
+    order_numbers = request.GET.getlist('orders')
     
     if current_type == 'semi_finished':
         # 半成品：category 是 applicant.username
-        requisitions = Requisition.objects.filter(
+        qs = Requisition.objects.filter(
             applicant__username=category,
             requisition_type='semi_finished'
-        ).order_by('-created_at')
+        )
     else:
         # 成品：category 是 process_type 的一部分
-        requisitions = Requisition.objects.filter(
+        qs = Requisition.objects.filter(
             process_type__icontains=category,
             requisition_type='finished'
-        ).order_by('-created_at')
+        )
+        
+    if order_numbers:
+        qs = qs.filter(order_number__in=order_numbers)
+        
+    requisitions = qs.order_by('-created_at')
 
     return _generate_simple_export_excel(requisitions, f"dispatcher_requisitions_{category}_{current_type}")
 

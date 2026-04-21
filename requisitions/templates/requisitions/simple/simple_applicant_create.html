@@ -162,6 +162,11 @@
                     placeholder="請在此貼上工單單號，支援從 Excel 直接複製貼上" required></textarea>
             </div>
 
+            <div class="form-group">
+                <label class="form-label" for="remarks_default">預設備註 (可於下一步修改)</label>
+                <textarea class="form-control" id="remarks_default" name="remarks" rows="2" placeholder="選填，例如：優先處理、急件..."></textarea>
+            </div>
+
             {% else %}
             <!-- 成品：單筆建立 & 選擇投料點 -->
             <div class="form-group">
@@ -183,6 +188,11 @@
                 <label class="form-label" for="request_date">需求日期</label>
                 <input type="date" class="form-control" id="request_date" name="request_date" value="{{ today }}"
                     required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="remarks">備註 (選填)</label>
+                <textarea class="form-control" id="remarks" name="remarks" rows="2" placeholder="選填，例如：優先處理、急件..."></textarea>
             </div>
             {% endif %}
 

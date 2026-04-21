@@ -329,23 +329,38 @@
     <h2 class="section-title pending">⏳ 待撥料 <span class="section-count">{{ pending_reqs|length }}</span></h2>
     {% for req in pending_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
-        {% if req.has_alert or req.is_overdue %}
-        <div class="alert-badges">
-            {% if req.is_overdue %}<span class="alert-badge overdue">⚠ 逾期</span>{% endif %}
-            {% if req.has_alert %}<span class="alert-badge change">🚨 需求變更</span>{% endif %}
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
+                {% if req.is_from_other %}
+                <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
+                {% endif %}
+                {% if req.has_alert or req.is_overdue %}
+                <div class="alert-badges" style="margin-bottom: 0; display: flex; gap: 0.25rem;">
+                    {% if req.is_overdue %}<span class="alert-badge overdue" style="padding: 0.2rem 0.5rem;">⚠ 逾期</span>{% endif %}
+                    {% if req.has_alert %}<span class="alert-badge change" style="padding: 0.2rem 0.5rem;">🚨 變更</span>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <div class="status-indicator" style="gap: 0.3rem;"><span class="status-dot pending"></span><span style="font-size: 0.8rem; font-weight: 600; color: #4B5563;">待處理</span></div>
+                <span class="date-text" style="font-size: 0.75rem;">{{ req.created_at|date:"m/d" }}</span>
+            </div>
+        </div>
+
+        {% if req.remarks %}
+        <div class="remarks-text" style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #4B5563; background-color: #F9FAFB; padding: 2px 6px; border-left: 3px solid #9CA3AF; border-radius: 4px;">
+            <span style="font-weight: 600;">備註:</span> {{ req.remarks }}
         </div>
         {% endif %}
-        <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
-        <span class="process-badge">{{ req.process_type }}</span>
-        <div class="status-row">
-            <div class="status-indicator"><span class="status-dot pending"></span><span>待處理</span></div>
-            <span class="date-text">{{ req.created_at|date:"m/d" }}</span>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+            <div class="progress-bar-container" style="flex: 1; margin-top: 0; height: 6px;">
+                <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+            </div>
+            <span class="progress-text" style="flex-shrink: 0; margin-top: 0; font-size: 0.75rem; font-weight: 500;">{{ req.dispatched_count }}/{{ req.total_count }}</span>
         </div>
-        <div class="progress-bar-container">
-            <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
-        </div>
-        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
     </a>
     {% empty %}
     <div class="empty-state-sm">目前沒有待撥料的申請單</div>
@@ -355,23 +370,38 @@
     <h2 class="section-title in-progress">🔄 撥料中 <span class="section-count">{{ in_progress_reqs|length }}</span></h2>
     {% for req in in_progress_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
-        {% if req.has_alert or req.is_overdue %}
-        <div class="alert-badges">
-            {% if req.is_overdue %}<span class="alert-badge overdue">⚠ 逾期</span>{% endif %}
-            {% if req.has_alert %}<span class="alert-badge change">🚨 需求變更</span>{% endif %}
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
+                {% if req.is_from_other %}
+                <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
+                {% endif %}
+                {% if req.has_alert or req.is_overdue %}
+                <div class="alert-badges" style="margin-bottom: 0; display: flex; gap: 0.25rem;">
+                    {% if req.is_overdue %}<span class="alert-badge overdue" style="padding: 0.2rem 0.5rem;">⚠ 逾期</span>{% endif %}
+                    {% if req.has_alert %}<span class="alert-badge change" style="padding: 0.2rem 0.5rem;">🚨 變更</span>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <div class="status-indicator" style="gap: 0.3rem;"><span class="status-dot in-progress"></span><span style="font-size: 0.8rem; font-weight: 600; color: #1E40AF;">撥料中</span></div>
+                <span class="date-text" style="font-size: 0.75rem;">{{ req.created_at|date:"m/d" }}</span>
+            </div>
+        </div>
+
+        {% if req.remarks %}
+        <div class="remarks-text" style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #4B5563; background-color: #F9FAFB; padding: 2px 6px; border-left: 3px solid #9CA3AF; border-radius: 4px;">
+            <span style="font-weight: 600;">備註:</span> {{ req.remarks }}
         </div>
         {% endif %}
-        <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
-        <span class="process-badge">{{ req.process_type }}</span>
-        <div class="status-row">
-            <div class="status-indicator"><span class="status-dot in-progress"></span><span>撥料中</span></div>
-            <span class="date-text">{{ req.created_at|date:"m/d" }}</span>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+            <div class="progress-bar-container" style="flex: 1; margin-top: 0; height: 6px;">
+                <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+            </div>
+            <span class="progress-text" style="flex-shrink: 0; margin-top: 0; font-size: 0.75rem; font-weight: 500;">{{ req.dispatched_count }}/{{ req.total_count }}</span>
         </div>
-        <div class="progress-bar-container">
-            <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
-        </div>
-        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
     </a>
     {% empty %}
     <div class="empty-state-sm">目前沒有撥料中的申請單</div>
@@ -381,17 +411,32 @@
     <h2 class="section-title completed">✅ 已撥料 <span class="section-count">{{ completed_reqs|length }}</span></h2>
     {% for req in completed_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
-        <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
-        <span class="process-badge">{{ req.process_type }}</span>
-        <div class="status-row">
-            <div class="status-indicator"><span class="status-dot completed"></span><span>待簽收</span></div>
-            <span class="date-text">{{ req.updated_at|date:"m/d" }}</span>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
+                {% if req.is_from_other %}
+                <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
+                {% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <div class="status-indicator" style="gap: 0.3rem;"><span class="status-dot completed"></span><span style="font-size: 0.8rem; font-weight: 600; color: #065F46;">待簽收</span></div>
+                <span class="date-text" style="font-size: 0.75rem;">{{ req.updated_at|date:"m/d" }}</span>
+            </div>
         </div>
-        <div class="progress-bar-container">
-            <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+
+        {% if req.remarks %}
+        <div class="remarks-text" style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #4B5563; background-color: #F9FAFB; padding: 2px 6px; border-left: 3px solid #9CA3AF; border-radius: 4px;">
+            <span style="font-weight: 600;">備註:</span> {{ req.remarks }}
         </div>
-        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
+        {% endif %}
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+            <div class="progress-bar-container" style="flex: 1; margin-top: 0; height: 6px;">
+                <div class="progress-bar" style="width: {{ req.progress }}%;"></div>
+            </div>
+            <span class="progress-text" style="flex-shrink: 0; margin-top: 0; font-size: 0.75rem; font-weight: 500;">{{ req.dispatched_count }}/{{ req.total_count }}</span>
+        </div>
     </a>
     {% empty %}
     <div class="empty-state-sm">目前沒有待簽收的申請單</div>
@@ -401,17 +446,32 @@
     <h2 class="section-title signed-off">📋 已簽收 <span class="section-count">{{ signed_off_reqs|length }}</span></h2>
     {% for req in signed_off_reqs %}
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card">
-        <div class="order-number">{{ req.order_number }}</div>
-        {% if req.is_from_other %}<span class="alert-badge" style="background: #E0E7FF; color: #3730A3;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>{% endif %}
-        <span class="process-badge">{{ req.process_type }}</span>
-        <div class="status-row">
-            <div class="status-indicator"><span class="status-dot signed-off"></span><span>已簽收</span></div>
-            <span class="date-text">{{ req.updated_at|date:"m/d" }}</span>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
+                {% if req.is_from_other %}
+                <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
+                {% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <div class="status-indicator" style="gap: 0.3rem;"><span class="status-dot signed-off"></span><span style="font-size: 0.8rem; font-weight: 600; color: #374151;">已簽收</span></div>
+                <span class="date-text" style="font-size: 0.75rem;">{{ req.updated_at|date:"m/d" }}</span>
+            </div>
         </div>
-        <div class="progress-bar-container">
-            <div class="progress-bar" style="width: 100%;"></div>
+
+        {% if req.remarks %}
+        <div class="remarks-text" style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #4B5563; background-color: #F9FAFB; padding: 2px 6px; border-left: 3px solid #9CA3AF; border-radius: 4px;">
+            <span style="font-weight: 600;">備註:</span> {{ req.remarks }}
         </div>
-        <div class="progress-text">{{ req.dispatched_count }}/{{ req.total_count }} 已撥料</div>
+        {% endif %}
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+            <div class="progress-bar-container" style="flex: 1; margin-top: 0; height: 6px;">
+                <div class="progress-bar" style="width: 100%;"></div>
+            </div>
+            <span class="progress-text" style="flex-shrink: 0; margin-top: 0; font-size: 0.75rem; font-weight: 500;">{{ req.dispatched_count }}/{{ req.total_count }}</span>
+        </div>
     </a>
     {% empty %}
     <div class="empty-state-sm">目前沒有已簽收的申請單</div>

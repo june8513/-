@@ -216,36 +216,44 @@
         font-weight: 600;
     }
 
-    .dispatch-all-section {
-        position: sticky;
-        bottom: 0;
-        padding: 1rem;
-        background: #F3F4F6;
-    }
-
-    .dispatch-all-btn {
-        width: 100%;
-        padding: 1rem;
-        font-size: 1.1rem;
-        font-weight: 600;
-        background: linear-gradient(135deg, #3B82F6, #2563EB);
-        border: none;
+    .sort-bar {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        align-items: center;
+        background: white;
+        padding: 0.5rem 1rem;
         border-radius: 12px;
-        color: white;
-        cursor: pointer;
-        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
-        transition: all 0.3s;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+    
+    .sort-label {
+        font-size: 0.85rem;
+        color: #6B7280;
+        font-weight: 600;
     }
 
-    .dispatch-all-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+    .sort-btn {
+        padding: 0.3rem 0.8rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        text-decoration: none;
+        color: #374151;
+        background: #F3F4F6;
+        transition: all 0.2s;
     }
 
-    .dispatch-all-btn:disabled {
-        background: #9CA3AF;
-        box-shadow: none;
-        transform: none;
+    .sort-btn.active {
+        background: #DBEAFE;
+        color: #1E40AF;
+        font-weight: 600;
+    }
+
+    .sort-btn:hover {
+        background: #E5E7EB;
+    }
+    .sort-btn.active:hover {
+        background: #BFDBFE;
     }
 
     .toast-message {
@@ -279,47 +287,57 @@
 <div class="simple-container">
     <div class="page-header">
         <a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
-            class="back-btn" > ← < /a>
-        <h1 class="page-title" > 合併撥料
-            <span class="category-badge" style="background: {{ category_color }};" > {{ category }} < /span>
+            class="back-btn">←</a>
+        <h1 class="page-title">合併撥料
+            <span class="category-badge" style="background: {{ category_color }};">{{ category }}</span>
         </h1>
     </div>
 
     <div class="summary-bar">
-        <span > 已選 {{ order_numbers|length }} 張工單 · {{ total_items }} 筆未撥物料 < /span>
-        <span > {{ merged_items|length }} 種物料 < /span>
+        <span>已選 {{ order_numbers|length }} 張工單 · {{ total_items }} 筆未撥物料</span>
+        <span>{{ merged_items|length }} 種物料</span>
+    </div>
+
+    <div class="sort-bar">
+        <span class="sort-label">排序方式</span>
+        <a href="?type={{ current_type }}&sort=bin{% for o in order_numbers %}&orders={{ o }}{% endfor %}" class="sort-btn {% if sort_param == 'bin' %}active{% endif %}">儲格優先</a>
+        <a href="?type={{ current_type }}&sort=material{% for o in order_numbers %}&orders={{ o }}{% endfor %}" class="sort-btn {% if sort_param == 'material' %}active{% endif %}">物料號優先</a>
+        <a href="?type={{ current_type }}&sort=name{% for o in order_numbers %}&orders={{ o }}{% endfor %}" class="sort-btn {% if sort_param == 'name' %}active{% endif %}">品名優先</a>
     </div>
 
     {% if merged_items %}
     {% for mat in merged_items %}
     <div class="material-card" id="card-{{ forloop.counter }}">
         <div class="material-header" onclick="toggleCard('card-{{ forloop.counter }}')">
-            <span class="bin-badge" > {{ mat.storage_bin }} < /span>
-            <span class="mat-number" > {{ mat.material_number }} < /span>
-            <span class="mat-name" > {{ mat.item_name }} < /span>
-            <span class="mat-orders">
-                {% for o in mat.orders %}{{ o.order_number }}-{{ o.required_quantity|floatformat:0 }}{% if not forloop.last %}, {% endif %}{% endfor %}
-            </span>
-            <span class="expand-icon" > ▶ < /span>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+                <span class="bin-badge">{{ mat.storage_bin }}</span>
+                <span class="mat-number">{{ mat.material_number }}</span>
+                <span class="mat-name">{{ mat.item_name }}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <span style="font-weight: 600; color: #111827; margin-right: 0.5rem; font-size: 1.1rem;">{{ mat.total_qty|floatformat:0 }}</span>
+                <button class="btn-dispatch" onclick="event.stopPropagation(); dispatchMaterial('{{ mat.material_number }}', this)">撥料</button>
+                <button class="btn-backorder" onclick="event.stopPropagation(); backorderMaterial('{{ mat.material_number }}', this)">缺料</button>
+                <span class="expand-icon" style="margin-left: 0.5rem;">▶</span>
+            </div>
         </div>
         <div class="order-details">
             {% for o in mat.orders %}
             <div class="order-row" id="item-{{ o.pk }}">
-                <span class="order-num" > {{ o.order_number }} < /span>
-                <span class="order-qty" > {{ o.required_quantity|floatformat:0 }} < /span>
-                <button class="btn-dispatch" onclick="dispatchItem({{ o.pk }}, this)" > 撥料 < /button>
-                <button class="btn-backorder" onclick="backorderItem({{ o.pk }}, this)" > 缺料 < /button>
+                <span class="order-num" style="display: flex; align-items: center;">
+                    {{ o.order_number }}
+                    <span style="font-size: 0.75rem; color: #6B7280; font-weight: normal; margin-left: 0.5rem; background: #F3F4F6; padding: 0.15rem 0.4rem; border-radius: 4px;">需: {{ o.request_date|date:"m/d" }}</span>
+                </span>
+                <span class="order-qty">{{ o.required_quantity|floatformat:0 }}</span>
+                <button class="btn-dispatch" onclick="dispatchItem({{ o.pk }}, this)">撥料</button>
+                <button class="btn-backorder" onclick="backorderItem({{ o.pk }}, this)">缺料</button>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endfor %}
-
-    <div class="dispatch-all-section">
-        <button class="dispatch-all-btn" onclick="dispatchAll()" > 全部撥料 ({{ total_items }} 筆) < /button>
-    </div>
     {% else %}
-    <div class="empty-state" > 所選工單沒有未撥料的物料 < /div>
+    <div class="empty-state">所選工單沒有未撥料的物料</div>
     {% endif %}
 </div>
 {% endblock %}
@@ -356,9 +374,9 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    row.innerHTML = ' < span class="order-num" > ' + row.querySelector('.order-num').textContent + ' < /span > '
-                        + ' < span class="order-qty" > ' + row.querySelector('.order-qty').textContent + ' < /span > '
-                        + ' < span class="dispatched-label" > ✓ 已撥料 < /span > ';
+                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + row.querySelector('.order-num').innerHTML + '</span>'
+                        + '<span class="order-qty">' + row.querySelector('.order-qty').innerHTML + '</span>'
+                        + '<span class="dispatched-label">✓ 已撥料</span>';
                     showToast('已撥料');
                 } else {
                     showToast(data.message || '操作失敗', true);
@@ -384,9 +402,9 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    row.innerHTML = ' < span class="order-num" > ' + row.querySelector('.order-num').textContent + ' < /span > '
-                        + ' < span class="order-qty" > ' + row.querySelector('.order-qty').textContent + ' < /span > '
-                        + ' < span class="backordered-label" > ⚠ 缺料 < /span > ';
+                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + row.querySelector('.order-num').innerHTML + '</span>'
+                        + '<span class="order-qty">' + row.querySelector('.order-qty').innerHTML + '</span>'
+                        + '<span class="backordered-label">⚠ 缺料</span>';
                     showToast('已標記缺料');
                 } else {
                     showToast(data.message || '操作失敗', true);
@@ -396,14 +414,15 @@
             .catch(() => { showToast('伺服器錯誤', true); btn.disabled = false; });
     }
 
-    function dispatchAll() {
-        if (!confirm('確認要將所有未撥物料全部撥料嗎？')) return;
-        const btn = document.querySelector('.dispatch-all-btn');
+    function dispatchMaterial(materialNumber, btn) {
+        const card = btn.closest('.material-card');
         btn.disabled = true;
-        btn.textContent = '處理中...';
-
+        const siblingBtn = btn.parentElement.querySelector('.btn-backorder');
+        if (siblingBtn) siblingBtn.disabled = true;
+        
         const formData = new FormData();
-        formData.append('action', 'dispatch_all');
+        formData.append('action', 'dispatch_material');
+        formData.append('material_number', materialNumber);
         formData.append('csrfmiddlewaretoken', csrfToken);
 
         fetch(window.location.href, {
@@ -415,18 +434,67 @@
             .then(data => {
                 if (data.success) {
                     showToast(data.message);
-                    setTimeout(() => window.location.reload(), 1000);
+                    btn.outerHTML = '<span class="dispatched-label" style="font-size:1rem; margin-right:0.5rem;">✓ 已撥料</span>';
+                    if (siblingBtn) siblingBtn.remove();
+                    
+                    card.querySelectorAll('.order-row').forEach(row => {
+                        row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + row.querySelector('.order-num').innerHTML + '</span>'
+                            + '<span class="order-qty">' + row.querySelector('.order-qty').innerHTML + '</span>'
+                            + '<span class="dispatched-label">✓ 已撥料</span>';
+                    });
                 } else {
                     showToast(data.message || '操作失敗', true);
                     btn.disabled = false;
-                    btn.textContent = '全部撥料';
+                    if (siblingBtn) siblingBtn.disabled = false;
                 }
             })
-            .catch(() => {
-                showToast('伺服器錯誤', true);
+            .catch(() => { 
+                showToast('伺服器錯誤', true); 
                 btn.disabled = false;
-                btn.textContent = '全部撥料';
+                if (siblingBtn) siblingBtn.disabled = false;
             });
     }
+
+    function backorderMaterial(materialNumber, btn) {
+        const card = btn.closest('.material-card');
+        btn.disabled = true;
+        const siblingBtn = btn.parentElement.querySelector('.btn-dispatch');
+        if (siblingBtn) siblingBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('action', 'backorder_material');
+        formData.append('material_number', materialNumber);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    btn.outerHTML = '<span class="backordered-label" style="font-size:1rem; margin-right:0.5rem;">⚠ 缺料</span>';
+                    if (siblingBtn) siblingBtn.remove();
+                    
+                    card.querySelectorAll('.order-row').forEach(row => {
+                        row.innerHTML = '<span class="order-num">' + row.querySelector('.order-num').textContent + '</span>'
+                            + '<span class="order-qty">' + row.querySelector('.order-qty').textContent + '</span>'
+                            + '<span class="backordered-label">⚠ 缺料</span>';
+                    });
+                } else {
+                    showToast(data.message || '操作失敗', true);
+                    btn.disabled = false;
+                    if (siblingBtn) siblingBtn.disabled = false;
+                }
+            })
+            .catch(() => { 
+                showToast('伺服器錯誤', true); 
+                btn.disabled = false;
+                if (siblingBtn) siblingBtn.disabled = false;
+            });
+    }
+
 </script>
 {% endblock %}
