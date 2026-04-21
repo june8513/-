@@ -21,6 +21,10 @@ app_name = 'requisitions'
 
 urlpatterns = [
     # Simple interface URLs - 簡易介面路由
+    # Fast Dispatch (快速撥料)
+    path('simple/dispatcher/fast-dispatch/', simple_views.simple_dispatcher_fast_dispatch, name='simple_dispatcher_fast_dispatch'),
+    path('simple/dispatcher/fast-dispatch/execute/', simple_views.simple_dispatcher_fast_dispatch_execute, name='simple_dispatcher_fast_dispatch_execute'),
+
     path('simple/applicant/', simple_views.simple_applicant_home, name='simple_applicant_home'),
     path('simple/applicant/create/', simple_views.simple_applicant_create, name='simple_applicant_create'),
     path('simple/applicant/<int:pk>/', simple_views.simple_applicant_detail, name='simple_applicant_detail'),

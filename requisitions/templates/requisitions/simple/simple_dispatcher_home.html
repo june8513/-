@@ -327,15 +327,21 @@
 
     <!-- (Moved Announcement Box to Bottom) -->
 
-    <!-- 成品/半成品標籤切換 -->
-    <div class="type-tabs">
-        <a href="{% url 'requisitions:simple_dispatcher_home' %}"
-            class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
-            📦 成品撥料
-        </a>
-        <a href="{% url 'requisitions:simple_dispatcher_home' %}?type=semi_finished"
-            class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
-            🔧 半成品撥料
+    <!-- 成品/半成品標籤切換與快速撥料 -->
+    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: stretch;">
+        <div class="type-tabs" style="flex: 1; margin-bottom: 0;">
+            <a href="{% url 'requisitions:simple_dispatcher_home' %}"
+                class="type-tab finished {% if current_type == 'finished' %}active{% endif %}">
+                📦 成品撥料
+            </a>
+            <a href="{% url 'requisitions:simple_dispatcher_home' %}?type=semi_finished"
+                class="type-tab semi-finished {% if current_type == 'semi_finished' %}active{% endif %}">
+                🔧 半成品撥料
+            </a>
+        </div>
+        <a href="{% url 'requisitions:simple_dispatcher_fast_dispatch' %}" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0 1.5rem; background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; text-decoration: none; font-weight: 700; border-radius: 12px; box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3); transition: all 0.3s ease;">
+            <span style="font-size: 1.2rem;">⚡</span>
+            <span>快速撥料</span>
         </a>
     </div>
 

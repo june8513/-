@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}確認快速撥料清單 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1rem;
+        padding-bottom: 5rem; /* space for sticky footer */
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 2rem 0 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-count {
+        background: #E5E7EB;
+        color: #374151;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+    }
+
+    .item-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid #E5E7EB;
+    }
+
+    .item-card.ready {
+        border-left: 4px solid #10B981;
+    }
+    .item-card.conflict {
+        border-left: 4px solid #F59E0B;
+        background: #FFFBEB;
+    }
+    .item-card.error {
+        border-left: 4px solid #EF4444;
+        background: #FEF2F2;
+    }
+
+    .item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .order-number {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .material-number {
+        font-family: monospace;
+        background: #F3F4F6;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        color: #4B5563;
+        font-size: 0.95rem;
+    }
+
+    .item-detail {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin-top: 0.75rem;
+        color: #4B5563;
+        font-size: 0.95rem;
+    }
+
+    .conflict-selector {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed #FCD34D;
+    }
+
+    .conflict-option {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border: 1px solid #FDE68A;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .conflict-option:hover {
+        background: #FEF3C7;
+    }
+
+    .conflict-option label {
+        flex: 1;
+        cursor: pointer;
+        margin: 0;
+        font-size: 0.95rem;
+    }
+
+    .sticky-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 1rem;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    @media (min-width: 768px) {
+        .sticky-footer {
+            left: 200px; /* offset sidebar */
+        }
+    }
+
+    .btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.75rem 2.5rem;
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3);
+        transition: all 0.2s;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(245, 158, 11, 0.4);
+    }
+    
+    .btn-cancel {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.75rem 1.5rem;
+        background: #F3F4F6;
+        color: #374151;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .summary-text {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1F2937;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <a href="javascript:history.back()" style="text-decoration: none; color: #6B7280; margin-right: 0.5rem;"><i class="fas fa-arrow-left"></i></a>
+            預覽確認
+        </h1>
+    </div>
+
+    <form id="executeForm" method="POST" action="{% url 'requisitions:simple_dispatcher_fast_dispatch_execute' %}">
+        {% csrf_token %}
+        
+        <!-- 自動匹配清單 -->
+        {% if ready_items %}
+        <h2 class="section-title" style="color: #065F46;">✅ 準備撥料 <span class="section-count" style="background:#D1FAE5;">{{ ready_items|length }}</span></h2>
+        {% for item in ready_items %}
+        <div class="item-card ready">
+            <div class="item-header">
+                <span class="order-number">{{ item.order_number }}</span>
+                <span class="material-number">{{ item.material_number }}</span>
+            </div>
+            <div class="item-detail">
+                <span><strong>品名：</strong>{{ item.item_name }}</span>
+                <span><strong>投料點：</strong><span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px;">{{ item.process_type }}</span></span>
+                <span><strong>需求數量：</strong>{{ item.required_quantity }}</span>
+            </div>
+            <!-- 隱藏攜帶 ID -->
+            <input type="checkbox" name="wom_ids" value="{{ item.wom_id }}" checked style="display:none;">
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- 多投料點衝突清單 -->
+        {% if conflict_items %}
+        <h2 class="section-title" style="color: #92400E;">⚠️ 需手動確認多個投料點 <span class="section-count" style="background:#FEF3C7;">{{ conflict_items|length }}</span></h2>
+        <p style="color: #B45309; font-size: 0.95rem; margin-top: -0.5rem; margin-bottom: 1rem;">下方的工單物料同時使用在不同的投料點，請勾選您這次實際要撥料的項目。</p>
+        
+        {% for group in conflict_items %}
+        <div class="item-card conflict">
+            <div class="item-header">
+                <span class="order-number">{{ group.order_number }}</span>
+                <span class="material-number">{{ group.material_number }}</span>
+            </div>
+            <div style="font-size: 0.95rem; color: #4B5563;"><strong>品名：</strong>{{ group.item_name }}</div>
+            
+            <div class="conflict-selector">
+                <div style="font-size: 0.85rem; font-weight: 600; color: #92400E; margin-bottom: 0.5rem;">請勾選欲撥料的投料點：</div>
+                {% for cand in group.candidates %}
+                <label class="conflict-option">
+                    <input type="checkbox" class="conflict-checkbox" name="wom_ids" value="{{ cand.wom_id }}" style="width: 18px; height: 18px;" checked>
+                    <div>
+                        <span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px; font-weight:600;">{{ cand.process_type }}</span>
+                        <span style="margin-left: 0.5rem; color: #4B5563;">需 {{ cand.required_quantity }} 件</span>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- 找不到紀錄 -->
+        {% if not_found_items %}
+        <h2 class="section-title" style="color: #991B1B;">❌ 找不到主物料清單 <span class="section-count" style="background:#FEE2E2;">{{ not_found_items|length }}</span></h2>
+        <p style="color: #EF4444; font-size: 0.95rem; margin-top: -0.5rem; margin-bottom: 1rem;">系統中無此工單與物料之紀錄，將會被忽略。</p>
+        
+        {% for item in not_found_items %}
+        <div class="item-card error">
+            <div class="item-header" style="margin-bottom: 0;">
+                <span class="order-number">{{ item.order_number }}</span>
+                <span class="material-number">{{ item.material_number }}</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if not ready_items and not conflict_items %}
+        <div style="text-align: center; padding: 3rem; color: #6B7280; background: white; border-radius: 16px;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📭</div>
+            沒有可供撥料的有效項目
+        </div>
+        {% endif %}
+
+        <div class="sticky-footer">
+            <a href="{% url 'requisitions:simple_dispatcher_fast_dispatch' %}" class="btn-cancel">重新輸入</a>
+            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                <span class="summary-text" id="summaryCounter"></span>
+                <button type="submit" class="btn-submit" id="submitBtn" {% if not ready_items and not conflict_items %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+                    確定全數撥料
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const defaultReadyCount = {{ ready_items|length }};
+    const checkboxes = document.querySelectorAll('.conflict-checkbox');
+    const summaryCounter = document.getElementById('summaryCounter');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function updateCounter() {
+        let checkedConflict = Array.from(checkboxes).filter(cb => cb.checked).length;
+        let total = defaultReadyCount + checkedConflict;
+        summaryCounter.innerHTML = `共將執行 <strong><span style="color:#D97706; font-size:1.3rem;">${total}</span></strong> 筆全額撥出`;
+        submitBtn.disabled = total === 0;
+        if(total === 0) {
+            submitBtn.style.opacity = '0.5';
+            submitBtn.style.cursor = 'not-allowed';
+        } else {
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        }
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateCounter);
+    });
+
+    updateCounter();
+    
+    document.getElementById('executeForm').addEventListener('submit', function() {
+        if(submitBtn.disabled) return false;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 0.5rem;"></i>執行中...';
+        submitBtn.disabled = true;
+    });
+});
+</script>
+{% endblock %}
