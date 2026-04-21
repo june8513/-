@@ -286,7 +286,7 @@
         cursor: pointer;
     }
 
-    .carousel-indicators {
+    .announcement-indicators {
         display: flex;
         justify-content: center;
         gap: 0.5rem;
@@ -325,7 +325,58 @@
         </div>
     </div>
 
-    <!-- (Moved Announcement Box to Bottom) -->
+    {% if announcements or can_publish %}
+    <div class="announcement-box" style="margin-bottom: 1.5rem;">
+        <div class="announcement-carousel" id="announcement-carousel">
+            {% for ann in announcements %}
+            <div class="announcement-item {% if forloop.first %}active{% endif %}" data-id="{{ ann.id }}">
+                <div class="announcement-icon">📢</div>
+                <div class="announcement-content">
+                    <div class="announcement-text">{{ ann.content|truncatechars:50 }}</div>
+                    <div class="announcement-meta">發佈時間：{{ ann.created_at|date:"n/j H:i" }}</div>
+                </div>
+                {% if can_publish %}
+                <div class="announcement-actions">
+                    <button class="announcement-add-btn" title="發佈新公告">➕</button>
+                    <button class="announcement-edit-btn" title="以此為範本編輯">✏️</button>
+                    <button class="announcement-delete-btn" title="刪除此公告">🗑️</button>
+                </div>
+                {% endif %}
+            </div>
+            {% empty %}
+            {% if can_publish %}
+            <div class="announcement-item active">
+                <div class="announcement-icon">📢</div>
+                <div class="announcement-content">
+                    <div class="announcement-text">目前無公告內容。</div>
+                </div>
+                <div class="announcement-actions">
+                    <button class="announcement-add-btn" title="發佈新公告">➕</button>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        {% if announcements.count > 1 %}
+        <div class="announcement-indicators">
+            {% for ann in announcements %}
+            <div class="indicator {% if forloop.first %}active{% endif %}" data-index="{{ forloop.counter0 }}"></div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if can_publish %}
+        <div class="edit-form-container" id="edit-form-container" style="padding: 0.5rem 1rem;">
+            <textarea class="edit-textarea" id="announcement-textarea" style="min-height: 60px;" placeholder="輸入公告內容..."></textarea>
+            <div class="edit-actions">
+                <button class="btn-cancel" id="cancel-edit-btn">取消</button>
+                <button class="btn-save" id="save-announcement-btn">發佈公告</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- 成品/半成品標籤切換與快速撥料 -->
     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: stretch;">
@@ -365,59 +416,6 @@
         </div>
         {% endfor %}
     </div>
-
-    {% if announcements or can_publish %}
-    <div class="announcement-box" style="margin-top: 1.5rem; margin-bottom: 0;">
-        <div class="announcement-carousel" id="announcement-carousel">
-            {% for ann in announcements %}
-            <div class="announcement-item {% if forloop.first %}active{% endif %}" data-id="{{ ann.id }}">
-                <div class="announcement-icon">📢</div>
-                <div class="announcement-content">
-                    <div class="announcement-text">{{ ann.content|truncatechars:50 }}</div>
-                    <div class="announcement-meta">發佈時間：{{ ann.created_at|date:"n/j H:i" }}</div>
-                </div>
-                {% if can_publish %}
-                <div class="announcement-actions">
-                    <button class="announcement-add-btn" title="發佈新公告">➕</button>
-                    <button class="announcement-edit-btn" title="以此為範本編輯">✏️</button>
-                    <button class="announcement-delete-btn" title="刪除此公告">🗑️</button>
-                </div>
-                {% endif %}
-            </div>
-            {% empty %}
-            {% if can_publish %}
-            <div class="announcement-item active">
-                <div class="announcement-icon">📢</div>
-                <div class="announcement-content">
-                    <div class="announcement-text">目前無公告內容。</div>
-                </div>
-                <div class="announcement-actions">
-                    <button class="announcement-add-btn" title="發佈新公告">➕</button>
-                </div>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-
-        {% if announcements.count > 1 %}
-        <div class="carousel-indicators">
-            {% for ann in announcements %}
-            <div class="indicator {% if forloop.first %}active{% endif %}" data-index="{{ forloop.counter0 }}"></div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        {% if can_publish %}
-        <div class="edit-form-container" id="edit-form-container" style="padding: 0.5rem 1rem;">
-            <textarea class="edit-textarea" id="announcement-textarea" style="min-height: 60px;" placeholder="輸入公告內容..."></textarea>
-            <div class="edit-actions">
-                <button class="btn-cancel" id="cancel-edit-btn">取消</button>
-                <button class="btn-save" id="save-announcement-btn">發佈公告</button>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
 
 </div>
 

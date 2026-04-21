@@ -14,7 +14,8 @@ def user_login(request):
             user = authenticate(username=username, password=password)
             if user is not None:
                 login(request, user)
-                messages.success(request, f"歡迎回來, {username}!")
+                display_name = user.last_name + user.first_name if user.last_name or user.first_name else user.username
+                messages.success(request, f"歡迎回來, {display_name}!")
                 return redirect('core:homepage')
             else:
                 messages.error(request, "無效的使用者名稱或密碼。")

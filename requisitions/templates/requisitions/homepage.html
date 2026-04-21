@@ -7,7 +7,7 @@
     <div class="row mb-4">
         <div class="col">
             <h1 class="display-6">儀表板</h1>
-            <p class="text-muted">歡迎回來, {{ user.username }}！請選擇您要執行的功能。</p>
+            <p class="text-muted">歡迎回來, {% if user.last_name or user.first_name %}{{ user.last_name }}{{ user.first_name }}{% else %}{{ user.username }}{% endif %}！請選擇您要執行的功能。</p>
 
         </div>
     </div>

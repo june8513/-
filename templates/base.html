@@ -162,7 +162,7 @@
                     <ul class="navbar-nav d-flex flex-row align-items-center">
                         {% if user.is_authenticated %}
                         <li class="nav-item me-3">
-                            <span class="navbar-text">歡迎, {{ user.username }}!</span>
+                            <span class="navbar-text">歡迎, {% if user.last_name or user.first_name %}{{ user.last_name }}{{ user.first_name }}{% else %}{{ user.username }}{% endif %}!</span>
                         </li>
                         <li class="nav-item me-2">
                             <button class="theme-toggle" id="themeToggle" title="切換暗黑/亮色模式">🌙</button>
