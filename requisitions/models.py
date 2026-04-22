@@ -31,6 +31,7 @@ class ProcessType(models.Model):
 class WorkOrder(models.Model):
     order_number = models.CharField(max_length=100, unique=True, verbose_name="工單單號")
     shipping_date = models.DateField(null=True, blank=True, verbose_name="出貨日期")
+    customer_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="客戶名稱")
     is_archived = models.BooleanField(default=False, verbose_name="是否已歸檔")
     status_message = models.CharField(max_length=255, blank=True, null=True, verbose_name="工單現況")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
@@ -259,6 +260,7 @@ class AutoUploadConfig(models.Model):
         ('material_details', '物料明細 (Material Details)'),
         ('semi_finished', '半成品資料 (Semi-Finished)'),
         ('semi_finished_model_db', '半成品機型資料庫 (Semi-Finished Model DB)'),
+        ('shipping_customer', '出貨客戶資料 (Shipping & Customer)'),
     ]
     upload_type = models.CharField(max_length=50, choices=UPLOAD_TYPES, unique=True, verbose_name="上傳類型")
     file_path = models.CharField(max_length=255, verbose_name="檔案路徑", help_text="請輸入完整檔案路徑，例如 C:\\SAP\\inventory.xlsx")

@@ -67,6 +67,92 @@ def notify_requisition_shortages(requisition):
     except Exception as e:
         print(f"[Requisition Notification] Error: {e}")
 
+def process_shipping_customer_excel(excel_file_path):
+    """
+    處理出貨客戶資料 Excel 上傳。
+    Excel 需包含：訂單單號(或訂單), 客戶原始預交日(出貨日期), 客戶名稱
+    Returns a tuple (updated_count).
+    """
+    try:
+        try:
+            df_upload = pd.read_excel(excel_file_path, dtype=str, engine='openpyxl')
+        except Exception as e:
+            tb_str = traceback.format_exc()
+            raise ValueError(f"讀取 Excel 檔案時發生錯誤: {e}\n{tb_str}")
+
+        df_upload.columns = df_upload.columns.str.strip()
+
+        # 偵測訂單欄位
+        order_col = None
+        for col_name in ['訂單單號', '訂單']:
+            if col_name in df_upload.columns:
+                order_col = col_name
+                break
+        if not order_col:
+            raise ValueError("上傳的 Excel 檔案中找不到 '訂單單號' 或 '訂單' 欄位。")
+
+        # 偵測出貨日期欄位
+        shipping_date_col = None
+        for col_name in ['客戶原始預交日', '出貨日期', '預交日期', '交期']:
+            if col_name in df_upload.columns:
+                shipping_date_col = col_name
+                break
+
+        # 偵測客戶名稱欄位
+        customer_col = None
+        for col_name in ['客戶名稱', '客戶', '客戶名']:
+            if col_name in df_upload.columns:
+                customer_col = col_name
+                break
+
+        if not shipping_date_col and not customer_col:
+            raise ValueError("上傳的 Excel 檔案中找不到 '客戶原始預交日' 或 '客戶名稱' 相關欄位。")
+
+        updated_count = 0
+
+        with transaction.atomic():
+            for _, row in df_upload.iterrows():
+                order_number = str(row.get(order_col, '')).strip()
+                if not order_number:
+                    continue
+
+                # 解析出貨日期
+                shipping_date = None
+                if shipping_date_col:
+                    date_val = row.get(shipping_date_col)
+                    if pd.notna(date_val):
+                        try:
+                            shipping_date = pd.to_datetime(date_val).date()
+                        except (ValueError, TypeError):
+                            shipping_date = None
+
+                # 解析客戶名稱
+                customer_name = None
+                if customer_col:
+                    val = row.get(customer_col)
+                    if pd.notna(val):
+                        customer_name = str(val).strip()
+
+                # 更新 WorkOrder
+                defaults = {}
+                if shipping_date is not None:
+                    defaults['shipping_date'] = shipping_date
+                if customer_name:
+                    defaults['customer_name'] = customer_name
+
+                if defaults:
+                    obj, created = WorkOrder.objects.update_or_create(
+                        order_number=order_number,
+                        defaults=defaults
+                    )
+                    updated_count += 1
+
+        return updated_count
+
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        raise type(e)(f"處理出貨客戶 Excel 時發生錯誤: {e}\n{tb_str}")
+
 def process_order_model_excel(excel_file_path):
     """
     Processes an Excel file to upload order and machine model data.
@@ -280,6 +366,13 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
         # 新增：讀取作業說明欄位
         operation_desc_col = '作業說明' if '作業說明' in df_upload.columns else None
 
+        # 新增：讀取需求日期欄位
+        demand_date_col = None
+        for col_name in ['需求日期', '基本開始日期', '基本完成日期']:
+            if col_name in df_upload.columns:
+                demand_date_col = col_name
+                break
+
         # --- START of FIX: Aggregate data before processing ---
         group_cols = [order_col, '物料']
         # if parent_desc_col:
@@ -295,6 +388,8 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
             agg_dict[operation_desc_col] = 'first'  # Keep the first operation description
         if parent_desc_col:
             agg_dict[parent_desc_col] = 'first' # Keep the first parent description
+        if demand_date_col:
+            agg_dict[demand_date_col] = 'first'  # Keep the first demand date
 
         # 這裡的 fillna('') 很重要，否則 groupby 會丟棄 NaN 的 key，但我們需要保留
         df_aggregated = df_upload.groupby(group_cols).agg(agg_dict).reset_index()
@@ -566,8 +661,31 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 if is_dirty:
                     materials_to_update_dict[material_instance.id] = material_instance
                     updated_count += 1
+
+                # 更新需求日期
+                if demand_date_col:
+                    date_val = row.get(demand_date_col)
+                    if pd.notna(date_val):
+                        try:
+                            parsed_date = pd.to_datetime(date_val).date()
+                            if material_instance.demand_date != parsed_date:
+                                material_instance.demand_date = parsed_date
+                                if material_instance.id not in materials_to_update_dict:
+                                    materials_to_update_dict[material_instance.id] = material_instance
+                        except:
+                            pass
             else:
                 if current_material_key not in created_material_keys:
+                    # 解析需求日期
+                    new_demand_date = None
+                    if demand_date_col:
+                        date_val = row.get(demand_date_col)
+                        if pd.notna(date_val):
+                            try:
+                                new_demand_date = pd.to_datetime(date_val).date()
+                            except:
+                                new_demand_date = None
+                    
                     materials_to_create.append(
                         WorkOrderMaterial(
                             order_number=order_number_clean,
@@ -576,6 +694,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                             item_name=item_name_clean,
                             required_quantity=required_quantity_clean,
                             process_type=process_type_obj,
+                            demand_date=new_demand_date,
                             is_active=True
                         )
                     )
@@ -646,7 +765,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
             materials_to_update = list(materials_to_update_dict.values())
 
             if materials_to_update:
-                WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active'], batch_size=2000)
+                WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=['item_name', 'required_quantity', 'process_type', 'is_active', 'demand_date'], batch_size=2000)
                 
                 # 批次同步 RequisitionItem 的品名與數量
                 sync_materials = [m for m in materials_to_update if getattr(m, '_sync_needed', False)]

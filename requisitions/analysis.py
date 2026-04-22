@@ -155,10 +155,13 @@ def get_material_demand_analysis():
 
         # Update running stock and is_running_shortage for display in detail_orders
         running_stock_for_display = data['current_stock']
+        running_demand = Decimal('0.00')
         for detail in data['detail_orders']:
             required_qty = detail['required_quantity']
             running_stock_for_display -= required_qty
+            running_demand += required_qty
             detail['running_stock'] = str(running_stock_for_display)
+            detail['cumulative_demand'] = str(running_demand)
             detail['is_running_shortage'] = running_stock_for_display < 0
 
             # Find the first shortage demand date (this is different from shipping date)

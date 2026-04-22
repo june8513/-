@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Prefetch, F, Exists, OuterRef, Case, When, Value, BooleanField, Q, Sum, DecimalField, Count
+from django.db.models import Prefetch, F, Exists, OuterRef, Case, When, Value, BooleanField, Q, Sum, DecimalField, Count, IntegerField, CharField
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
@@ -1564,6 +1564,7 @@ def simple_dispatcher_fast_dispatch(request):
                     })
         
         ready_items = []
+        already_full_items = []
         conflict_items = []
         not_found_items = []
         
@@ -1584,31 +1585,74 @@ def simple_dispatcher_fast_dispatch(request):
                 not_found_items.append({'order_number': order_no, 'material_number': mat_no})
             elif wom_count == 1:
                 wom = woms.first()
-                ready_items.append({
-                    'order_number': order_no,
-                    'material_number': mat_no,
-                    'item_name': wom.item_name,
-                    'process_type': wom.process_type.name if wom.process_type else '未指定',
-                    'required_quantity': wom.required_quantity,
-                    'wom_id': wom.id
-                })
+                # 檢查 WOM 本身的 confirmed_quantity
+                wom_confirmed = wom.confirmed_quantity or Decimal('0')
+                # 也檢查 RequisitionItem 的 confirmed_quantity（一般撥料流程只更新 RequisitionItem）
+                req_item_confirmed = RequisitionItem.objects.filter(
+                    source_material=wom
+                ).order_by('-confirmed_quantity').values_list('confirmed_quantity', flat=True).first() or Decimal('0')
+                # 取兩者中較大值作為實際已撥數量
+                confirmed = max(wom_confirmed, req_item_confirmed)
+                is_full = confirmed >= wom.required_quantity
+                
+                if is_full:
+                    already_full_items.append({
+                        'order_number': order_no,
+                        'material_number': mat_no,
+                        'item_name': wom.item_name,
+                        'process_type': wom.process_type.name if wom.process_type else '未指定',
+                        'required_quantity': wom.required_quantity,
+                        'confirmed_quantity': confirmed,
+                    })
+                else:
+                    ready_items.append({
+                        'order_number': order_no,
+                        'material_number': mat_no,
+                        'item_name': wom.item_name,
+                        'process_type': wom.process_type.name if wom.process_type else '未指定',
+                        'required_quantity': wom.required_quantity,
+                        'confirmed_quantity': confirmed,
+                        'wom_id': wom.id
+                    })
             else:
                 candidates = []
+                all_full = True
                 for wom in woms:
+                    wom_confirmed = wom.confirmed_quantity or Decimal('0')
+                    req_item_confirmed = RequisitionItem.objects.filter(
+                        source_material=wom
+                    ).order_by('-confirmed_quantity').values_list('confirmed_quantity', flat=True).first() or Decimal('0')
+                    confirmed = max(wom_confirmed, req_item_confirmed)
+                    is_full = confirmed >= wom.required_quantity
+                    if not is_full:
+                        all_full = False
                     candidates.append({
                         'wom_id': wom.id,
                         'process_type': wom.process_type.name if wom.process_type else '未指定',
                         'required_quantity': wom.required_quantity,
+                        'confirmed_quantity': confirmed,
+                        'is_full': is_full,
                     })
-                conflict_items.append({
-                    'order_number': order_no,
-                    'material_number': mat_no,
-                    'item_name': woms.first().item_name,
-                    'candidates': candidates
-                })
+                if all_full:
+                    already_full_items.append({
+                        'order_number': order_no,
+                        'material_number': mat_no,
+                        'item_name': woms.first().item_name,
+                        'process_type': ', '.join([c['process_type'] for c in candidates]),
+                        'required_quantity': sum(c['required_quantity'] for c in candidates),
+                        'confirmed_quantity': sum(c['confirmed_quantity'] for c in candidates),
+                    })
+                else:
+                    conflict_items.append({
+                        'order_number': order_no,
+                        'material_number': mat_no,
+                        'item_name': woms.first().item_name,
+                        'candidates': candidates
+                    })
                 
         return render(request, 'requisitions/simple/simple_fast_dispatch_preview.html', {
             'ready_items': ready_items,
+            'already_full_items': already_full_items,
             'conflict_items': conflict_items,
             'not_found_items': not_found_items,
         })
@@ -1880,3 +1924,207 @@ def dismiss_requisition_item_alert(request, item_pk):
         return redirect('requisitions:simple_requisition_change_detail', pk=requisition.pk)
 
     return HttpResponse("method not allowed", status=405)
+
+
+@login_required
+def shortage_inquiry(request):
+    """
+    缺料查詢 - 給申請人主管使用
+    批量帶入工單號碼，自動查出庫存量低於未滿足需求數量的物料
+    """
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if not (request.user.is_superuser or is_supervisor):
+        messages.error(request, "您沒有權限使用此功能。")
+        return redirect('core:homepage')
+
+    results = None
+    submitted_orders = ''
+    order_count = 0
+
+    if request.method == 'POST':
+        import re
+        raw_text = request.POST.get('order_numbers', '')
+        submitted_orders = raw_text
+        # 解析工單號碼：支援換行、逗號、空白分隔
+        order_numbers = [o.strip() for o in re.split(r'[\n\r,\s\t]+', raw_text) if o.strip()]
+
+        if not order_numbers:
+            messages.warning(request, "請輸入至少一個工單號碼。")
+        else:
+            from ..analysis import get_material_demand_analysis
+
+            # 使用全域分析函數計算所有工單的物料需求與缺料狀態
+            all_materials_analysis = get_material_demand_analysis()
+
+            # 預先查詢所有相關工單的客戶名稱
+            work_order_map = {}
+            for wo in WorkOrder.objects.filter(order_number__in=order_numbers):
+                work_order_map[wo.order_number] = wo
+
+            # 預先查詢供應商資訊
+            all_material_numbers = set()
+            for material_key, data in all_materials_analysis.items():
+                if data['is_shortage']:
+                    for detail in data['detail_orders']:
+                        if detail['order_number'] in order_numbers:
+                            all_material_numbers.add(material_key)
+                            break
+
+            supplier_map = {}
+            for mat in Material.objects.filter(material_code__in=all_material_numbers):
+                supplier_map[mat.material_code] = mat.purchaser
+
+            results = []
+            seen_orders = set()
+
+            for material_key, data in all_materials_analysis.items():
+                # 只顯示全域分析後確認為缺料的物料
+                if not data['is_shortage']:
+                    continue
+
+                # 篩選出屬於查詢工單的明細
+                relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
+                if not relevant_details:
+                    continue
+
+                # 全域庫存
+                current_stock = float(data['current_stock'])
+
+                for detail in relevant_details:
+                    order_num = detail['order_number']
+                    wo = work_order_map.get(order_num)
+                    
+                    # 這一點的累計需求
+                    cumulative_demand = float(detail['cumulative_demand'])
+                    
+                    # 計算这一點的缺料量 (累計需求 - 庫存，最小為 0)
+                    row_shortage = max(0.0, cumulative_demand - current_stock)
+
+                    # 如果此工單在累計需求下還沒造成缺料，則視情況跳過？
+                    # 使用者要求是「缺料查詢」，所以如果 row_shortage 為 0，代表此工單的需求目前庫存還夠支應
+                    if row_shortage <= 0:
+                        continue
+
+                    seen_orders.add(order_num)
+                    results.append({
+                        'order_number': order_num,
+                        'machine_model': detail.get('machine_model_name'),
+                        'material_number': data['material_number'],
+                        'item_name': data['item_name'],
+                        'process_type': detail.get('process_type_name'),
+                        'required_quantity': float(detail['required_quantity']),
+                        'stock_quantity': current_stock,
+                        'shortage': row_shortage,
+                        'total_demand': cumulative_demand,
+                        'demand_date': detail.get('demand_date'),
+                        'shipping_date': detail.get('shipping_date') or (wo.shipping_date if wo else None),
+                        'estimated_arrival': data.get('estimated_arrival_date'),
+                        'customer_name': wo.customer_name if wo else None,
+                        'supplier': supplier_map.get(data['material_number']),
+                    })
+
+            # 排序：依工單號 -> 品號
+            results.sort(key=lambda x: (x['order_number'], x['material_number']))
+            order_count = len(seen_orders)
+
+    return render(request, 'requisitions/simple/simple_shortage_inquiry.html', {
+        'results': results,
+        'submitted_orders': submitted_orders,
+        'order_count': order_count,
+    })
+
+
+@login_required
+@require_POST
+def shortage_inquiry_export(request):
+    """
+    缺料查詢結果匯出 Excel
+    """
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    if not (request.user.is_superuser or is_supervisor):
+        messages.error(request, "您沒有權限使用此功能。")
+        return redirect('core:homepage')
+
+    import re
+    raw_text = request.POST.get('order_numbers', '')
+    order_numbers = [o.strip() for o in re.split(r'[\n\r,\s\t]+', raw_text) if o.strip()]
+
+    if not order_numbers:
+        messages.error(request, "無可匯出的資料。")
+        return redirect('requisitions:shortage_inquiry')
+
+    from ..analysis import get_material_demand_analysis
+
+    # 使用全域分析函數
+    all_materials_analysis = get_material_demand_analysis()
+
+    # 預先查詢工單資訊
+    work_order_map = {}
+    for wo in WorkOrder.objects.filter(order_number__in=order_numbers):
+        work_order_map[wo.order_number] = wo
+
+    # 預先查詢供應商資訊
+    all_material_numbers = set()
+    for material_key, data in all_materials_analysis.items():
+        if data['is_shortage']:
+            for detail in data['detail_orders']:
+                if detail['order_number'] in order_numbers:
+                    all_material_numbers.add(material_key)
+                    break
+
+    supplier_map = {}
+    for mat in Material.objects.filter(material_code__in=all_material_numbers):
+        supplier_map[mat.material_code] = mat.purchaser
+
+    rows = []
+    for material_key, data in all_materials_analysis.items():
+        if not data['is_shortage']:
+            continue
+
+        relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
+        if not relevant_details:
+            continue
+
+        current_stock = float(data['current_stock'])
+
+        for detail in relevant_details:
+            order_num = detail['order_number']
+            wo = work_order_map.get(order_num)
+            
+            cumulative_demand = float(detail['cumulative_demand'])
+            row_shortage = max(0.0, cumulative_demand - current_stock)
+
+            if row_shortage <= 0:
+                continue
+
+            rows.append({
+                '工單號碼': order_num,
+                '客戶': wo.customer_name if wo and wo.customer_name else '',
+                '機型': detail.get('machine_model_name', ''),
+                '品號': data['material_number'],
+                '品名': data['item_name'],
+                '供應商': supplier_map.get(data['material_number'], ''),
+                '投料點': detail.get('process_type_name', ''),
+                '此工單需求量': float(detail['required_quantity']),
+                '累計未滿足需求': cumulative_demand,
+                '庫存量': current_stock,
+                '缺料': row_shortage,
+                '需求日期': detail.get('demand_date') or '',
+                '出貨日期': detail.get('shipping_date') or (wo.shipping_date if wo else '') or '',
+                '預計入料': data.get('estimated_arrival_date') or '',
+            })
+
+    rows.sort(key=lambda x: (x['工單號碼'], x['品號']))
+
+    df = pd.DataFrame(rows)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='缺料查詢')
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="shortage_inquiry_{date.today().isoformat()}.xlsx"'
+    return response

@@ -62,6 +62,11 @@
         border-left: 4px solid #EF4444;
         background: #FEF2F2;
     }
+    .item-card.already-full {
+        border-left: 4px solid #DC2626;
+        background: #FEE2E2;
+        opacity: 0.85;
+    }
 
     .item-header {
         display: flex;
@@ -210,6 +215,9 @@
                 <span><strong>品名：</strong>{{ item.item_name }}</span>
                 <span><strong>投料點：</strong><span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px;">{{ item.process_type }}</span></span>
                 <span><strong>需求數量：</strong>{{ item.required_quantity }}</span>
+                {% if item.confirmed_quantity %}
+                <span><strong>已撥數量：</strong><span style="color: #059669;">{{ item.confirmed_quantity }}</span></span>
+                {% endif %}
             </div>
             <!-- 隱藏攜帶 ID -->
             <input type="checkbox" name="wom_ids" value="{{ item.wom_id }}" checked style="display:none;">
@@ -233,14 +241,40 @@
             <div class="conflict-selector">
                 <div style="font-size: 0.85rem; font-weight: 600; color: #92400E; margin-bottom: 0.5rem;">請勾選欲撥料的投料點：</div>
                 {% for cand in group.candidates %}
-                <label class="conflict-option">
-                    <input type="checkbox" class="conflict-checkbox" name="wom_ids" value="{{ cand.wom_id }}" style="width: 18px; height: 18px;" checked>
+                <label class="conflict-option" {% if cand.is_full %}style="opacity: 0.5; background: #FEE2E2; border-color: #FECACA;"{% endif %}>
+                    <input type="checkbox" class="conflict-checkbox" name="wom_ids" value="{{ cand.wom_id }}" style="width: 18px; height: 18px;" {% if not cand.is_full %}checked{% else %}disabled{% endif %}>
                     <div>
                         <span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px; font-weight:600;">{{ cand.process_type }}</span>
                         <span style="margin-left: 0.5rem; color: #4B5563;">需 {{ cand.required_quantity }} 件</span>
+                        {% if cand.is_full %}
+                        <span style="margin-left: 0.5rem; color: #DC2626; font-weight: 700;">✅ 已滿額 (已撥 {{ cand.confirmed_quantity }})</span>
+                        {% elif cand.confirmed_quantity %}
+                        <span style="margin-left: 0.5rem; color: #059669;">已撥 {{ cand.confirmed_quantity }}</span>
+                        {% endif %}
                     </div>
                 </label>
                 {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- 已滿額不撥料 -->
+        {% if already_full_items %}
+        <h2 class="section-title" style="color: #DC2626;">🚫 已滿額（不會撥料） <span class="section-count" style="background:#FEE2E2; color:#991B1B;">{{ already_full_items|length }}</span></h2>
+        <p style="color: #DC2626; font-size: 0.95rem; margin-top: -0.5rem; margin-bottom: 1rem;">以下物料已撥數量已達或超過需求數量，將不會再進行撥料。</p>
+        
+        {% for item in already_full_items %}
+        <div class="item-card already-full">
+            <div class="item-header">
+                <span class="order-number" style="color: #991B1B;">{{ item.order_number }}</span>
+                <span class="material-number" style="background: #FECACA; color: #991B1B;">{{ item.material_number }}</span>
+            </div>
+            <div class="item-detail">
+                <span><strong>品名：</strong>{{ item.item_name }}</span>
+                <span><strong>投料點：</strong><span style="background: #FECACA; padding: 2px 6px; border-radius: 4px;">{{ item.process_type }}</span></span>
+                <span><strong>需求數量：</strong>{{ item.required_quantity }}</span>
+                <span style="color: #DC2626; font-weight: 700;"><strong>已撥數量：</strong>{{ item.confirmed_quantity }}</span>
             </div>
         </div>
         {% endfor %}

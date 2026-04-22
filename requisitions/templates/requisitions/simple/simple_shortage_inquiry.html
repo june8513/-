@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}缺料查詢 - 物料申請系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .input-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid #E5E7EB;
+        margin-bottom: 1.5rem;
+    }
+
+    .input-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .input-hint {
+        font-size: 0.85rem;
+        color: #9CA3AF;
+        margin-bottom: 0.75rem;
+    }
+
+    .input-textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 0.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-family: monospace;
+        outline: none;
+        transition: border-color 0.3s;
+        resize: vertical;
+    }
+
+    .input-textarea:focus {
+        border-color: #6366F1;
+    }
+
+    .btn-query {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 2rem;
+        background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);
+        transition: all 0.2s;
+    }
+
+    .btn-query:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-export {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1.25rem;
+        background: #059669;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .btn-export:hover {
+        background: #047857;
+        color: white;
+    }
+
+    .result-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .summary-stats {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+        font-size: 0.95rem;
+        color: #4B5563;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+    }
+
+    .stat-value.danger { color: #DC2626; }
+    .stat-value.info { color: #2563EB; }
+
+    .result-table-wrapper {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid #E5E7EB;
+        overflow-x: auto;
+    }
+
+    .result-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .result-table thead th {
+        background: #F9FAFB;
+        padding: 0.75rem 0.75rem;
+        text-align: left;
+        font-weight: 700;
+        color: #374151;
+        border-bottom: 2px solid #E5E7EB;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .result-table tbody td {
+        padding: 0.65rem 0.75rem;
+        border-bottom: 1px solid #F3F4F6;
+        color: #1F2937;
+    }
+
+    .result-table tbody tr:hover {
+        background: #F0F4FF;
+    }
+
+    .result-table tbody tr.shortage-row {
+        background: #FEF2F2;
+    }
+
+    .result-table tbody tr.shortage-row:hover {
+        background: #FEE2E2;
+    }
+
+    .shortage-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    .shortage-badge.critical {
+        background: #FEE2E2;
+        color: #991B1B;
+    }
+
+    .shortage-badge.warning {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    /* Sorting styles */
+    .result-table thead th.sortable {
+        cursor: pointer;
+        position: relative;
+        padding-right: 25px;
+        transition: background-color 0.2s;
+    }
+
+    .result-table thead th.sortable:hover {
+        background-color: #F3F4F6;
+    }
+
+    .result-table thead th.sortable::after {
+        content: '↕';
+        position: absolute;
+        right: 8px;
+        color: #9CA3AF;
+        font-size: 0.8rem;
+    }
+
+    .result-table thead th.sortable.asc::after {
+        content: '↑';
+        color: #4F46E5;
+    }
+
+    .result-table thead th.sortable.desc::after {
+        content: '↓';
+        color: #4F46E5;
+    }
+
+    .mono-text {
+        font-family: monospace;
+        font-size: 0.9rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6B7280;
+    }
+
+    .empty-state .icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .result-table-wrapper {
+            overflow-x: auto;
+        }
+        .result-table {
+            min-width: 900px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <a href="{% url 'core:homepage' %}" style="text-decoration: none; color: #6B7280; margin-right: 0.5rem;"><i class="fas fa-arrow-left"></i></a>
+            🔍 缺料查詢
+        </h1>
+    </div>
+
+    <!-- 輸入區 -->
+    <div class="input-card">
+        <form method="POST" id="queryForm">
+            {% csrf_token %}
+            <label class="input-label">輸入工單號碼</label>
+            <div class="input-hint">支援批量輸入，每行一個工單號碼，或以逗號、空白鍵分隔。可直接從 Excel 貼上。</div>
+            <textarea class="input-textarea" name="order_numbers" placeholder="例：&#10;100003541&#10;100003614&#10;100003700">{{ submitted_orders }}</textarea>
+            <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn-query">
+                    <i class="fas fa-search"></i> 查詢缺料
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if results is not None %}
+    <!-- 結果區 -->
+    {% if results %}
+    <div class="result-summary">
+        <div class="summary-stats">
+            <div class="stat-item">
+                <span>查詢結果：</span>
+                <span class="stat-value danger">{{ results|length }}</span>
+                <span>筆缺料</span>
+            </div>
+            <div class="stat-item">
+                <span>涉及工單：</span>
+                <span class="stat-value info">{{ order_count }}</span>
+                <span>張</span>
+            </div>
+        </div>
+        <form method="POST" action="{% url 'requisitions:shortage_inquiry_export' %}">
+            {% csrf_token %}
+            <input type="hidden" name="order_numbers" value="{{ submitted_orders }}">
+            <button type="submit" class="btn-export">
+                <i class="fas fa-file-excel"></i> 匯出 Excel
+            </button>
+        </form>
+    </div>
+
+    <div class="result-table-wrapper">
+        <table class="result-table">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable(0)">工單號碼</th>
+                    <th class="sortable" onclick="sortTable(1)">客戶</th>
+                    <th class="sortable" onclick="sortTable(2)">機型</th>
+                    <th class="sortable" onclick="sortTable(3)">品號</th>
+                    <th class="sortable" onclick="sortTable(4)">品名</th>
+                    <th class="sortable" onclick="sortTable(5)">供應商</th>
+                    <th class="sortable" onclick="sortTable(6)">投料點</th>
+                    <th class="sortable" style="text-align: right;" onclick="sortTable(7)">此單需求</th>
+                    <th class="sortable" style="text-align: right;" onclick="sortTable(8)">累計需求</th>
+                    <th class="sortable" style="text-align: right;" onclick="sortTable(9)">庫存量</th>
+                    <th class="sortable" style="text-align: right;" onclick="sortTable(10)">缺料</th>
+                    <th class="sortable" onclick="sortTable(11)">需求日期</th>
+                    <th class="sortable" onclick="sortTable(12)">出貨日期</th>
+                    <th class="sortable" onclick="sortTable(13)">預計入料</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in results %}
+                <tr class="{% if item.shortage > 0 %}shortage-row{% endif %}">
+                    <td class="mono-text" style="font-weight: 700;">{{ item.order_number }}</td>
+                    <td>{{ item.customer_name|default:"-" }}</td>
+                    <td>{{ item.machine_model|default:"-" }}</td>
+                    <td class="mono-text">{{ item.material_number }}</td>
+                    <td>{{ item.item_name|truncatechars:25 }}</td>
+                    <td>{{ item.supplier|default:"-" }}</td>
+                    <td><span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">{{ item.process_type|default:"-" }}</span></td>
+                    <td style="text-align: right; font-weight: 600;" data-sort-value="{{ item.required_quantity }}">{{ item.required_quantity }}</td>
+                    <td style="text-align: right; color: #7C3AED; font-weight: 600;" data-sort-value="{{ item.total_demand }}">{{ item.total_demand }}</td>
+                    <td style="text-align: right;" data-sort-value="{{ item.stock_quantity }}">{{ item.stock_quantity }}</td>
+                    <td style="text-align: right;" data-sort-value="{{ item.shortage }}">
+                        <span class="shortage-badge critical">{{ item.shortage }}</span>
+                    </td>
+                    <td data-sort-value="{{ item.demand_date|date:'Y-m-d' }}">{{ item.demand_date|date:"Y-m-d"|default:"-" }}</td>
+                    <td data-sort-value="{{ item.shipping_date|date:'Y-m-d' }}">{{ item.shipping_date|date:"Y-m-d"|default:"-" }}</td>
+                    <td data-sort-value="{{ item.estimated_arrival|date:'Y-m-d' }}">{{ item.estimated_arrival|date:"Y-m-d"|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">✅</div>
+        <div style="font-size: 1.1rem; font-weight: 600;">所有物料庫存都已滿足需求</div>
+        <div style="margin-top: 0.5rem;">查詢的工單中沒有庫存不足的物料項目。</div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% block extra_js %}
+<script>
+    let currentSort = { index: -1, direction: 'asc' };
+
+    function sortTable(index) {
+        const table = document.querySelector(".result-table");
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        const headers = table.querySelectorAll("thead th");
+
+        // Toggle direction
+        if (currentSort.index === index) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.index = index;
+            currentSort.direction = 'asc';
+        }
+
+        // Update UI headers
+        headers.forEach((th, i) => {
+            th.classList.remove('asc', 'desc');
+            if (i === index) {
+                th.classList.add(currentSort.direction);
+            }
+        });
+
+        // Sort logic
+        const sortedRows = rows.sort((a, b) => {
+            const cellA = a.cells[index];
+            const cellB = b.cells[index];
+            
+            // Use data-sort-value if available, else textContent
+            let valA = cellA.getAttribute('data-sort-value') || cellA.textContent.trim();
+            let valB = cellB.getAttribute('data-sort-value') || cellB.textContent.trim();
+
+            // Handle numeric values
+            const numA = parseFloat(valA);
+            const numB = parseFloat(valB);
+            
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return currentSort.direction === 'asc' ? numA - numB : numB - numA;
+            }
+
+            // Handle date strings (even without data-sort-value, ISO dates sort correctly as strings)
+            // or just use localeCompare for text
+            const comparison = valA.localeCompare(valB, 'zh-Hant', { numeric: true });
+            return currentSort.direction === 'asc' ? comparison : -comparison;
+        });
+
+        // Re-append sorted rows
+        while (tbody.firstChild) {
+            tbody.removeChild(tbody.firstChild);
+        }
+        tbody.append(...sortedRows);
+    }
+</script>
+{% endblock %}
+{% endblock %}

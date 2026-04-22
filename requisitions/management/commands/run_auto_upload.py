@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from requisitions.models import AutoUploadConfig
-from requisitions.utils import process_inventory_excel, process_order_model_excel, process_material_details_excel
+from requisitions.utils import process_inventory_excel, process_order_model_excel, process_material_details_excel, process_shipping_customer_excel
 import os
 import shutil
 from django.utils import timezone
@@ -71,6 +71,10 @@ class Command(BaseCommand):
                 elif upload_type == 'semi_finished_model_db':
                      created, updated = process_order_model_excel(file_path)
                      msg = f"Success: Created {created}, Updated {updated}"
+
+                elif upload_type == 'shipping_customer':
+                     updated = process_shipping_customer_excel(file_path)
+                     msg = f"Success: Updated {updated} work orders"
 
                 else:
                      raise ValueError(f"未知的上傳類型：'{upload_type}' (len={len(upload_type)}) - 請檢查 models.py 或資料庫設定")
