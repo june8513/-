@@ -449,6 +449,15 @@
     </div>
     {% endif %}
 
+    {% if requisition.is_archived %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert" style="border-radius: 12px; margin-bottom: 1rem;">
+        <div>
+            <strong>🗄️ 此申請單所屬工單已歸檔</strong>
+            <p style="margin: 0.25rem 0 0; font-size: 0.9rem;">無法再進行變更或撥料操作。</p>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="info-card">
         <div class="progress-section">
             <div class="progress-bar-large">
@@ -500,18 +509,23 @@
                 <span class="mat-name">{{ item.item_name }}</span>
                 {% if item.has_backlog %}<span class="backlog-alert">⚠ 有更早工單需先撥料</span>{% endif %}
                 {% if item.status_text %}<span class="status-badge {{ item.card_class }}">{{ item.status_text }}</span>{% endif %}
+                {% if item.source_material.sap_sync_issue %}
+                <span style="font-size: 0.7rem; color: #DC2626; background: #FEE2E2; padding: 1px 6px; border-radius: 4px; border: 1px solid #FECACA; font-weight: 600; display: inline-flex; align-items: center; gap: 2px;" title="SAP 已領 {{ item.source_material.sap_withdrawn_quantity|floatformat:2 }}，與系統不符">
+                    ⚠️ SAP {{ item.source_material.sap_withdrawn_quantity|floatformat:2 }}
+                </span>
+                {% endif %}
             </div>
         </div>
         <form method="post" class="material-actions">
             {% csrf_token %}
             <input type="hidden" name="sort" value="{{ current_sort }}">
             <input type="hidden" name="item_pk" value="{{ item.pk }}">
-            {% if item.is_actionable %}
+            {% if item.is_actionable and not requisition.is_archived %}
             <input type="number" name="dispatched_qty" value="{{ item.required_quantity }}" class="qty-input" min="0"
                 step="1">
             <button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
             <button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>
-            {% elif not item.is_signed_off %}
+            {% elif not item.is_signed_off and not requisition.is_archived %}
             <button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
             {% endif %}
         </form>
@@ -530,12 +544,12 @@
                     <form method="post" class="material-actions">
                         {% csrf_token %}
                         <input type="hidden" name="item_pk" value="{{ supp.pk }}">
-                        {% if supp.is_actionable %}
+                        {% if supp.is_actionable and not requisition.is_archived %}
                         <span style="font-size:0.85rem;color:#6B7280;">補撥數量: {{ supp.required_quantity }}</span>
                         <input type="number" name="dispatched_qty" value="{{ supp.required_quantity }}"
                             class="qty-input" min="0" step="1">
                         <button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
-                        {% elif not supp.is_signed_off %}
+                        {% elif not supp.is_signed_off and not requisition.is_archived %}
                         <button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
                         {% endif %}
                     </form>
@@ -544,7 +558,7 @@
             </div>
             {% endif %}
 
-            {% if item.needs_supplementary %}
+            {% if item.needs_supplementary and not requisition.is_archived %}
             <form method="post" class="add-supplementary-form">
                 {% csrf_token %}
                 <input type="hidden" name="item_pk" value="{{ item.pk }}">

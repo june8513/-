@@ -477,6 +477,41 @@
     <div class="empty-state-sm">目前沒有已簽收的申請單</div>
     {% endfor %}
 
+    <!-- 已歸檔 -->
+    {% if archived_reqs %}
+    <h2 class="section-title" style="color: #6B7280;">🗄️ 已歸檔 <span class="section-count" style="background: #F3F4F6;">{{ archived_reqs|length }}</span></h2>
+    {% for req in archived_reqs %}
+    <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card" style="opacity: 0.6; filter: grayscale(100%);">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem; background: #F3F4F6; color: #6B7280;">{{ req.process_type }}</span>
+                {% if req.is_from_other %}
+                <span class="alert-badge" style="background: #F3F4F6; color: #6B7280; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
+                {% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <div class="status-indicator" style="gap: 0.3rem;"><span class="status-dot" style="background: #9CA3AF;"></span><span style="font-size: 0.8rem; font-weight: 600; color: #6B7280;">已歸檔</span></div>
+                <span class="date-text" style="font-size: 0.75rem;">{{ req.updated_at|date:"m/d" }}</span>
+            </div>
+        </div>
+
+        {% if req.remarks %}
+        <div class="remarks-text" style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #6B7280; background-color: #F9FAFB; padding: 2px 6px; border-left: 3px solid #D1D5DB; border-radius: 4px;">
+            <span style="font-weight: 600;">備註:</span> {{ req.remarks }}
+        </div>
+        {% endif %}
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+            <div class="progress-bar-container" style="flex: 1; margin-top: 0; height: 6px; background: #F3F4F6;">
+                <div class="progress-bar" style="width: 100%; background: #9CA3AF;"></div>
+            </div>
+            <span class="progress-text" style="flex-shrink: 0; margin-top: 0; font-size: 0.75rem; font-weight: 500; color: #9CA3AF;">{{ req.dispatched_count }}/{{ req.total_count }}</span>
+        </div>
+    </a>
+    {% endfor %}
+    {% endif %}
+
 </div>
 
     </div>

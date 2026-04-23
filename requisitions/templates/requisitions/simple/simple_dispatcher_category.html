@@ -233,6 +233,19 @@
         color: #92400E;
     }
 
+    .alert-badge.sap-issue {
+        background: #FEE2E2;
+        color: #DC2626;
+        border: 1px solid #FECACA;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+
     .progress-mini {
         display: flex;
         align-items: center;
@@ -669,10 +682,11 @@
                     {{ req.process_type }} · 申請人: {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
                     {% endif %}
                 </span>
-                {% if req.has_alert or req.is_overdue %}
+                {% if req.has_alert or req.is_overdue or req.has_sap_issue %}
                 <div class="alert-badges" style="margin-top: 0; margin-bottom: 0;">
                     {% if req.is_overdue %}<span class="alert-badge overdue">⚠ 逾期</span>{% endif %}
                     {% if req.has_alert %}<span class="alert-badge change">🚨 變更</span>{% endif %}
+                    {% if req.has_sap_issue %}<span class="alert-badge sap-issue" title="有物料尚未扣帳">⚠️ SAP扣帳異常</span>{% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -734,6 +748,38 @@
     <div class="empty-state">
         暫無已撥料申請單
     </div>
+    {% endif %}
+
+    <!-- 已歸檔申請單 -->
+    {% if archived_requisitions %}
+    <h2 class="section-title" style="color: #6B7280;">🗄️ 已歸檔 <span class="count" style="background: #F3F4F6;">{{ archived_requisitions|length }}</span></h2>
+    {% for req in archived_requisitions %}
+    <a href="{% url 'requisitions:simple_dispatcher_detail' category=category pk=req.pk %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
+        class="requisition-card" style="opacity: 0.6; filter: grayscale(100%);">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
+                <span class="order-number" style="font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span style="font-size: 0.85rem; color: #6B7280; line-height: 1;">
+                    {{ req.process_type }} · 已歸檔
+                </span>
+            </div>
+            <div class="date-text" style="font-size: 0.8rem; line-height: 1; flex-shrink: 0; color: #9CA3AF;">
+                {{ req.updated_at|date:"m/d" }}
+            </div>
+        </div>
+        
+        {% if req.remarks %}
+        <div class="remarks-text" style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #4B5563; background-color: #F9FAFB; padding: 2px 6px; border-left: 3px solid #9CA3AF; border-radius: 4px;">
+            <span style="font-weight: 600;">備註:</span> {{ req.remarks }}
+        </div>
+        {% endif %}
+        <div class="progress-mini">
+            <div class="progress-mini-bar">
+                <div class="progress-mini-fill" style="width: {{ req.progress }}%; background: #9CA3AF;"></div>
+            </div><span class="progress-mini-text">{{ req.dispatched_count }}/{{ req.total_count }}</span>
+        </div>
+    </a>
+    {% endfor %}
     {% endif %}
 
     <!-- Shortage Modal -->

@@ -117,6 +117,11 @@ class WorkOrderMaterial(models.Model):
     is_active = models.BooleanField(default=True, verbose_name="是否啟用") # New field
     estimated_arrival_date = models.DateField(null=True, blank=True, verbose_name="預計入料日期")
     demand_date = models.DateField(null=True, blank=True, verbose_name="需求日期") # New field
+    
+    # SAP 整合相關欄位
+    sap_withdrawn_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="SAP已領料數量")
+    sap_sync_issue = models.BooleanField(default=False, verbose_name="SAP扣帳異常")
+    sap_sync_issue_since = models.DateTimeField(null=True, blank=True, verbose_name="異常發生時間")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

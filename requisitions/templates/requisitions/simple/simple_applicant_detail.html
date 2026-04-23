@@ -420,6 +420,15 @@
         </form>
     </div>
     {% endif %}
+
+    {% if requisition.is_archived %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert" style="border-radius: 12px; margin-bottom: 1rem;">
+        <div>
+            <strong>🗄️ 此申請單所屬工單已歸檔</strong>
+            <p style="margin: 0.25rem 0 0; font-size: 0.9rem;">無法再進行變更或簽收操作。</p>
+        </div>
+    </div>
+    {% endif %}
     <!-- Progress Section -->
     <div class="info-card">
         <div class="progress-section">
@@ -451,11 +460,11 @@
             <span class="info-label">需求日期</span>
             <span class="info-value" id="req-date-display">
                 {{ requisition.request_date|date:"Y-m-d" }}
-                {% if requisition.status == 'demand_submitted' %}
+                {% if requisition.status == 'demand_submitted' and not requisition.is_archived %}
                 <button type="button" class="edit-btn" id="edit-req-date-btn" title="編輯需求日期">✏️</button>
                 {% endif %}
             </span>
-            {% if requisition.status == 'demand_submitted' %}
+            {% if requisition.status == 'demand_submitted' and not requisition.is_archived %}
             <div id="req-date-edit" style="display: none; flex: 1;">
                 <input type="date" id="req-date-input" class="form-control form-control-sm"
                     style="display: inline-block; width: auto;" value="{{ requisition.request_date|date:'Y-m-d' }}">
@@ -486,7 +495,7 @@
         </div>
         {% endif %}
 
-        {% if requisition.status == 'demand_submitted' %}
+        {% if requisition.status == 'demand_submitted' and not requisition.is_archived %}
         <div class="info-row" style="border-bottom: none; padding-top: 1rem; justify-content: flex-end;">
             <form action="{% url 'requisitions:simple_applicant_delete' pk=requisition.pk %}" method="post"
                 onsubmit="return confirm('確定要刪除此申請單嗎？');">
@@ -541,7 +550,7 @@
                 class="status-icon {% if item.dispatch_status == 'dispatched' %}success{% elif item.is_shortage %}shortage{% else %}pending{% endif %}">
                 {% if item.dispatch_status == 'dispatched' %}✓{% elif item.is_shortage %}!{% else %}○{% endif %}
             </div>
-            {% if item.dispatch_status == 'dispatched' and not item.is_signed_off %}
+            {% if item.dispatch_status == 'dispatched' and not item.is_signed_off and not requisition.is_archived %}
             <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}"
                 style="display:inline;" class="sign-off-form">
                 {% csrf_token %}
@@ -557,14 +566,14 @@
         {% endfor %}
     </div>
     <!-- Sign Off Button -->
-    {% if requisition.status != 'signed_off' %}
+    {% if requisition.status != 'signed_off' and not requisition.is_archived %}
     <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}"
         class="sign-off-form">
         {% csrf_token %}
         <input type="hidden" name="confirm_all_sign_off" value="1">
         <button type="submit" class="sign-off-btn" {% if dispatched_count == 0 %}disabled{% endif %}>簽收已撥料物料 ({{ dispatched_count }} 項)</button>
     </form>
-    {% else %}
+    {% elif requisition.status == 'signed_off' %}
     <div class="alert alert-success text-center">此申請單已完成簽收</div>
     {% endif %}
 </div>

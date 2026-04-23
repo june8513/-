@@ -22,6 +22,7 @@ from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial,
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
+from ..utils import get_sap_user
 
 
 def is_simple_applicant(user):
@@ -66,14 +67,15 @@ def simple_applicant_home(request):
         base_qs = Requisition.objects.all()
     
     # 依狀態分類
-    pending_reqs = list(base_qs.filter(status='demand_submitted').order_by('-created_at'))
-    in_progress_reqs = list(base_qs.filter(status='dispatch_in_progress').order_by('-created_at'))
-    completed_reqs = list(base_qs.filter(status='dispatch_completed').order_by('-updated_at'))
-    signed_off_reqs = list(base_qs.filter(status='signed_off').order_by('-updated_at')[:20])
+    pending_reqs = list(base_qs.filter(status='demand_submitted', is_archived=False).order_by('-created_at'))
+    in_progress_reqs = list(base_qs.filter(status='dispatch_in_progress', is_archived=False).order_by('-created_at'))
+    completed_reqs = list(base_qs.filter(status='dispatch_completed', is_archived=False).order_by('-updated_at'))
+    signed_off_reqs = list(base_qs.filter(status='signed_off', is_archived=False).order_by('-updated_at')[:20])
+    archived_reqs = list(base_qs.filter(is_archived=True).order_by('-updated_at')[:20])
     
     # 計算進度和逾期
     today = timezone.now().date()
-    for req_list in [pending_reqs, in_progress_reqs, completed_reqs, signed_off_reqs]:
+    for req_list in [pending_reqs, in_progress_reqs, completed_reqs, signed_off_reqs, archived_reqs]:
         for req in req_list:
             items = req.items.all()
             total = items.count()
@@ -93,6 +95,7 @@ def simple_applicant_home(request):
         'in_progress_reqs': in_progress_reqs,
         'completed_reqs': completed_reqs,
         'signed_off_reqs': signed_off_reqs,
+        'archived_reqs': archived_reqs,
         'user': request.user,
         'current_type': current_type,
         'viewable_owner_names': viewable_owner_names,
@@ -233,9 +236,21 @@ def simple_applicant_create(request):
                                 
                                 items_to_create = []
                                 for material in materials_to_add:
-                                    # Check if pre-dispatched via fast-dispatch
+                                    # Check if pre-dispatched via fast-dispatch OR SAP
                                     pre_confirmed = material.confirmed_quantity or Decimal('0')
-                                    is_dispatched = pre_confirmed > 0 and pre_confirmed >= material.required_quantity
+                                    sap_withdrawn = material.sap_withdrawn_quantity or Decimal('0')
+                                    
+                                    # 依據使用者需求：如果系統 < SAP，則更新為 SAP 數量
+                                    final_confirmed = pre_confirmed
+                                    dispatched_by = None
+                                    dispatched_at = None
+                                    
+                                    if sap_withdrawn > pre_confirmed:
+                                        final_confirmed = sap_withdrawn
+                                        dispatched_by = get_sap_user()
+                                        dispatched_at = timezone.now()
+                                    
+                                    is_dispatched = final_confirmed > 0 and final_confirmed >= material.required_quantity
 
                                     items_to_create.append(RequisitionItem(
                                         requisition=requisition,
@@ -245,8 +260,10 @@ def simple_applicant_create(request):
                                         item_name=material.item_name,
                                         required_quantity=material.required_quantity,
                                         stock_quantity=0,
-                                        confirmed_quantity=pre_confirmed,
-                                        dispatch_status='dispatched' if is_dispatched else None
+                                        confirmed_quantity=final_confirmed,
+                                        dispatch_status='dispatched' if is_dispatched else None,
+                                        dispatched_by=dispatched_by,
+                                        dispatched_at=dispatched_at
                                     ))
                                 if items_to_create:
                                     RequisitionItem.objects.bulk_create(items_to_create)
@@ -352,6 +369,21 @@ def simple_applicant_create(request):
                     stock_quantity = main_material.system_quantity if main_material else Decimal('0')
                     storage_bin = main_material.bin if main_material else ''
 
+                    # SAP 繼承邏輯
+                    pre_confirmed = material.confirmed_quantity or Decimal('0')
+                    sap_withdrawn = material.sap_withdrawn_quantity or Decimal('0')
+                    
+                    final_confirmed = pre_confirmed
+                    dispatched_by = None
+                    dispatched_at = None
+                    
+                    if sap_withdrawn > pre_confirmed:
+                        final_confirmed = sap_withdrawn
+                        dispatched_by = get_sap_user()
+                        dispatched_at = timezone.now()
+
+                    is_dispatched = final_confirmed > 0 and final_confirmed >= material.required_quantity
+
                     items_to_create.append(
                         RequisitionItem(
                             requisition=requisition,
@@ -362,8 +394,10 @@ def simple_applicant_create(request):
                             required_quantity=material.required_quantity,
                             stock_quantity=stock_quantity,
                             storage_bin=storage_bin,
-                            confirmed_quantity=material.confirmed_quantity or Decimal('0'),
-                            dispatch_status='dispatched' if (material.confirmed_quantity or Decimal('0')) > 0 and (material.confirmed_quantity or 0) >= material.required_quantity else None
+                            confirmed_quantity=final_confirmed,
+                            dispatch_status='dispatched' if is_dispatched else None,
+                            dispatched_by=dispatched_by,
+                            dispatched_at=dispatched_at
                         )
                     )
                 
@@ -415,6 +449,11 @@ def simple_applicant_delete(request, pk):
     # 狀態檢查：只能刪除 'demand_submitted' 狀態的申請單
     if requisition.status != 'demand_submitted':
         messages.error(request, '只能刪除尚未撥料的申請單。')
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
+
+    # 檢查是否已歸檔
+    if requisition.is_archived:
+        messages.error(request, '此申請單所屬工單已歸檔，無法刪除。')
         return redirect('requisitions:simple_applicant_detail', pk=pk)
 
     if request.method == 'POST':
@@ -522,6 +561,13 @@ def simple_applicant_update_process_type(request, pk):
             return JsonResponse({'success': False, 'message': '已開始撥料的申請單無法修改投料點。'})
         messages.error(request, "已開始撥料的申請單無法修改投料點。")
         return redirect('requisitions:simple_applicant_detail', pk=pk)
+
+    # 檢查是否已歸檔
+    if requisition.is_archived:
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': '此申請單所屬工單已歸檔，無法修改投料點。'})
+        messages.error(request, "此申請單所屬工單已歸檔，無法修改投料點。")
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
     
     if request.method == 'POST':
         new_process_type_id = request.POST.get('process_type')
@@ -608,6 +654,14 @@ def simple_applicant_update_request_date(request, pk):
             return JsonResponse({'success': False, 'message': message})
         messages.error(request, message)
         return redirect('requisitions:simple_applicant_detail', pk=pk)
+
+    # 檢查是否已歸檔
+    if requisition.is_archived:
+        message = "此申請單所屬工單已歸檔，無法修改需求日期。"
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': message})
+        messages.error(request, message)
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
     
     if request.method == 'POST':
         new_date_str = request.POST.get('request_date')
@@ -656,6 +710,13 @@ def simple_applicant_sign_off(request, pk):
             return JsonResponse({'success': False, 'message': '您沒有權限執行簽收操作。'})
         messages.error(request, "您沒有權限執行簽收操作。")
         return redirect('requisitions:simple_applicant_home')
+
+    # 檢查是否已歸檔
+    if requisition.is_archived:
+        if is_ajax:
+            return JsonResponse({'success': False, 'message': '此申請單所屬工單已歸檔，無法進行簽收操作。'})
+        messages.error(request, "此申請單所屬工單已歸檔，無法進行簽收操作。")
+        return redirect('requisitions:simple_applicant_detail', pk=pk)
     
     result = {'success': False, 'message': ''}
     
@@ -764,16 +825,28 @@ def simple_dispatcher_home(request):
             
     else:
         # 載入成品投料點（原有邏輯）
+        from datetime import timedelta
+        alert_threshold = timezone.now() - timedelta(hours=24)
+        
         for category_name in PROCESS_CATEGORY_NAMES:
             pending_count = Requisition.objects.filter(
                 process_type__icontains=category_name,
                 status__in=['demand_submitted', 'dispatch_in_progress']
             ).count()
             
+            # 檢查 SAP 扣帳異常 (> 24 小時)
+            has_sap_issue = WorkOrderMaterial.objects.filter(
+                process_type__name__icontains=category_name,
+                sap_sync_issue=True,
+                sap_sync_issue_since__lte=alert_threshold,
+                is_active=True
+            ).exists()
+            
             categories.append({
                 'name': category_name,
                 'color': PROCESS_CATEGORY_COLORS.get(category_name, '#6B7280'),
                 'pending_count': pending_count,
+                'has_sap_issue': has_sap_issue,
             })
     
     # 取得所有最新且未過期的公告
@@ -838,14 +911,23 @@ def simple_dispatcher_category(request, category):
         pending_requisitions = Requisition.objects.filter(
             applicant__username=target_username,
             requisition_type='semi_finished',
-            status__in=['demand_submitted', 'dispatch_in_progress']
+            status__in=['demand_submitted', 'dispatch_in_progress'],
+            is_archived=False
         ).order_by('request_date', '-created_at')
         
         # 已撥料申請單 (依領料人過濾)
         completed_requisitions = Requisition.objects.filter(
             applicant__username=target_username,
             requisition_type='semi_finished',
-            status__in=['dispatch_completed', 'signed_off']
+            status__in=['dispatch_completed', 'signed_off'],
+            is_archived=False
+        ).order_by('-updated_at')[:20]
+        
+        # 已歸檔申請單 (依領料人過濾)
+        archived_requisitions = Requisition.objects.filter(
+            applicant__username=target_username,
+            requisition_type='semi_finished',
+            is_archived=True
         ).order_by('-updated_at')[:20]
         
     else:
@@ -859,16 +941,27 @@ def simple_dispatcher_category(request, category):
         # 待撥料申請單
         pending_requisitions = Requisition.objects.filter(
             process_type__icontains=category,
-            status__in=['demand_submitted', 'dispatch_in_progress']
+            status__in=['demand_submitted', 'dispatch_in_progress'],
+            is_archived=False
         ).order_by('request_date', '-created_at')
         
         # 已撥料申請單
         completed_requisitions = Requisition.objects.filter(
             process_type__icontains=category,
-            status__in=['dispatch_completed', 'signed_off']
+            status__in=['dispatch_completed', 'signed_off'],
+            is_archived=False
+        ).order_by('-updated_at')[:20]
+
+        # 已歸檔申請單
+        archived_requisitions = Requisition.objects.filter(
+            process_type__icontains=category,
+            is_archived=True
         ).order_by('-updated_at')[:20]
     
     # 計算每個申請單的逾期狀態和撥料進度
+    from datetime import timedelta
+    alert_threshold = timezone.now() - timedelta(hours=24)
+    
     for req in pending_requisitions:
         req.is_overdue = req.request_date < today
         items = req.items.all()
@@ -878,8 +971,22 @@ def simple_dispatcher_category(request, category):
         req.dispatched_count = dispatched
         req.total_count = total
         req.undispatched_count = total - dispatched
+        
+        # 檢查 SAP 扣帳異常
+        req.has_sap_issue = items.filter(
+            source_material__sap_sync_issue=True,
+            source_material__sap_sync_issue_since__lte=alert_threshold
+        ).exists()
     
     for req in completed_requisitions:
+        items = req.items.all()
+        total = items.count()
+        dispatched = items.filter(dispatch_status='dispatched').count()
+        req.progress = int((dispatched / total * 100) if total > 0 else 0)
+        req.dispatched_count = dispatched
+        req.total_count = total
+
+    for req in archived_requisitions:
         items = req.items.all()
         total = items.count()
         dispatched = items.filter(dispatch_status='dispatched').count()
@@ -898,6 +1005,7 @@ def simple_dispatcher_category(request, category):
         'category_color': category_color,
         'pending_requisitions': pending_requisitions,
         'completed_requisitions': completed_requisitions,
+        'archived_requisitions': archived_requisitions,
         'current_type': current_type,
         'shortage_items': shortage_items,
     }
@@ -958,7 +1066,8 @@ def simple_dispatcher_merge(request, category):
                 items = RequisitionItem.objects.filter(
                     requisition__order_number__in=order_numbers,
                     requisition__process_type__icontains=category,
-                    material_number=material_number
+                    material_number=material_number,
+                    requisition__is_archived=False
                 ).exclude(dispatch_status='dispatched')
                 
                 count = 0
@@ -990,7 +1099,8 @@ def simple_dispatcher_merge(request, category):
                 items = RequisitionItem.objects.filter(
                     requisition__order_number__in=order_numbers,
                     requisition__process_type__icontains=category,
-                    material_number=material_number
+                    material_number=material_number,
+                    requisition__is_archived=False
                 ).exclude(dispatch_status='dispatched')
                 
                 count = 0
@@ -1009,6 +1119,7 @@ def simple_dispatcher_merge(request, category):
     undispatched_items = RequisitionItem.objects.filter(
         requisition__order_number__in=order_numbers,
         requisition__process_type__icontains=category,
+        requisition__is_archived=False
     ).exclude(dispatch_status='dispatched').select_related('requisition')
 
     sort_param = request.GET.get('sort', 'bin')
@@ -1101,6 +1212,14 @@ def simple_dispatcher_detail(request, category, pk):
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         
         result = {'success': False, 'message': ''}
+
+        # 檢查是否已歸檔
+        if requisition.is_archived:
+            result = {'success': False, 'message': '此申請單所屬工單已歸檔，無法進行任何操作。'}
+            if is_ajax:
+                return JsonResponse(result)
+            messages.error(request, result['message'])
+            return redirect(f"{reverse('requisitions:simple_dispatcher_detail', kwargs={'category': category, 'pk': pk})}?sort={sort_param}")
         
         if item_pk:
             try:

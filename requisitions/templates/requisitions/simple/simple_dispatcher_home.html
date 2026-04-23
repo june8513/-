@@ -400,6 +400,11 @@
         {% for cat in categories %}
         <a href="{% url 'requisitions:simple_dispatcher_category' category=cat.name %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
             class="category-card" style="background: {{ cat.color }};">
+            {% if cat.has_sap_issue %}
+            <div style="position: absolute; top: 0.75rem; left: 0.75rem; background: #EF4444; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; z-index: 2; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" title="有物料尚未扣帳">
+                ⚠️
+            </div>
+            {% endif %}
             <span class="pending-badge {% if cat.pending_count > 0 %}has-pending{% endif %}">
                 待撥: {{ cat.pending_count }}
             </span>
