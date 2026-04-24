@@ -261,7 +261,7 @@ def archived_requisition_list(request):
 
     if not is_admin and not is_applicant and not is_material_handler:
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     sort_by = request.GET.get('sort_by', 'created_at')
     order = request.GET.get('order', 'desc')
@@ -514,12 +514,12 @@ def requisition_delete(request, pk):
 
     if not is_admin:
         messages.error(request, "您沒有權限刪除撥料申請單。")
-        return redirect('requisition_list')
+        return redirect('requisitions:requisition_list')
 
     if request.method == 'POST':
         requisition.delete()
         messages.success(request, "撥料申請單已成功刪除。")
-        return redirect('requisition_list')
+        return redirect('requisitions:requisition_list')
     
     messages.warning(request, "請確認您要刪除此撥料申請單。")
     return redirect('requisition_list')
@@ -533,7 +533,7 @@ def requisition_history(request):
 
     if not is_admin and not is_applicant and not is_material_handler:
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('requisitions:homepage')
+        return redirect('core:homepage')
 
     history_requisitions_qs = Requisition.objects.filter(dispatch_performed=True, is_archived=False).select_related('applicant').order_by('-updated_at')
 

@@ -2048,10 +2048,10 @@ def dismiss_requisition_item_alert(request, item_pk):
 @login_required
 def shortage_inquiry(request):
     """
-    缺料查詢 - 給申請人主管使用
+    缺料查詢 - 給撥料人員主管使用
     批量帶入工單號碼，自動查出庫存量低於未滿足需求數量的物料
     """
-    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['DISPATCHER_SUPERVISOR']).exists()
     if not (request.user.is_superuser or is_supervisor):
         messages.error(request, "您沒有權限使用此功能。")
         return redirect('core:homepage')
@@ -2159,7 +2159,7 @@ def shortage_inquiry_export(request):
     """
     缺料查詢結果匯出 Excel
     """
-    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['DISPATCHER_SUPERVISOR']).exists()
     if not (request.user.is_superuser or is_supervisor):
         messages.error(request, "您沒有權限使用此功能。")
         return redirect('core:homepage')

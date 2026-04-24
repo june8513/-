@@ -12,6 +12,7 @@ import datetime
 from django.db.models import Q, F, Sum, Max, Value, DecimalField, OuterRef, Subquery, ExpressionWrapper
 from django.db.models.functions import Coalesce
 from ..analysis import get_material_demand_analysis
+from ..constants import GROUP_NAMES
 
 @login_required
 def update_estimated_arrival_date(request):
@@ -71,9 +72,10 @@ def update_estimated_arrival_date(request):
 
 @login_required
 def estimated_material_demand(request):
-    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
+    is_dispatcher_supervisor = request.user.groups.filter(name=GROUP_NAMES['DISPATCHER_SUPERVISOR']).exists()
+    if not request.user.is_superuser and not is_dispatcher_supervisor:
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     # Get all aggregated data from the shared analysis function
     all_materials_analysis = get_material_demand_analysis()
@@ -167,9 +169,10 @@ def estimated_material_demand(request):
 
 @login_required
 def shortage_materials_list(request):
-    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
+    is_dispatcher_supervisor = request.user.groups.filter(name=GROUP_NAMES['DISPATCHER_SUPERVISOR']).exists()
+    if not request.user.is_superuser and not is_dispatcher_supervisor:
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     # 只顯示被標記為「缺料」的物料（透過簡易撥料頁面的缺料按鈕標記）
     backordered_items = RequisitionItem.objects.filter(
@@ -223,11 +226,11 @@ def shortage_materials_list(request):
 @login_required
 def update_shortage_arrival_dates(request):
     if request.method != 'POST':
-        return redirect('shortage_materials_list')
+        return redirect('requisitions:shortage_materials_list')
 
-    if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
+    if not request.user.is_superuser and not request.user.groups.filter(name=GROUP_NAMES['DISPATCHER_SUPERVISOR']).exists():
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('shortage_materials_list')
+        return redirect('requisitions:shortage_materials_list')
 
     # Get the same context for filtering as in the list view
     dispatched_requisition_pairs = Requisition.objects.filter(
@@ -280,4 +283,4 @@ def update_shortage_arrival_dates(request):
     if updated_materials_count > 0:
         messages.success(request, f"成功更新 {updated_materials_count} 種物料，共影響 {total_updated_count} 筆欠料記錄。")
 
-    return redirect('shortage_materials_list')
+    return redirect('requisitions:shortage_materials_list')

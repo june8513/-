@@ -16,7 +16,7 @@ def view_requisition_images(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     images = requisition.images.all()
     return render(request, 'requisitions/view_requisition_images.html', {'requisition': requisition, 'images': images})
@@ -31,7 +31,7 @@ def upload_requisition_images_page(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     form = RequisitionImageForm()
     return render(request, 'requisitions/upload_requisition_images.html', {'requisition': requisition, 'form': form})
@@ -59,7 +59,7 @@ def upload_dispatch_note_image(request, pk):
             messages.success(request, "圖片上傳成功。")
         else:
             messages.error(request, "上傳失敗，請確認已選擇檔案。")
-    return redirect('generate_dispatch_note', pk=requisition.pk)
+    return redirect('requisitions:generate_dispatch_note', pk=requisition.pk)
 
 @login_required
 def upload_work_order_material_images(request, pk):
@@ -71,7 +71,7 @@ def upload_work_order_material_images(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     # Placeholder function
     return HttpResponse("This is a placeholder for upload_work_order_material_images.")
@@ -86,7 +86,7 @@ def upload_requisition_images(request, pk):
 
     if not (is_admin or is_applicant or is_material_handler):
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     if request.method == 'POST':
         form = RequisitionImageForm(request.POST, request.FILES)
@@ -98,7 +98,7 @@ def upload_requisition_images(request, pk):
             messages.success(request, "圖片上傳成功。")
         else:
             messages.error(request, "上傳失敗，請確認已選擇檔案。")
-    return redirect('view_requisition_images', pk=requisition.pk)
+    return redirect('requisitions:view_requisition_images', pk=requisition.pk)
 
 @login_required
 def view_work_order_material_images(request, material_code):

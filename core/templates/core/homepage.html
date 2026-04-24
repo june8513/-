@@ -317,7 +317,7 @@
             </div>
         </div>
 
-        {% if is_applicant_supervisor or is_admin %}
+        {% if is_dispatcher_supervisor or is_admin %}
         <!-- 缺料查詢卡片 -->
         <div class="col-lg-4 col-md-6 mb-4">
             <div class="card h-100 shadow-sm border-danger">
@@ -354,64 +354,6 @@
             </div>
         </div>
 
-        {% if not is_applicant_supervisor %}
-        <!-- 非申請人員主管才顯示的其他卡片 -->
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center d-flex flex-column">
-                    <h5 class="card-title">庫存盤點</h5>
-                    <p class="card-text">建立和管理庫存盤點單。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'inventory:inventory_home' %}" class="btn btn-primary">前往</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center d-flex flex-column">
-                    <h5 class="card-title">預計物料需求</h5>
-                    <p class="card-text">查看未撥料需求與庫存計算出的物料短缺。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'requisitions:estimated_material_demand' %}" class="btn btn-primary">查看</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center d-flex flex-column">
-                    <h5 class="card-title">機型物料完整性</h5>
-                    <p class="card-text">查詢訂單的物料分配狀態。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'requisitions:material_completeness' %}" class="btn btn-primary">前往</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center d-flex flex-column">
-                    <h5 class="card-title">物料明細查詢</h5>
-                    <p class="card-text">查詢工單的主物料清單。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'specifications:material_spec_list' %}" class="btn btn-primary">前往</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center d-flex flex-column">
-                    <h5 class="card-title">工單列表</h5>
-                    <p class="card-text">查看所有工單的撥料進度與狀態。</p>
-                    <div class="mt-auto">
-                        <a href="{% url 'requisitions:work_order_list' %}" class="btn btn-primary">前往</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
     </div>
 
     <div class="row mt-3">

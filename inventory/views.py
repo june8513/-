@@ -18,7 +18,7 @@ def import_material_master(request):
         return redirect('inventory:inventory_home')
 
     if request.method != 'POST' or not request.FILES.get('excel_file'):
-        return redirect('inventory_update')
+        return redirect('inventory:inventory_update')
 
     selected_location_names = request.POST.getlist('selected_locations')
     new_locations_str = request.POST.get('new_locations', '')
@@ -31,7 +31,7 @@ def import_material_master(request):
 
     if not sync_location_names:
         messages.error(request, "請至少選擇或輸入一個要同步的儲存地點。")
-        return redirect('inventory_update')
+        return redirect('inventory:inventory_update')
 
     excel_file = request.FILES['excel_file']
     expected_columns = ['儲存地點', '儲格', '物料', '物料說明', '未限制']
@@ -43,7 +43,7 @@ def import_material_master(request):
         if not all(col in df.columns for col in expected_columns):
             missing_cols = ", ".join([col for col in expected_columns if col not in df.columns])
             messages.error(request, f"Excel 檔案缺少必要的欄位: {missing_cols}")
-            return redirect('inventory_update')
+            return redirect('inventory:inventory_update')
 
         df_filtered = df[df['儲存地點'].isin(sync_location_names)].copy()
         df_filtered.dropna(subset=['物料'], inplace=True)
@@ -53,7 +53,7 @@ def import_material_master(request):
         if not duplicates.empty:
             duplicate_codes = ", ".join(duplicates['物料'].unique())
             messages.error(request, f"匯入失敗：在您選擇的儲存地點範圍內，Excel 檔案中包含重複的物料號碼: {duplicate_codes}")
-            return redirect('inventory_update')
+            return redirect('inventory:inventory_update')
 
         with transaction.atomic():
             for loc_name in sync_location_names:
@@ -147,7 +147,7 @@ def material_list(request):
 def update_material_quantities(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('material_list')
+        return redirect('inventory:material_list')
 
     if request.method == 'POST':
         updated_materials = []
@@ -389,7 +389,7 @@ def export_master_material_differences(request):
 def inventory_dashboard(request):
     if not request.user.is_superuser and not request.user.groups.filter(name='撥料人員').exists():
         messages.error(request, "您沒有權限訪問此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
     
     return render(request, 'inventory/inventory_dashboard.html')
 

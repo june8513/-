@@ -374,7 +374,7 @@ def export_material_confirmation_excel(request, pk):
     
     if not items.exists(): # Check if there are any items
         messages.error(request, "此申請單沒有物料明細，無法匯出。")
-        return redirect('material_confirmation', pk=pk)
+        return redirect('requisitions:material_confirmation', pk=pk)
 
     data = {
         "工單單號": [item.order_number for item in items],

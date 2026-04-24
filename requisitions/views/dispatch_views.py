@@ -83,7 +83,7 @@ def update_dispatch_note(request, pk):
                 messages.error(request, f"物料 ID {material_id} 不存在。")
             except Exception as e:
                 messages.error(request, f"更新物料時發生錯誤: {e}")
-    return redirect('generate_dispatch_note', pk=requisition.pk)
+    return redirect('requisitions:generate_dispatch_note', pk=requisition.pk)
 
 @login_required
 @transaction.atomic

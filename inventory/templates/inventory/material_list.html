@@ -20,7 +20,7 @@
     <!-- Top Action Row -->
     <div class="row mb-3">
         <div class="col-md-6">
-            <form action="{% url 'import_material_master' %}" method="post" enctype="multipart/form-data" class="d-flex">
+            <form action="{% url 'inventory:import_material_master' %}" method="post" enctype="multipart/form-data" class="d-flex">
                 {% csrf_token %}
                 <div class="input-group">
                     <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
@@ -29,8 +29,8 @@
             </form>
         </div>
         <div class="col-md-6 text-end">
-            <a href="{% url 'stocktake_list' %}" class="btn btn-info me-2">查看盤點單列表</a>
-            <a href="{% url 'export_master_material_differences' %}" class="btn btn-warning">匯出差異清單</a>
+            <a href="{% url 'inventory:stocktake_list' %}" class="btn btn-info me-2">查看盤點單列表</a>
+            <a href="{% url 'inventory:export_master_material_differences' %}" class="btn btn-warning">匯出差異清單</a>
         </div>
     </div>
 
@@ -47,7 +47,7 @@
     </form>
 
     <!-- Material List Table and Quantity Update Form -->
-    <form action="{% url 'update_quantities' %}" method="post">
+    <form action="{% url 'inventory:update_quantities' %}" method="post">
         {% csrf_token %}
         <table class="table table-bordered table-sm">
             <thead class="table-light">

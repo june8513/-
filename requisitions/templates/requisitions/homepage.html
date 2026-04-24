@@ -30,7 +30,7 @@
                     <h5 class="card-title">庫存盤點</h5>
                     <p class="card-text">建立和管理庫存盤點單。</p>
                     <div class="mt-auto">
-                        <a href="{% url 'inventory_home' %}" class="btn btn-primary">前往</a>
+                        <a href="{% url 'inventory:inventory_home' %}" class="btn btn-primary">前往</a>
                     </div>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                     <h5 class="card-title">物料明細查詢</h5>
                     <p class="card-text">查詢工單的主物料清單。</p>
                     <div class="mt-auto">
-                        <a href="{% url 'material_spec_list' %}" class="btn btn-primary">前往</a>
+                        <a href="{% url 'specifications:material_spec_list' %}" class="btn btn-primary">前往</a>
                     </div>
                 </div>
             </div>
@@ -72,7 +72,7 @@
 
     <div class="row mt-3">
         <div class="col text-center">
-            <a href="{% url 'logout' %}" class="btn btn-outline-danger"><i class="fas fa-sign-out-alt me-1"></i> 登出</a>
+            <a href="{% url 'requisitions:logout' %}" class="btn btn-outline-danger"><i class="fas fa-sign-out-alt me-1"></i> 登出</a>
         </div>
     </div>
 

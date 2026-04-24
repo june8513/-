@@ -19,7 +19,7 @@
 <div class="card mb-4">
     <div class="card-header">新增投料點</div>
     <div class="card-body">
-        <form method="post" action="{% url 'process_types_management' %}">
+        <form method="post" action="{% url 'requisitions:process_types_management' %}">
             {% csrf_token %}
             <div class="row g-3 align-items-end">
                 <div class="col-md-4">
@@ -57,7 +57,7 @@
                             <td>{{ pt.machine_model.name }}</td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-warning me-2" data-bs-toggle="modal" data-bs-target="#editProcessTypeModal" data-id="{{ pt.id }}" data-name="{{ pt.name }}" data-machine-model-id="{{ pt.machine_model.id }}">編輯</button>
-                                <form method="post" action="{% url 'process_types_management' %}" class="d-inline">
+                                <form method="post" action="{% url 'requisitions:process_types_management' %}" class="d-inline">
                                     {% csrf_token %}
                                     <input type="hidden" name="process_type_id" value="{{ pt.id }}">
                                     <button type="submit" name="delete_process_type" class="btn btn-sm btn-danger" onclick="return confirm('您確定要刪除此投料點嗎？此操作無法復原。')">刪除</button>
@@ -83,7 +83,7 @@
                 <h5 class="modal-title" id="editProcessTypeModalLabel">編輯投料點</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="{% url 'process_types_management' %}">
+            <form method="post" action="{% url 'requisitions:process_types_management' %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <input type="hidden" name="process_type_id" id="editProcessTypeId">

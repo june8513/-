@@ -9,9 +9,11 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'core:homepage' %}">首頁</a>
                 </li>
+                {% if user.is_superuser or request.user.groups.filter(name='撥料人員主管').exists() %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'requisitions:estimated_material_demand' %}">預計物料需求</a>
                 </li>
+                {% endif %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'requisitions:finished_goods_dispatch' %}">成品撥料</a>
                 </li>

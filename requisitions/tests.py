@@ -150,7 +150,7 @@ class UserAuthenticationTest(TestCase):
     def test_login_success(self):
         """Test successful user login."""
         response = self.client.post(reverse('login'), {'username': 'testuser', 'password': 'testpassword'})
-        self.assertRedirects(response, reverse('homepage'))
+        self.assertRedirects(response, reverse('core:homepage'))
         self.assertTrue(self.client.session.get('_auth_user_id'))
 
     def test_login_invalid_credentials(self):

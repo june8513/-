@@ -21,7 +21,7 @@
             </div>
 
             <div class="mt-4">
-                 <a href="{% url 'inventory_home' %}" class="btn btn-secondary">返回庫存管理主頁</a>
+                 <a href="{% url 'inventory:inventory_home' %}" class="btn btn-secondary">返回庫存管理主頁</a>
             </div>
         </div>
     </div>
@@ -35,7 +35,7 @@
                 <h5 class="modal-title" id="deleteConfirmationModalLabel">請確認操作</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{% url 'clear_all_materials' %}" method="post">
+            <form action="{% url 'inventory:clear_all_materials' %}" method="post">
                 {% csrf_token %}
                 <div class="modal-body">
                     <p>這是一個不可逆的操作。為確認您要繼續，請在下方的文字框中輸入 <strong class="text-danger">DELETE</strong>。</p>

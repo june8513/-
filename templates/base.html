@@ -135,6 +135,12 @@
                             </li>
 
                             {% if user.is_authenticated %}
+                            {% if is_admin or is_dispatcher_supervisor %}
+                            <li><a class="dropdown-item"
+                                    href="{% url 'requisitions:material_completeness' %}">機型物料完整性</a></li>
+                            <li><a class="dropdown-item"
+                                    href="{% url 'requisitions:work_order_list' %}">工單列表</a></li>
+                            {% endif %}
                             {% if is_admin or is_material_handler %}
                             <li><a class="dropdown-item"
                                     href="{% url 'requisitions:estimated_material_demand' %}">預計物料需求</a></li>

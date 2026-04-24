@@ -30,7 +30,7 @@ import datetime
 def view_process_type_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
     db_path = os.path.join(settings.BASE_DIR, 'output.xlsx')
     data = []
     headers = []
@@ -55,18 +55,18 @@ sheet_name=None)
 def clear_work_order_material_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
     if request.method == 'POST':
         WorkOrderMaterial.objects.all().delete()
         messages.success(request, "訂單主物料清單資料庫已成功清空。")
-    return redirect('view_database')
+    return redirect('requisitions:view_database')
 
 
 @login_required
 def view_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
     
     materials = WorkOrderMaterial.objects.all().select_related('process_type', 'machine_model').order_by('order_number', 'material_number')
 
@@ -84,7 +84,7 @@ def view_database(request):
 def view_inventory_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
     inventory_items = Inventory.objects.all()
     context = {
         'inventory_items': inventory_items,
@@ -334,7 +334,7 @@ def archived_work_order_material_list(request):
 
     if not is_admin and not is_applicant and not is_material_handler:
         messages.error(request, "您沒有權限查看此頁面。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     order_number = request.GET.get('order_number', None)
     sort_by = request.GET.get('sort_by', 'material_number')
@@ -842,7 +842,7 @@ def get_model_process_type_history(request):
 def process_types_management(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
-        return redirect('homepage')
+        return redirect('core:homepage')
 
     process_types = ProcessType.objects.all().select_related('machine_model')
     form = ProcessTypeForm()
@@ -854,7 +854,7 @@ def process_types_management(request):
                 try:
                     form.save()
                     messages.success(request, "投料點新增成功！")
-                    return redirect('process_types_management')
+                    return redirect('requisitions:process_types_management')
                 except IntegrityError:
                     messages.error(request, "該機型下已存在同名的投料點，請檢查。")
                 except Exception as e:
@@ -869,7 +869,7 @@ def process_types_management(request):
                 try:
                     form.save()
                     messages.success(request, "投料點更新成功！")
-                    return redirect('process_types_management')
+                    return redirect('requisitions:process_types_management')
                 except IntegrityError:
                     messages.error(request, "該機型下已存在同名的投料點，請檢查。")
                 except Exception as e:
@@ -882,7 +882,7 @@ def process_types_management(request):
             try:
                 process_type_instance.delete()
                 messages.success(request, "投料點刪除成功！")
-                return redirect('process_types_management')
+                return redirect('requisitions:process_types_management')
             except Exception as e:
                 messages.error(request, f"刪除投料點時發生錯誤: {e}")
 
