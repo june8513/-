@@ -9,4 +9,5 @@ urlpatterns = [
     path('import-purchasers/', views.import_material_purchasers, name='import_material_purchasers'),
     path('redirect-edit/', views.redirect_to_material_edit, name='redirect_to_material_edit'),
     path('<int:material_id>/edit/', views.material_spec_edit, name='material_spec_edit'),
+    path('export-excel/', views.export_material_specs_excel, name='export_material_specs_excel'),
 ]

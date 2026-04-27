@@ -84,6 +84,7 @@
         cursor: pointer;
         gap: 0.75rem;
         transition: background 0.15s;
+        flex-wrap: wrap; /* Allow wrapping */
     }
 
     .material-header:hover {
@@ -107,13 +108,74 @@
     }
 
     .mat-name {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         color: #6B7280;
         flex: 1;
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: normal !important;
+        word-break: break-all !important;
+        line-height: 1.4;
+        display: block;
+    }
+
+    .mat-info-col {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+        min-width: 0;
+        flex-wrap: wrap; /* Allow info elements to wrap */
+    }
+
+    .mat-action-col {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    @media (max-width: 1200px) {
+        .material-header {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 0.75rem;
+            gap: 0.5rem !important;
+        }
+        
+        .mat-info-col {
+            flex: none;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .mat-action-col {
+            flex: none;
+            width: 100%;
+            justify-content: flex-end;
+            border-top: 1px dashed #E5E7EB;
+            padding-top: 0.5rem;
+            gap: 0.75rem !important;
+        }
+
+        .mat-name {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            flex: none;
+            width: 100%;
+            margin-top: 0.25rem;
+            font-size: 0.9rem;
+            color: #4B5563;
+            display: block;
+        }
+
+        .mat-number {
+            font-size: 0.9rem;
+        }
+
+        .bin-badge {
+            font-size: 0.7rem;
+        }
     }
 
     .mat-orders {
@@ -309,16 +371,16 @@
     {% for mat in merged_items %}
     <div class="material-card" id="card-{{ forloop.counter }}">
         <div class="material-header" onclick="toggleCard('card-{{ forloop.counter }}')">
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+            <div class="mat-info-col">
                 <span class="bin-badge">{{ mat.storage_bin }}</span>
                 <span class="mat-number">{{ mat.material_number }}</span>
                 <span class="mat-name">{{ mat.item_name }}</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+            <div class="mat-action-col">
                 <span style="font-weight: 600; color: #111827; margin-right: 0.5rem; font-size: 1.1rem;">{{ mat.total_qty|floatformat:0 }}</span>
                 <button class="btn-dispatch" onclick="event.stopPropagation(); dispatchMaterial('{{ mat.material_number }}', this)">撥料</button>
                 <button class="btn-backorder" onclick="event.stopPropagation(); backorderMaterial('{{ mat.material_number }}', this)">缺料</button>
-                <span class="expand-icon" style="margin-left: 0.5rem;">▶</span>
+                <span class="expand-icon" style="margin-left: 0.25rem;">▶</span>
             </div>
         </div>
         <div class="order-details">

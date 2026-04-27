@@ -992,15 +992,15 @@ def process_inventory_excel(excel_file_path):
                 
                 # Check if material exists
                 try:
-                    material = Material.objects.get(material_code=material_code)
+                    material = InvMaterial.objects.get(material_code=material_code)
                     # Update existing material (only description and quantity)
                     material.material_description = defaults['material_description']
                     material.system_quantity = defaults['system_quantity']
                     material.save()
                     updated_count += 1
-                except Material.DoesNotExist:
+                except InvMaterial.DoesNotExist:
                     # Create new material with default location and bin
-                    material = Material.objects.create(
+                    material = InvMaterial.objects.create(
                         material_code=material_code,
                         material_description=defaults['material_description'],
                         system_quantity=defaults['system_quantity'],
@@ -1014,7 +1014,7 @@ def process_inventory_excel(excel_file_path):
         
             # Excel 中不存在的物料，庫存設為 0（SAP 不匯出庫存為 0 的物料）
             uploaded_material_codes = set(df['物料'].astype(str).str.strip().unique())
-            zeroed_count = Material.objects.exclude(
+            zeroed_count = InvMaterial.objects.exclude(
                 material_code__in=uploaded_material_codes
             ).filter(
                 system_quantity__gt=0

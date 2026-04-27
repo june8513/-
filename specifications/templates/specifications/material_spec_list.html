@@ -4,124 +4,189 @@
 
 {% block content %}
 <div class="container mt-4">
-    <div class="d-flex justify-content-end mb-3">
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#actionsModal">
-            功能
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 fw-bold text-dark">物料明細查詢</h1>
+        <button type="button" class="btn btn-primary shadow-sm px-4 rounded-pill" data-bs-toggle="modal" data-bs-target="#actionsModal">
+            <i class="fas fa-tools me-1"></i> 系統功能
         </button>
     </div>
 
     <!-- Actions Modal -->
     <div class="modal fade" id="actionsModal" tabindex="-1" aria-labelledby="actionsModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="actionsModalLabel">功能</h5>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
+                <div class="modal-header bg-light border-bottom-0" style="border-top-left-radius: 1.25rem; border-top-right-radius: 1.25rem; padding: 1.5rem;">
+                    <h5 class="modal-title fw-bold text-dark" id="actionsModalLabel">
+                        <i class="fas fa-th-large me-2 text-primary"></i>系統功能
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <!-- Import Form -->
-                    <form action="{% url 'specifications:import_material_specs' %}" method="post" enctype="multipart/form-data" class="mb-4">
-                        {% csrf_token %}
-                        <div class="input-group">
-                            <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
-                            <button type="submit" class="btn btn-success">匯入物料規格</button>
-                        </div>
-                    </form>
+                <div class="modal-body" style="padding: 1.5rem;">
+                    
+                    <!-- Section: Data Import -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-secondary small mb-3 text-uppercase letter-spacing-1">
+                            <i class="fas fa-cloud-upload-alt me-1"></i> 資料匯入
+                        </label>
+                        
+                        <!-- Import Material Specs -->
+                        <form action="{% url 'specifications:import_material_specs' %}" method="post" enctype="multipart/form-data" class="mb-3">
+                            {% csrf_token %}
+                            <div class="input-group shadow-sm">
+                                <label class="input-group-text bg-white border-end-0" for="excel_file">
+                                    <i class="fas fa-file-excel text-success"></i>
+                                </label>
+                                <input type="file" name="excel_file" id="excel_file" class="form-control border-start-0" accept=".xlsx, .xls" required>
+                                <button type="submit" class="btn btn-success px-3">
+                                    <span class="d-none d-md-inline">匯入物料規格</span>
+                                    <i class="fas fa-check d-md-none"></i>
+                                </button>
+                            </div>
+                        </form>
 
-                    <hr> <!-- Separator -->
+                        <!-- Import Purchasers -->
+                        <form action="{% url 'specifications:import_material_purchasers' %}" method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="input-group shadow-sm">
+                                <label class="input-group-text bg-white border-end-0" for="excel_file_purchaser">
+                                    <i class="fas fa-id-badge text-info"></i>
+                                </label>
+                                <input type="file" name="excel_file_purchaser" id="excel_file_purchaser" class="form-control border-start-0" accept=".xlsx, .xls" required>
+                                <button type="submit" class="btn btn-info text-white px-3">
+                                    <span class="d-none d-md-inline">匯入採購員</span>
+                                    <i class="fas fa-check d-md-none"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
 
-                    <!-- Import Purchasers Form -->
-                    <form action="{% url 'specifications:import_material_purchasers' %}" method="post" enctype="multipart/form-data" class="mb-4">
-                        {% csrf_token %}
-                        <div class="input-group">
-                            <input type="file" name="excel_file_purchaser" class="form-control" accept=".xlsx, .xls" required>
-                            <button type="submit" class="btn btn-info">匯入採購員</button>
-                        </div>
-                    </form>
+                    <div class="border-top mb-4"></div>
 
-                    <hr> <!-- Separator -->
+                    <!-- Section: Data Export -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-secondary small mb-3 text-uppercase letter-spacing-1">
+                            <i class="fas fa-cloud-download-alt me-1"></i> 資料匯出
+                        </label>
+                        <a href="{% url 'specifications:export_material_specs_excel' %}{% if query %}?q={{ query }}{% endif %}" class="btn btn-warning w-100 shadow-sm text-dark fw-bold py-2" style="background: linear-gradient(135deg, #FFD93D 0%, #FFC107 100%); border: none;">
+                            <i class="fas fa-file-excel me-2"></i> 匯出為 Excel 報表
+                        </a>
+                    </div>
 
-                    <!-- Edit Material Form -->
-                    <form action="{% url 'specifications:redirect_to_material_edit' %}" method="post">
-                        {% csrf_token %}
-                        <div class="input-group">
-                            <input type="text" name="material_code" class="form-control" placeholder="輸入物料號碼編輯" required>
-                            <button type="submit" class="btn btn-primary">編輯物料</button>
-                        </div>
-                    </form>
+                    <div class="border-top mb-4"></div>
+
+                    <!-- Section: Management -->
+                    <div>
+                        <label class="form-label fw-bold text-secondary small mb-3 text-uppercase letter-spacing-1">
+                            <i class="fas fa-cog me-1"></i> 快速管理
+                        </label>
+                        <form action="{% url 'specifications:redirect_to_material_edit' %}" method="post">
+                            {% csrf_token %}
+                            <div class="input-group shadow-sm">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-edit text-primary"></i>
+                                </span>
+                                <input type="text" name="material_code" class="form-control border-start-0" placeholder="輸入物料號碼進行編輯..." required>
+                                <button type="submit" class="btn btn-primary px-4">編輯</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+                <div class="modal-footer border-top-0 bg-light p-3" style="border-bottom-left-radius: 1.25rem; border-bottom-right-radius: 1.25rem;">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">關閉</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <h1 class="text-center mb-4">物料明細查詢</h1>
-
-    {% if is_admin and showing_all %}
-        <div class="alert alert-info" role="alert">
-            您正在以管理員身份瀏覽所有物料。
-        </div>
-    {% endif %}
 
     <div class="row justify-content-center">
         <div class="col-md-8">
+            {% if is_admin and showing_all %}
+                <div class="alert alert-info shadow-sm mb-4" role="alert" style="border-radius: 1rem;">
+                    <i class="fas fa-info-circle me-2"></i>您正在以管理員身份瀏覽所有物料。
+                </div>
+            {% endif %}
+            
             <form method="get" id="searchForm">
                 <div class="mb-2"> <!-- Margin bottom for spacing -->
                     <input type="text" name="q" id="searchInput" class="form-control" placeholder="搜尋物料..." value="{{ query|default:'' }}">
                 </div>
-                <div class="d-grid gap-2 d-md-block mb-4"> <!-- Bootstrap 5 utility classes for button layout -->
-                    <button class="btn btn-primary" type="submit">搜尋</button>
-                    <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal">掃描條碼</button>
+                <div class="d-flex gap-2 mb-4">
+                    <button class="btn btn-primary px-4 shadow-sm" type="submit">
+                        <i class="fas fa-search me-1"></i> 搜尋
+                    </button>
+                    <button type="button" class="btn btn-info text-white px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal">
+                        <i class="fas fa-qrcode me-1"></i> 掃描條碼
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <table class="table table-striped responsive-table">
-        <thead>
-            <tr>
-                <th>物料號碼</th>
-                <th>物料說明</th>
-                <th>採購員</th>
-                <th>大小</th>
-                <th>重量</th>
-                <th>詳細說明</th>
-                <th>圖片</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for material in materials %}
-            <tr>
-                <td data-label="物料號碼"><a href="{% url 'specifications:material_spec_edit' material.id %}">{{ material.material_code }}</a></td>
-                <td data-label="物料說明">{{ material.material_description }}</td>
-                <td data-label="採購員">{{ material.purchaser|default:"N/A" }}</td>
-                <td data-label="大小">{{ material.specification.size|default:"" }}</td>
-                <td data-label="重量">{{ material.specification.weight|default:"" }}</td>
-                <td data-label="詳細說明">{{ material.specification.detailed_description|default:"" }}</td>
-                <td data-label="圖片">
-                    {% if material.specification.image %}
-                        <a href="#" class="image-link" data-bs-toggle="modal" data-bs-target="#imageModal" data-image-url="{{ material.specification.image.url }}">
-                            <img src="{{ material.specification.image.url }}" alt="Material Image" style="max-width: 50px; height: auto;">
-                        </a>
-                    {% else %}
-                        無圖片
-                    {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="text-center">
-                    {% if is_admin and not query %}
-                        資料庫中沒有物料。
-                    {% elif query %}
-                        找不到符合 "{{ query }}" 的物料。
-                    {% else %}
-                        請輸入關鍵字以搜尋物料。
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-container">
+        <table class="table table-hover responsive-table mb-0">
+            <thead>
+                <tr>
+                    <th>物料號碼</th>
+                    <th>物料說明</th>
+                    <th>採購員</th>
+                    <th>大小</th>
+                    <th>重量</th>
+                    <th>詳細說明</th>
+                    <th class="text-center">圖片</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for material in materials %}
+                <tr>
+                    <td data-label="物料號碼"><a href="{% url 'specifications:material_spec_edit' material.id %}" class="fw-bold text-decoration-none">{{ material.material_code }}</a></td>
+                    <td data-label="物料說明">{{ material.material_description }}</td>
+                    <td data-label="採購員">
+                        {% if material.purchaser %}
+                            <span class="badge bg-light text-dark border">{{ material.purchaser }}</span>
+                        {% else %}
+                            <span class="text-muted small">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="大小">{{ material.specification.size|default:"" }}</td>
+                    <td data-label="重量">{{ material.specification.weight|default:"" }}</td>
+                    <td data-label="詳細說明">
+                        <div class="text-truncate" style="max-width: 200px;" title="{{ material.specification.detailed_description }}">
+                            {{ material.specification.detailed_description|default:"" }}
+                        </div>
+                    </td>
+                    <td data-label="圖片" class="text-center">
+                        {% if material.specification.image %}
+                            <a href="#" class="image-link" data-bs-toggle="modal" data-bs-target="#imageModal" data-image-url="{{ material.specification.image.url }}">
+                                <img src="{{ material.specification.image.url }}" alt="Material Image" style="max-width: 45px; height: auto;">
+                            </a>
+                        {% else %}
+                            <i class="fas fa-image text-light fs-4"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-5">
+                        <div class="text-muted">
+                            {% if is_admin and not query %}
+                                <i class="fas fa-database fs-1 d-block mb-2"></i>
+                                資料庫中沒有物料。
+                            {% elif query %}
+                                <i class="fas fa-search fs-1 d-block mb-2"></i>
+                                找不到符合 "{{ query }}" 的物料。
+                            {% else %}
+                                <i class="fas fa-info-circle fs-1 d-block mb-2"></i>
+                                請輸入關鍵字以搜尋物料。
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
     {% if materials.has_other_pages %}
     <nav aria-label="Page navigation">
@@ -182,10 +247,59 @@
         </div>
     </div>
 </div>
-
 <style>
+    /* Custom CSS for premium look */
+    .table-container {
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        background: white;
+        margin-top: 2rem;
+    }
+
+    .responsive-table {
+        margin-bottom: 0;
+    }
+
+    .responsive-table thead th {
+        background-color: #f8f9fa;
+        color: #495057;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        padding: 1.25rem 1rem;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .responsive-table tbody td {
+        padding: 1rem;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f1f1;
+    }
+
+    .responsive-table tbody tr:hover {
+        background-color: #fcfcfc;
+    }
+
+    .image-link img {
+        border-radius: 8px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid #eee;
+    }
+
+    .image-link:hover img {
+        transform: scale(1.1);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .letter-spacing-1 {
+        letter-spacing: 1px;
+    }
+
     /* Custom CSS for mobile responsiveness */
-    @media (max-width: 767.98px) { /* For screens smaller than md breakpoint */
+    @media (max-width: 767.98px) {
+        /* ... existing mobile styles ... */
         #searchInput {
             min-width: 12ch; /* Ensure enough width for 12 characters */
             flex-grow: 1; /* Allow it to grow and take available space */

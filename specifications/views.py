@@ -189,3 +189,60 @@ def import_material_purchasers(request):
             messages.error(request, f"匯入失敗，發生預期外的錯誤: {e}")
 
     return redirect('specifications:material_spec_list')
+
+@login_required
+def export_material_specs_excel(request):
+    """
+    匯出物料規格到 Excel
+    """
+    query = request.GET.get('q')
+    is_admin = request.user.is_superuser
+
+    # 開始基礎查詢集
+    queryset = Material.objects.all().select_related('specification').order_by('material_code')
+
+    if query:
+        # 如果有搜尋查詢，則根據查詢進行過濾（對所有使用者）
+        materials_list = queryset.filter(material_code__icontains=query)
+    elif is_admin:
+        # 如果使用者是管理員且沒有查詢，顯示所有物料
+        materials_list = queryset
+    else:
+        # 如果不是管理員且沒有查詢，不顯示任何內容
+        materials_list = Material.objects.none()
+
+    # 準備資料
+    data = []
+    for material in materials_list:
+        data.append({
+            '物料號碼': material.material_code,
+            '物料說明': material.material_description,
+            '採購員': material.purchaser or '',
+            '大小': material.specification.size if hasattr(material, 'specification') and material.specification else '',
+            '重量': material.specification.weight if hasattr(material, 'specification') and material.specification else '',
+            '詳細說明': material.specification.detailed_description if hasattr(material, 'specification') and material.specification else '',
+        })
+
+    # 建立 DataFrame
+    df = pd.DataFrame(data)
+
+    # 建立 Excel 檔案
+    from django.http import HttpResponse
+    import io
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='物料規格')
+    
+    output.seek(0)
+    
+    # 設定回應
+    from django.utils import timezone
+    filename = f"material_specifications_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
