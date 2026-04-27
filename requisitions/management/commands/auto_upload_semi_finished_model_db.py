@@ -44,7 +44,7 @@ class Command(BaseCommand):
 
         try:
             self.stdout.write(f'Processing file: {file_path}')
-            created_count, updated_count = process_order_model_excel(file_path)
+            created_count, updated_count = process_order_model_excel(file_path, order_type='semi_finished')
             
             success_msg = f'Success! Created: {created_count}, Updated: {updated_count}'
             self.stdout.write(self.style.SUCCESS(success_msg))

@@ -1,0 +1,5 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+WOM Found: ID=108155, is_active=False
+RequisitionItems count: 1
+ - ReqItem ID=7502, Requisition=100003612 (電裝)

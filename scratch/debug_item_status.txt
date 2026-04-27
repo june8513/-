@@ -1,0 +1,6 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Item Name: SPM-22i 主軸AMP(31-MB)_A06B-6222-H022#610
+Required Qty: 1.00
+Confirmed Qty: 1.00
+Dispatch Status: dispatched

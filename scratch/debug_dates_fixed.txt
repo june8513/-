@@ -1,0 +1,4 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Order 100003568: Demand Date = 2026-03-19
+Order 100003470: Demand Date = 2026-03-26

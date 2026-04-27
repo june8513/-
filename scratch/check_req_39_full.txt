@@ -1,0 +1,9 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Requisition PK 39 Info:
+  Order: 100003541
+  Process Type: 系統
+  Applicant: 900169 (陳基實)
+  Status: dispatch_completed
+  Archived: False
+  Type: finished

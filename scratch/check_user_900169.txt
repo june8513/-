@@ -1,0 +1,3 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Username: 900169, Name: 陳基實, Groups: ['申請人員']

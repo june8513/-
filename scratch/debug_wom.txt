@@ -1,0 +1,4 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+is_active: False
+updated_at: 2026-04-14 23:40:04.264478+00:00

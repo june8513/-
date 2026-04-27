@@ -1,0 +1,13 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Materials with SAP withdrawn quantity > 0: 294
+Mat: 499800000800, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 508300001700, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 796000006700, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 796000008200, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 8015002284A1, Req: 2.00, SAP Withdrawn: 2.00, System Conf: 0.00
+Mat: 811000086300, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 811000091401, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 8112000689B0, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 8112000775B0, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00
+Mat: 8112000786C1, Req: 1.00, SAP Withdrawn: 1.00, System Conf: 0.00

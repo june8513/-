@@ -1,0 +1,6 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Starting cleanup of RequisitionItems with inactive source materials...
+Found 28 orphaned RequisitionItems.
+Updated 13 items to '(已刪除)' state.
+Deleted 15 items with 0 confirmed quantity.

@@ -1,0 +1,66 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+
+Order: 100003568
+ WO id: 491
+ WO order_number: 100003568
+ WO shipping_date: None
+ WO customer_name: None
+ WO is_archived: False
+ WO status_message: 訂單/機型組合已變更，請確認
+ WO created_at: 2026-03-11 00:20:52.324057+00:00
+ WO updated_at: 2026-04-27 07:02:41.401117+00:00
+ WOM PK: 94048
+  requisition_items: requisitions.RequisitionItem.None
+  transactions: requisitions.WorkOrderMaterialTransaction.None
+  process_type_logs: requisitions.WorkOrderMaterialProcessTypeLog.None
+  id: 94048
+  machine_model: 5A-95Q/5X_X=950, Y=850, Z=650
+  order_number: 100003568
+  material_number: 710000005300
+  item_name: HSCI連接線10米_1257765-10, GEN 3
+  required_quantity: 1.00
+  process_type: 電裝
+  material_type: finished
+  confirmed_quantity: 0.00
+  is_signed_off: False
+  is_active: True
+  estimated_arrival_date: None
+  demand_date: None
+  sap_withdrawn_quantity: 0.00
+  sap_sync_issue: False
+  sap_sync_issue_since: None
+  created_at: 2026-03-11 00:21:31.759700+00:00
+  updated_at: 2026-03-11 00:21:31.759703+00:00
+
+Order: 100003470
+ WO id: 74
+ WO order_number: 100003470
+ WO shipping_date: None
+ WO customer_name: None
+ WO is_archived: False
+ WO status_message: 訂單/機型組合已變更，請確認
+ WO created_at: 2026-01-16 04:17:08.767242+00:00
+ WO updated_at: 2026-04-27 07:02:41.373295+00:00
+ WOM PK: 31217
+  requisition_items: requisitions.RequisitionItem.None
+  transactions: requisitions.WorkOrderMaterialTransaction.None
+  process_type_logs: requisitions.WorkOrderMaterialProcessTypeLog.None
+  id: 31217
+  machine_model: HCMC-2082_X=2060, Y=820, Z=660/820
+  order_number: 100003470
+  material_number: 710000005300
+  item_name: HSCI連接線10米_1257765-10, GEN 3
+  required_quantity: 1.00
+  process_type: 電裝
+  material_type: finished
+  confirmed_quantity: 0.00
+  is_signed_off: False
+  is_active: True
+  estimated_arrival_date: None
+  demand_date: None
+  sap_withdrawn_quantity: 0.00
+  sap_sync_issue: False
+  sap_sync_issue_since: None
+  created_at: 2026-01-16 04:17:53.749695+00:00
+  updated_at: 2026-01-16 04:17:53.749697+00:00

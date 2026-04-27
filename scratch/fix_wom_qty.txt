@@ -1,0 +1,3 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+WOM 108155 updated: required=0

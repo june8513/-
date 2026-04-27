@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<string>", line 9, in <module>
+AttributeError: 'WorkOrder' object has no attribute 'order_type'
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.

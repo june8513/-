@@ -4,6 +4,7 @@ from .models import Requisition, RequisitionItem, WorkOrderMaterial
 from decimal import Decimal
 from django.utils import timezone
 from datetime import timedelta
+from django.db import models
 
 @receiver(post_save, sender=Requisition)
 def create_announcement_on_requisition_creation(sender, instance, created, **kwargs):
@@ -21,16 +22,44 @@ def create_announcement_on_requisition_creation(sender, instance, created, **kwa
             expires_at=expires_at
         )
 
+@receiver(post_save, sender=RequisitionItem)
+def update_work_order_material_on_requisition_item_save(sender, instance, **kwargs):
+    """
+    When a RequisitionItem is saved, recalculate the total confirmed_quantity
+    for its associated WorkOrderMaterial.
+    """
+    if instance.source_material:
+        work_order_material = instance.source_material
+        # Sum all confirmed_quantity for this WorkOrderMaterial
+        total_confirmed = RequisitionItem.objects.filter(
+            source_material=work_order_material
+        ).aggregate(total=models.Sum('confirmed_quantity'))['total'] or Decimal('0')
+        
+        sap_qty = work_order_material.sap_withdrawn_quantity or Decimal('0')
+        correct_confirmed = max(total_confirmed, sap_qty)
+        
+        if work_order_material.confirmed_quantity != correct_confirmed:
+            work_order_material.confirmed_quantity = correct_confirmed
+            work_order_material.save(update_fields=['confirmed_quantity'])
+            print(f"DEBUG: RequisitionItem (PK: {instance.pk}) saved. Updated WorkOrderMaterial (PK: {work_order_material.pk}) confirmed_quantity to {correct_confirmed}")
+
 @receiver(post_delete, sender=RequisitionItem)
 def update_work_order_material_on_requisition_item_delete(sender, instance, **kwargs):
     """
     When a RequisitionItem is deleted, adjust the confirmed_quantity of its
     associated WorkOrderMaterial.
     """
-    if instance.source_material and instance.confirmed_quantity is not None:
+    if instance.source_material:
         work_order_material = instance.source_material
-        # Ensure confirmed_quantity doesn't go below zero
-        current_confirmed = work_order_material.confirmed_quantity if work_order_material.confirmed_quantity is not None else Decimal('0')
-        work_order_material.confirmed_quantity = max(Decimal('0'), current_confirmed - instance.confirmed_quantity)
-        work_order_material.save()
-        print(f"DEBUG: RequisitionItem (PK: {instance.pk}) deleted. Adjusted WorkOrderMaterial (PK: {work_order_material.pk}) confirmed_quantity to {work_order_material.confirmed_quantity}")
+        # Recalculate total
+        total_confirmed = RequisitionItem.objects.filter(
+            source_material=work_order_material
+        ).aggregate(total=models.Sum('confirmed_quantity'))['total'] or Decimal('0')
+        
+        sap_qty = work_order_material.sap_withdrawn_quantity or Decimal('0')
+        correct_confirmed = max(total_confirmed, sap_qty)
+        
+        if work_order_material.confirmed_quantity != correct_confirmed:
+            work_order_material.confirmed_quantity = correct_confirmed
+            work_order_material.save(update_fields=['confirmed_quantity'])
+            print(f"DEBUG: RequisitionItem (PK: {instance.pk}) deleted. Updated WorkOrderMaterial (PK: {work_order_material.pk}) confirmed_quantity to {correct_confirmed}")

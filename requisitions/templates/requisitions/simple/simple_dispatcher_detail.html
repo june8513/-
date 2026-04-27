@@ -577,8 +577,14 @@
                 step="1">
             <button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button>
             <button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>
-            {% elif not item.is_signed_off and not requisition.is_archived %}
-            <button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
+            {% elif not requisition.is_archived %}
+                {% with is_deactivated=item.source_material.is_active|yesno:"no,yes" %}
+                {% if is_deactivated == "yes" or item.confirmed_quantity > item.required_quantity %}
+                    <button type="submit" name="action" value="return" class="action-btn undo" style="background:#DC2626;color:white;">執行退料</button>
+                {% elif not item.is_signed_off %}
+                    <button type="submit" name="action" value="undo" class="action-btn undo">撤銷</button>
+                {% endif %}
+                {% endwith %}
             {% endif %}
         </form>
 
@@ -791,6 +797,11 @@
                 card.dataset.dispatchedById = '';
                 const reqQty = card.querySelector('.qty-value').textContent;
                 actionsForm.innerHTML = '<input type="hidden" name="item_pk" value="' + card.dataset.itemPk + '"><input type="number" name="dispatched_qty" value="' + reqQty + '" class="qty-input" min="0" step="1"><button type="submit" name="action" value="dispatch" class="action-btn dispatch">撥料</button><button type="submit" name="action" value="backorder" class="action-btn backorder">缺料</button>';
+            } else if (newStatus === 'deleted') {
+                card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                card.style.opacity = '0';
+                card.style.transform = 'translateX(100px)';
+                setTimeout(() => card.remove(), 500);
             }
             bindFormEvents(actionsForm);
         }

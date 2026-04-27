@@ -1,0 +1,10 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Group: Group 1, Members: []
+Group: 資財管理, Members: ['admin(1)', 'Junjia(15)', 'linsini(21)', '001245(25)', 'fanfan(40)', 'lsf(42)', 'bass(43)', 'danby(44)', 'ALICE7(45)', 'sck(46)']
+Group: 裝三課的共享群組, Members: ['admin(1)', 'cim(16)', 'cim640326(17)', 'test2(19)', 'maxchang(23)', 'hsin(26)', 'wangwq(29)', 'lit(41)', '1957menghua1957(47)', 'bear(48)']
+Group: 電裝一組, Members: ['admin(1)', 'cim(16)', 'cim640326(17)', 'ivd0601(27)', '900668(36)', 'primo(39)', 'mary(53)']
+Group: 電裝四組, Members: ['admin(1)', 'cim(16)', 'cim640326(17)', '900650(37)', 'ivd5g00712(38)', 'primo(39)', 'mary(53)']
+Group: 電裝五組, Members: ['admin(1)', 'cim(16)', 'cim640326(17)', 'ivd1801(22)', '900459(35)', 'primo(39)', 'ivd2c00194(51)', '900646(52)', 'mary(53)']
+Group: 電裝, Members: ['admin(1)', 'cim(16)', 'cim640326(17)', 'primo(39)', 'lit(41)', 'mary(53)']
+Group: 外包4, Members: ['admin(1)', 'ivd30(57)']

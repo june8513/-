@@ -1,0 +1,4 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+Found 1 items
+ID: 7502, Name: SPM-22i 主軸AMP(31-MB)_A06B-6222-H022#610 (已刪除), Req: 0.00, Conf: 1.00, Active: False

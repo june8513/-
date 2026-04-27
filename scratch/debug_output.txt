@@ -1,0 +1,25 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+--- Debugging Order 100003316 ---
+RequisitionItems with confirmed_quantity > 0: 0
+Active WorkOrderMaterials: 295
+Shortage: 499800000800 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 508300001700 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 796000006700 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 796000008200 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8015002284A1 - Req: 2.00, Conf: 0.00, ItemsSum: 0
+Shortage: 811000086300 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 811000091401 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112000689B0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112000775B0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112000786C1 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112000927A0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112000928A0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112000934A0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112001041C0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112001044C0 - Req: 2.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8112001089C0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8115000571A0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8115000599A0 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8115000632A1 - Req: 1.00, Conf: 0.00, ItemsSum: 0
+Shortage: 8115000721A0 - Req: 1.00, Conf: 0.00, ItemsSum: 0

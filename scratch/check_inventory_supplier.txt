@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+AttributeError: 'Material' object has no attribute 'material_name'. Did you mean: 'material_code'?
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+--- 庫存主檔供應商資訊 (前10筆) ---

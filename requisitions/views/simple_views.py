@@ -58,7 +58,8 @@ def simple_applicant_home(request):
     viewable_owner_names = list(viewable_owners.exclude(pk=request.user.pk).values_list('username', flat=True))
     
     base_qs = Requisition.objects.filter(
-        Q(applicant=request.user) | Q(applicant__in=viewable_owners)
+        Q(applicant=request.user) | Q(applicant__in=viewable_owners),
+        requisition_type=current_type
     )
     
     # 如果是主管，顯示所有申請單
@@ -1256,27 +1257,43 @@ def simple_dispatcher_detail(request, category, pk):
                         if not is_ajax:
                             messages.error(request, result['message'])
                 
-                elif action == 'backorder':
-                    # 標記缺料
-                    item.dispatch_status = 'backordered'
-                    item.save()
-                    result = {'success': True, 'message': f'物料 {item.material_number} 已標記為缺料。', 'new_status': 'backordered'}
-                    if not is_ajax:
-                        messages.success(request, result['message'])
-                
-                elif action == 'undo':
-                    # 退料/取消撥料 - 只有未簽收的才能撤銷
-                    if item.is_signed_off:
-                        result = {'success': False, 'message': f'物料 {item.material_number} 已簽收，無法撤銷。請使用補撥功能。'}
+                elif action == 'undo' or action == 'return':
+                    # 退料/取消撥料
+                    # 正常情況下已簽收不能撤銷，但如果是「物料已刪除」或「需求變更導致多撥」，應允許退料
+                    is_deactivated = item.source_material and not item.source_material.is_active
+                    has_surplus = item.confirmed_quantity > item.required_quantity
+                    
+                    if item.is_signed_off and not (is_deactivated or has_surplus) and action == 'undo':
+                        result = {'success': False, 'message': f'物料 {item.material_number} 已簽收，無法撤銷。'}
                         if not is_ajax:
                             messages.error(request, result['message'])
                     else:
+                        old_qty = item.confirmed_quantity or Decimal('0')
                         item.confirmed_quantity = Decimal('0')
                         item.dispatch_status = None
                         item.dispatched_by = None
                         item.dispatched_at = None
                         item.save()
-                        result = {'success': True, 'message': f'物料 {item.material_number} 已取消撥料。', 'new_status': 'pending'}
+                        
+                        # 記錄交易 (如果是退料)
+                        if old_qty > 0 and item.source_material:
+                            from requisitions.models import WorkOrderMaterialTransaction
+                            WorkOrderMaterialTransaction.objects.create(
+                                work_order_material=item.source_material,
+                                user=request.user,
+                                transaction_type='RETURN',
+                                quantity_change=-old_qty,
+                                new_confirmed_quantity=Decimal('0'),
+                                notes=f"簡易畫面執行退料 (物料狀態: {'已刪除' if is_deactivated else '正常'})"
+                            )
+
+                        # 如果是已刪除的物料，歸零後直接移除 RequisitionItem
+                        if is_deactivated:
+                            item.delete()
+                            result = {'success': True, 'message': f'物料 {item.material_number} 已成功退料並從清單移除。', 'new_status': 'deleted'}
+                        else:
+                            result = {'success': True, 'message': f'物料 {item.material_number} 已成功退料。', 'new_status': 'pending'}
+                        
                         if not is_ajax:
                             messages.success(request, result['message'])
                 
@@ -2247,3 +2264,20 @@ def shortage_inquiry_export(request):
     )
     response['Content-Disposition'] = f'attachment; filename="shortage_inquiry_{date.today().isoformat()}.xlsx"'
     return response
+
+
+@login_required
+def sync_mps_order_info(request):
+    """
+    從外部 API 同步工單出貨資訊 (客戶與出貨日期)
+    """
+    from ..utils import sync_external_order_info
+    
+    success, message = sync_external_order_info()
+    if success:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
+        
+    return redirect('requisitions:shortage_inquiry')
+

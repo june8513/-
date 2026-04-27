@@ -108,14 +108,14 @@ def process_shipping_customer_excel(excel_file_path):
 
         # 偵測出貨日期欄位
         shipping_date_col = None
-        for col_name in ['客戶原始預交日', '出貨日期', '預交日期', '交期']:
+        for col_name in ['訂單預出貨日', '客戶原始預交日', '出貨日期', '預交日期', '交期']:
             if col_name in df_upload.columns:
                 shipping_date_col = col_name
                 break
 
         # 偵測客戶名稱欄位
         customer_col = None
-        for col_name in ['客戶名稱', '客戶', '客戶名']:
+        for col_name in ['下單客戶名稱', '客戶名稱', '客戶', '客戶名']:
             if col_name in df_upload.columns:
                 customer_col = col_name
                 break
@@ -168,7 +168,152 @@ def process_shipping_customer_excel(excel_file_path):
         tb_str = traceback.format_exc()
         raise type(e)(f"處理出貨客戶 Excel 時發生錯誤: {e}\n{tb_str}")
 
-def process_order_model_excel(excel_file_path):
+def sync_external_order_info():
+    """
+    從外部 API (MPS) 同步工單的出貨日期與客戶資訊
+    """
+    import io
+    api_url = "http://192.168.1.89/MPS/GetExcel?depno=F004"
+    try:
+        response = requests.get(api_url, timeout=60)
+        response.raise_for_status()
+        
+        content = response.content
+        if not content:
+            return False, "API 回傳內容為空"
+
+        # 嘗試使用不同的引擎讀取 Excel (xlsx 用 openpyxl, xls 用 xlrd)
+        df_upload = None
+        error_msgs = []
+
+        # 1. 嘗試新版 xlsx (openpyxl)
+        try:
+            df_upload = pd.read_excel(io.BytesIO(content), dtype=str, engine='openpyxl')
+        except Exception as e:
+            error_msgs.append(f"xlsx 讀取失敗: {str(e)}")
+            
+            # 2. 嘗試舊版 xls (xlrd)
+            try:
+                df_upload = pd.read_excel(io.BytesIO(content), dtype=str, engine='xlrd')
+            except Exception as e2:
+                error_msgs.append(f"xls 讀取失敗: {str(e2)}")
+                
+                # 3. 嘗試讀取為 HTML (有些系統回傳的是假的 xls, 其實是 html table)
+                try:
+                    dfs = pd.read_html(io.BytesIO(content))
+                    if dfs:
+                        df_upload = dfs[0]
+                        # 轉換所有欄位為字串
+                        df_upload = df_upload.astype(str)
+                except Exception as e3:
+                    error_msgs.append(f"HTML 讀取失敗: {str(e3)}")
+
+        if df_upload is None:
+            # 如果都失敗了，回傳最後的錯誤訊息，並檢查是否為純文字 (可能是 API 報錯)
+            try:
+                text_content = content.decode('utf-8')[:200]
+                return False, f"無法解析 Excel 內容。回傳內容前段：{text_content}"
+            except:
+                return False, f"無法解析 Excel 內容。詳細錯誤：{'; '.join(error_msgs)}"
+
+        # --- 強力偵測標頭列 ---
+        # 有些 Excel 前面幾行是空的或是標題，我們掃描前 10 行找出真正的 header
+        actual_header_index = 0
+        found_header = False
+        
+        # 先轉成 list of list 方便掃描
+        all_values = df_upload.values.tolist()
+        # 把原本的 columns 也當作第一行加入
+        all_values.insert(0, df_upload.columns.tolist())
+        
+        target_keywords = ['Order NO', 'Order', '工單', '訂單']
+        for i, row in enumerate(all_values[:10]):
+            row_str = [str(cell) for cell in row]
+            if any(key in s for s in row_str for key in target_keywords):
+                actual_header_index = i
+                found_header = True
+                break
+        
+        if found_header:
+            # 重新以該行作為 header
+            if actual_header_index == 0:
+                # header 就是原本的 columns，不用動
+                pass
+            else:
+                # 以該行重新讀取
+                df_upload = pd.read_excel(io.BytesIO(content), skiprows=actual_header_index, dtype=str)
+        
+        df_upload.columns = df_upload.columns.str.strip()
+        
+        # 再次偵測欄位
+        order_col = None
+        for col_name in ['Machine Number', 'Order NO', 'Order', '工單號碼', '工單單號', '訂單單號', '訂單', '工單']:
+            if col_name in df_upload.columns:
+                order_col = col_name
+                break
+        
+        shipping_date_col = None
+        for col_name in ['Order Scheduled Shipping Date', '訂單預出貨日', '客戶原始預交日', '出貨日期', '預交日期', '交期']:
+            if col_name in df_upload.columns:
+                shipping_date_col = col_name
+                break
+                
+        customer_col = None
+        for col_name in ['Order Customer Name', '下單客戶名稱', '客戶名稱', '客戶', '客戶名']:
+            if col_name in df_upload.columns:
+                customer_col = col_name
+                break
+        
+        if not order_col:
+            # 如果找不到欄位，可能是因為 Excel 格式不對
+            available_cols = ", ".join([str(c) for c in df_upload.columns[:10]])
+            return False, f"找不到單號欄位。偵測到的欄位有：{available_cols}"
+
+        # --- 偵錯日誌：記錄抓到了什麼 ---
+        try:
+            with open('scratch/sync_debug.log', 'w', encoding='utf-8') as f:
+                f.write(f"Detected Columns: order={order_col}, customer={customer_col}, date={shipping_date_col}\n")
+                f.write(f"All Columns: {list(df_upload.columns)}\n")
+                f.write("First 5 rows data:\n")
+                f.write(df_upload.head(5).to_string())
+        except:
+            pass
+
+        updated_count = 0
+        with transaction.atomic():
+            for _, row in df_upload.iterrows():
+                # 去掉前導零，確保與系統內的工單號碼格式一致
+                order_number = str(row.get(order_col, '')).strip().lstrip('0')
+                if not order_number or order_number == 'nan' or order_number == '': continue
+                
+                defaults = {}
+                # 解析日期
+                if shipping_date_col:
+                    date_val = row.get(shipping_date_col)
+                    if pd.notna(date_val) and str(date_val).strip() not in ['nan', '', 'None']:
+                        try:
+                            # 支援多種日期格式
+                            defaults['shipping_date'] = pd.to_datetime(date_val).date()
+                        except: pass
+                
+                # 解析客戶
+                if customer_col:
+                    val = row.get(customer_col)
+                    if pd.notna(val) and str(val).strip() not in ['nan', '', 'None']:
+                        defaults['customer_name'] = str(val).strip()
+                
+                if defaults:
+                    WorkOrder.objects.update_or_create(
+                        order_number=order_number,
+                        defaults=defaults
+                    )
+                    updated_count += 1
+                    
+        return True, f"同步成功，已更新 {updated_count} 筆工單的出貨資訊。"
+    except Exception as e:
+        return False, f"同步失敗：{str(e)}"
+
+def process_order_model_excel(excel_file_path, order_type='finished'):
     """
     Processes an Excel file to upload order and machine model data.
     If an (order_number, machine_model) combination is no longer in the Excel,
@@ -230,9 +375,15 @@ def process_order_model_excel(excel_file_path):
             # 同步解除歸檔申請單
             Requisition.objects.filter(order_number__in=all_order_numbers_in_upload, is_archived=True).update(is_archived=False)
 
-            # 自動歸檔沒有在 Excel 中的工單
+            # 自動歸檔沒有在 Excel 中的工單 (僅針對該類型的訂單)
+            orders_of_this_type = list(WorkOrderMaterial.objects.filter(
+                material_number="PARENT_SCOPE",
+                material_type=order_type
+            ).values_list('order_number', flat=True).distinct())
+
             active_orders_not_in_upload = list(WorkOrder.objects.filter(
-                is_archived=False
+                is_archived=False,
+                order_number__in=orders_of_this_type
             ).exclude(
                 order_number__in=all_order_numbers_in_upload
             ).values_list('order_number', flat=True))
@@ -278,6 +429,7 @@ def process_order_model_excel(excel_file_path):
                     'required_quantity': Decimal('0.00'),
                     'process_type': None,
                     'is_active': True, # Ensure new/updated materials are active
+                    'material_type': order_type,
                 }
 
                 existing_parent_scope = WorkOrderMaterial.objects.filter(
@@ -599,6 +751,13 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
             operation_desc_val = str(row.get(operation_desc_col, '')).strip() if operation_desc_col else ""
             process_type_name = None
             
+            new_demand_date = None
+            if demand_date_col:
+                date_val = row.get(demand_date_col)
+                if pd.notna(date_val):
+                    try: new_demand_date = pd.to_datetime(date_val).date()
+                    except: pass
+            
             # 1. 首先檢查物料投料點記憶 (MaterialProcessTypeRule)
             rules = MaterialProcessTypeRule.objects.filter(
                 material_prefix=material_prefix,
@@ -680,6 +839,10 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 if not material_instance.is_active:
                     material_instance.is_active = True
                     is_dirty = True
+                    
+                if new_demand_date and material_instance.demand_date != new_demand_date:
+                    material_instance.demand_date = new_demand_date
+                    is_dirty = True
 
                 if float(material_instance.sap_withdrawn_quantity or 0) != excel_withdrawn_qty:
                     material_instance.sap_withdrawn_quantity = excel_withdrawn_qty
@@ -690,10 +853,16 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                     if material_instance.sap_sync_issue:
                         material_instance.sap_sync_issue = False
                         is_dirty = True
+                    
+                    # 同步更新 WorkOrderMaterial 的已撥數量 (無論是否有申請單明細)
+                    if float(material_instance.confirmed_quantity or 0) < excel_withdrawn_qty:
+                        material_instance.confirmed_quantity = Decimal(str(excel_withdrawn_qty))
+                        is_dirty = True
+
                     if material_instance.id in wom_primary_item:
                         req_item = wom_primary_item[material_instance.id]
                         if float(req_item.confirmed_quantity or 0) < excel_withdrawn_qty:
-                            req_item.confirmed_quantity = excel_withdrawn_qty
+                            req_item.confirmed_quantity = Decimal(str(excel_withdrawn_qty))
                             req_item.dispatch_status = 'dispatched'
                             items_to_update_sap_dict[req_item.id] = req_item
                 elif system_dispatched > excel_withdrawn_qty:
@@ -711,13 +880,6 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                     updated_count += 1
             else:
                 if current_material_key not in created_material_keys:
-                    new_demand_date = None
-                    if demand_date_col:
-                        date_val = row.get(demand_date_col)
-                        if pd.notna(date_val):
-                            try: new_demand_date = pd.to_datetime(date_val).date()
-                            except: pass
-                    
                     materials_to_create.append(
                         WorkOrderMaterial(
                             order_number=order_number_clean,
@@ -728,7 +890,8 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                             process_type=process_type_obj,
                             demand_date=new_demand_date,
                             is_active=True,
-                            sap_withdrawn_quantity=excel_withdrawn_qty
+                            sap_withdrawn_quantity=excel_withdrawn_qty,
+                            confirmed_quantity=Decimal(str(excel_withdrawn_qty)) if excel_withdrawn_qty > 0 else Decimal('0')
                         )
                     )
                     created_material_keys.add(current_material_key)
@@ -794,7 +957,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
             if materials_to_update:
                 WorkOrderMaterial.objects.bulk_update(materials_to_update, fields=[
                     'item_name', 'required_quantity', 'process_type', 'is_active', 'demand_date',
-                    'sap_withdrawn_quantity', 'sap_sync_issue', 'sap_sync_issue_since'
+                    'sap_withdrawn_quantity', 'sap_sync_issue', 'sap_sync_issue_since', 'confirmed_quantity'
                 ], batch_size=2000)
                 
                 # Commit RequisitionItem updates for SAP sync
@@ -844,24 +1007,22 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                         
                         for item in old_items:
                             old_req = item.requisition
-                            
-                            # 找到或建立新投料點的申請單
-                            new_req, created = Requisition.objects.get_or_create(
+                            # 尋找新投料點的申請單 (不再自動建立)
+                            new_req = Requisition.objects.filter(
                                 order_number=old_req.order_number,
                                 process_type=new_pt,
                                 requisition_type=old_req.requisition_type,
-                                defaults={
-                                    'applicant': old_req.applicant,
-                                    'request_date': old_req.request_date,
-                                    'status': 'demand_submitted',
-                                }
-                            )
+                                is_archived=False
+                            ).first()
                             
-                            # 將 RequisitionItem 移到新申請單
-                            item.requisition = new_req
-                            item.save()
-                            
-                            print(f"[Sync] 物料 {material.material_number} 從「{old_pt}」移至「{new_pt}」申請單")
+                            if new_req:
+                                # 將 RequisitionItem 移到新申請單
+                                item.requisition = new_req
+                                item.save()
+                                print(f"[Sync] 物料 {material.material_number} 從「{old_pt}」移至「{new_pt}」申請單")
+                            else:
+                                # 依照需求，若無對應申請單則不自動建立，保留在原申請單
+                                print(f"[Sync] 物料 {material.material_number} 投料點變更為「{new_pt}」，但無對應申請單，故不自動建立。")
 
         uploaded_deletion_scopes = set()
         for _, row in df_upload.iterrows():
@@ -892,6 +1053,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
                 db_key = (str(material.order_number).strip(), str(material.material_number).strip(), str(material.machine_model.name).strip())
                 if db_key not in uploaded_material_keys:
                     material.is_active = False
+                    material.required_quantity = Decimal('0')
                     materials_to_deactivate.append(material)
                     deactivated_count += 1
                     
@@ -907,7 +1069,7 @@ def process_material_details_excel(excel_file_path, required_qty_col=None):
         # Final Atomic Block for Deactivations and Synced Changes
         with transaction.atomic():
             if materials_to_deactivate:
-                WorkOrderMaterial.objects.bulk_update(materials_to_deactivate, ['is_active'])
+                WorkOrderMaterial.objects.bulk_update(materials_to_deactivate, ['is_active', 'required_quantity'])
                 
                 # 批次處理 RequisitionItems 的同步與刪除
                 m_deactivate_ids = [m.id for m in materials_to_deactivate]

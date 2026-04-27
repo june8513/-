@@ -1,0 +1,8 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+--- 最近更新的工單資訊 ---
+目前資料庫中沒有任何工單具有客戶名稱資料。
+
+--- 目標工單 100003470 狀態 ---
+客戶: None
+出貨日期: None

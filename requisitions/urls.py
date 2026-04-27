@@ -28,6 +28,8 @@ urlpatterns = [
     # Shortage Inquiry (缺料查詢)
     path('simple/shortage-inquiry/', simple_views.shortage_inquiry, name='shortage_inquiry'),
     path('simple/shortage-inquiry/export/', simple_views.shortage_inquiry_export, name='shortage_inquiry_export'),
+    path('simple/shortage-inquiry/sync-mps/', simple_views.sync_mps_order_info, name='sync_mps_order_info'),
+
 
     path('simple/applicant/', simple_views.simple_applicant_home, name='simple_applicant_home'),
     path('simple/applicant/create/', simple_views.simple_applicant_create, name='simple_applicant_create'),

@@ -1,0 +1,10 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+
+Order: 100003568
+WorkOrder Shipping Date: None
+ - WOM PK: 94048, Active: True, Demand Date: None
+
+Order: 100003470
+WorkOrder Shipping Date: None
+ - WOM PK: 31217, Active: True, Demand Date: None

@@ -1,0 +1,3 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+WorkOrder 100003541: Archived=False

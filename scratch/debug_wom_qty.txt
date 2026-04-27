@@ -1,0 +1,5 @@
+DEBUG: RequisitionsConfig.ready() is being executed. Importing signals...
+DEBUG: Requisitions signals imported.
+WOM ID: 108155
+Required Qty: 1.00
+Is Active: False
