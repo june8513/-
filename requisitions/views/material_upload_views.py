@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, UpdateProcessTypeDBForm, UploadInventoryFileForm, BulkUploadForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, MachineModel, ProcessType
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -234,44 +234,13 @@ def upload_inventory_data(request): # This will now be for stock quantity only
         if form.is_valid():
             excel_file = request.FILES['file']
             try:
-                df = pd.read_excel(excel_file, dtype=str)
-                df.columns = df.columns.str.strip()
-
-                if '物料' not in df.columns:
-                    raise ValueError("Excel 檔案中找不到 '物料' 欄位。")
-                if '未限制' not in df.columns:
-                    raise ValueError("Excel 檔案中找不到 '未限制' (庫存數量) 欄位。")
-                # '儲格' is no longer expected here
-
-                updated_count = 0
-                created_count = 0
-
-                with transaction.atomic():
-                    for index, row in df.iterrows():
-                        material_number = row.get('物料')
-                        stock_quantity_str = row.get('未限制')
-
-                        if not material_number or not stock_quantity_str:
-                            messages.warning(request, f"跳過第 {index+2} 行: 物料或庫存數量為空。")
-                            continue
-
-                        try:
-                            stock_quantity = float(stock_quantity_str)
-                        except ValueError:
-                            messages.warning(request, f"跳過第 {index+2} 行: 無效的庫存數量 '{stock_quantity_str}'.")
-                            continue
-
-                        # Only update stock_quantity, storage_bin should be preserved if it exists
-                        obj, created = Inventory.objects.update_or_create(
-                            material_number=material_number,
-                            defaults={
-                                'stock_quantity': stock_quantity,
-                            }
-                        )
-                        if created:
-                            created_count += 1
-                        else:
-                            updated_count += 1
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                    for chunk in excel_file.chunks():
+                        temp_file.write(chunk)
+                    temp_file_path = temp_file.name
+                
+                created_count, updated_count = process_inventory_excel(temp_file_path)
+                os.unlink(temp_file_path)
                 
                 messages.success(request, f"庫存資料上傳成功！新增 {created_count} 筆，更新 {updated_count} 筆。")
                 return redirect('core:homepage')
@@ -280,6 +249,8 @@ def upload_inventory_data(request): # This will now be for stock quantity only
                 messages.error(request, f"上傳檔案時發生錯誤: {e}")
                 import traceback
                 print(traceback.format_exc())
+                if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
         else: # Add this else block for invalid form
             messages.error(request, "上傳失敗：請檢查檔案格式或欄位是否正確。")
     # For GET request, render the upload form page

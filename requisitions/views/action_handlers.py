@@ -19,13 +19,16 @@ def _apply_filters_to_queryset(queryset, filters):
     model = queryset.model
     
     for key, value in filters.items():
-        # Core feature: is_shortage (Moved up and added continue to prevent bypassing)
+        # Core feature: is_shortage
         if key == 'is_shortage' and value is True:
             if model == WorkOrderMaterial:
-                q_objects &= Q(required_quantity__gt=Coalesce('confirmed_quantity', Decimal('0.00')))
+                queryset = queryset.annotate(
+                    temp_confirmed=Coalesce(F('confirmed_quantity'), Decimal('0.00'))
+                ).filter(required_quantity__gt=F('temp_confirmed'))
+                continue
             elif model == Requisition:
                 q_objects &= Q(items__dispatch_status='backordered')
-            continue
+                continue
 
         # Check if we should strip __date from DateFields to avoid Django error
         clean_key = key

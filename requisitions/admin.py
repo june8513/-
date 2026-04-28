@@ -122,6 +122,7 @@ class AutoUploadConfigAdmin(admin.ModelAdmin):
                 'semi_finished': 'auto_upload_semi_finished',
                 'semi_finished_model_db': 'auto_upload_semi_finished_model_db',
                 'shipping_customer': 'auto_upload_shipping_customer',
+                'supplier_data': 'auto_upload_supplier_data',
             }
             
             cmd_name = command_map.get(config.upload_type)

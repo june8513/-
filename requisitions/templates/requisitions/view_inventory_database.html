@@ -18,9 +18,9 @@
         <tbody>
             {% for item in inventory_items %}
             <tr>
-                <td>{{ item.material_number }}</td>
-                <td>{{ item.storage_bin }}</td>
-                <td>{{ item.stock_quantity }}</td>
+                <td>{{ item.material_code }}</td>
+                <td>{{ item.bin }}</td>
+                <td>{{ item.system_quantity }}</td>
             </tr>
             {% endfor %}
         </tbody>

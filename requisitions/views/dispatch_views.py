@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from requisitions.models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, ProcessType
+from requisitions.models import Requisition, RequisitionItem, WorkOrderMaterial, ProcessType
 from inventory.models import Material
 from django.db import transaction, IntegrityError
 import json
@@ -147,12 +147,12 @@ def generate_backorder_note(request, pk):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('core:homepage') # Changed from 'requisitions:homepage'
 
-    # Subquery to get storage_bin and stock_quantity from Inventory
+    # Subquery to get bin and system_quantity from inventory.models.Material
     inventory_subquery_storage_bin = Subquery(
-        Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
+        Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
     )
     inventory_subquery_stock_quantity = Subquery(
-        Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
+        Material.objects.filter(material_code=OuterRef('material_number')).values('system_quantity')[:1]
     )
     # Filter for RequisitionItems that are not fully dispatched (shortage)
     # We use RequisitionItem as the source of truth because it tracks confirmed_quantity
@@ -166,7 +166,8 @@ def generate_backorder_note(request, pk):
             output_field=DecimalField()
         ),
         storage_bin=inventory_subquery_storage_bin,
-        stock_quantity=inventory_subquery_stock_quantity
+        stock_quantity=inventory_subquery_stock_quantity,
+        estimated_arrival_date=F('source_material__estimated_arrival_date')
     ).order_by('order_number', 'material_number')
 
     context = {
@@ -378,15 +379,15 @@ def batch_dispatch_action(request):
     for material_number, total_to_dispatch in inventory_updates.items():
         try:
             # Use lock for update to prevent race conditions
-            inventory_item = Inventory.objects.select_for_update().get(material_number=material_number)
-            if inventory_item.stock_quantity < total_to_dispatch:
-                messages.error(request, f"物料 {material_number} 的庫存 ({inventory_item.stock_quantity}) 不足，無法撥料 {total_to_dispatch}。")
+            inventory_item = Material.objects.select_for_update().get(material_code=material_number)
+            if inventory_item.system_quantity < total_to_dispatch:
+                messages.error(request, f"物料 {material_number} 的庫存 ({inventory_item.system_quantity}) 不足，無法撥料 {total_to_dispatch}。")
                 transaction.set_rollback(True)
                 return redirect('requisitions:requisition_list')
             
-            inventory_item.stock_quantity -= total_to_dispatch
+            inventory_item.system_quantity -= total_to_dispatch
             inventory_item.save()
-        except Inventory.DoesNotExist:
+        except Material.DoesNotExist:
             messages.error(request, f"庫存中找不到物料 {material_number}。")
             transaction.set_rollback(True)
             return redirect('requisitions:requisition_list')

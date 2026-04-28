@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageForm, WorkOrderMaterialImageUploadForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -319,12 +319,12 @@ def export_backorder_note_excel(request, pk):
         messages.error(request, "您沒有權限訪問此頁面。")
         return redirect('core:homepage')
 
-    # Subquery to get storage_bin and stock_quantity from Inventory
+    # Subquery to get bin and system_quantity from inventory.models.Material
     inventory_subquery_storage_bin = Subquery(
-        Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
+        Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
     )
     inventory_subquery_stock_quantity = Subquery(
-        Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
+        Material.objects.filter(material_code=OuterRef('material_number')).values('system_quantity')[:1]
     )
 
     # Filter for active materials where required_quantity > confirmed_quantity

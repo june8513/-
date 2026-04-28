@@ -18,7 +18,7 @@ from datetime import date
 import pandas as pd
 import io
 
-from ..models import Requisition, RequisitionItem, Inventory, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement, MachineModel, WorkOrderMaterialTransaction
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement, MachineModel, WorkOrderMaterialTransaction
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
@@ -1339,6 +1339,14 @@ def simple_dispatcher_detail(request, category, pk):
                         result = {'success': False, 'message': f'補撥失敗：{str(e)}'}
                         if not is_ajax:
                             messages.error(request, result['message'])
+                elif action == 'backorder':
+                    # 標記為缺料
+                    item.dispatch_status = 'backordered'
+                    item.confirmed_quantity = Decimal('0')
+                    item.save()
+                    result = {'success': True, 'message': f'物料 {item.material_number} 已標記為缺料。', 'new_status': 'backordered'}
+                    if not is_ajax:
+                        messages.warning(request, result['message'])
                 
             except RequisitionItem.DoesNotExist:
                 result = {'success': False, 'message': '找不到指定的物料項目。'}
@@ -1443,17 +1451,33 @@ def simple_dispatcher_detail(request, category, pk):
     # 將 backlog_info 附加到每個物料項目，並預處理顯示文字
     items_list = list(main_items)
     
-    # 即時更新庫存（從 Material 表取得最新庫存數量）
+    # 即時更新庫存與預計入料日期（從 Material 與 WorkOrderMaterial 取得最新數據）
     from inventory.models import Material as InvMaterial
     material_codes = [item.material_number for item in items_list]
+    
+    # 庫存對照表
     live_stock = dict(
         InvMaterial.objects.filter(material_code__in=material_codes)
         .values_list('material_code', 'system_quantity')
     )
+    
+    # 預計入料日期對照表 (從 WorkOrderMaterial 取得最新的日期)
+    from django.db.models import Max
+    arrival_dates = dict(
+        WorkOrderMaterial.objects.filter(material_number__in=material_codes, is_active=True)
+        .values('material_number')
+        .annotate(latest_date=Max('estimated_arrival_date'))
+        .values_list('material_number', 'latest_date')
+    )
+
     for item in items_list:
+        # 庫存
         live_qty = live_stock.get(item.material_number)
         if live_qty is not None:
             item.stock_quantity = live_qty
+            
+        # 預計入料日期
+        item.estimated_arrival_date = arrival_dates.get(item.material_number)
     for item in items_list:
         item.backlog_info = backlog_map.get(item.material_number, [])
         item.has_backlog = bool(item.backlog_info)
@@ -2076,6 +2100,8 @@ def shortage_inquiry(request):
     results = None
     submitted_orders = ''
     order_count = 0
+    total_items = 0
+    shortage_rate = 0
 
     if request.method == 'POST':
         import re
@@ -2112,15 +2138,19 @@ def shortage_inquiry(request):
 
             results = []
             seen_orders = set()
+            total_items = 0
 
             for material_key, data in all_materials_analysis.items():
-                # 只顯示全域分析後確認為缺料的物料
-                if not data['is_shortage']:
-                    continue
-
                 # 篩選出屬於查詢工單的明細
                 relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
                 if not relevant_details:
+                    continue
+                
+                # 計算總筆數
+                total_items += len(relevant_details)
+
+                # 只顯示全域分析後確認為缺料的物料
+                if not data['is_shortage']:
                     continue
 
                 # 全域庫存
@@ -2162,11 +2192,14 @@ def shortage_inquiry(request):
             # 排序：依工單號 -> 品號
             results.sort(key=lambda x: (x['order_number'], x['material_number']))
             order_count = len(seen_orders)
+            shortage_rate = (len(results) / total_items * 100) if total_items > 0 else 0
 
     return render(request, 'requisitions/simple/simple_shortage_inquiry.html', {
         'results': results,
         'submitted_orders': submitted_orders,
         'order_count': order_count,
+        'total_items': total_items,
+        'shortage_rate': shortage_rate,
     })
 
 
@@ -2213,12 +2246,18 @@ def shortage_inquiry_export(request):
         supplier_map[mat.material_code] = mat.purchaser
 
     rows = []
-    for material_key, data in all_materials_analysis.items():
-        if not data['is_shortage']:
-            continue
+    total_items = 0
+    seen_orders = set()
 
+    for material_key, data in all_materials_analysis.items():
         relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
         if not relevant_details:
+            continue
+
+        # 計算總筆數
+        total_items += len(relevant_details)
+
+        if not data['is_shortage']:
             continue
 
         current_stock = float(data['current_stock'])
@@ -2232,6 +2271,8 @@ def shortage_inquiry_export(request):
 
             if row_shortage <= 0:
                 continue
+
+            seen_orders.add(order_num)
 
             rows.append({
                 '工單號碼': order_num,
@@ -2252,10 +2293,27 @@ def shortage_inquiry_export(request):
 
     rows.sort(key=lambda x: (x['工單號碼'], x['品號']))
 
+    # 計算統計資料
+    shortage_count = len(rows)
+    shortage_rate = (shortage_count / total_items * 100) if total_items > 0 else 0
+    order_count = len(seen_orders)
+    summary_text = f"總數/缺料數:{total_items}/{shortage_count}筆 缺料率{shortage_rate:.1f}% 工單{order_count}張"
+
     df = pd.DataFrame(rows)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='缺料查詢')
+        df.to_excel(writer, index=False, sheet_name='缺料查詢', startrow=0)
+        worksheet = writer.sheets['缺料查詢']
+        
+        # 寫入統計資料到最後一列
+        last_row = len(rows) + 2 # 表頭佔1列，資料佔 len(rows) 列，下一列為 last_row
+        cell = worksheet.cell(row=last_row, column=1, value=summary_text)
+        worksheet.merge_cells(start_row=last_row, start_column=1, end_row=last_row, end_column=5)
+        
+        # 設定粗體與些微樣式
+        from openpyxl.styles import Font
+        cell.font = Font(bold=True, size=12)
+
     output.seek(0)
 
     response = HttpResponse(

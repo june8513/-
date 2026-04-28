@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, RequisitionImageForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrder
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, MachineModel, ProcessType, RequisitionImage, WorkOrder
 from inventory.models import Material
 from django.db import transaction
 from django.conf import settings
@@ -193,18 +193,17 @@ def requisition_detail(request, pk):
     all_items = RequisitionItem.objects.filter(requisition=requisition).order_by('material_number')
     images = requisition.images.all()
 
-    # Subquery to get storage_bin and stock_quantity from Inventory
+    # Subquery to get bin and system_quantity from inventory.models.Material
     inventory_subquery_storage_bin = Subquery(
-        Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
+        Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
     )
     inventory_subquery_stock_quantity = Subquery(
-        Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
+        Material.objects.filter(material_code=OuterRef('material_number')).values('system_quantity')[:1]
     )
 
     # Correctly identify items with shortages
     shortage_items_qs = RequisitionItem.objects.filter(
         requisition=requisition,
-        is_signed_off=False, # Exclude items that are already signed off
         required_quantity__gt=Coalesce(F('confirmed_quantity'), Decimal('0'))
     ).annotate(
         shortage_quantity=ExpressionWrapper(

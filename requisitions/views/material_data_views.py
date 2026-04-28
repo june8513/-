@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from ..forms import RequisitionForm, UploadFileForm, OrderModelUploadForm, MaterialDetailsUploadForm, RequisitionItemMaterialConfirmationFormSet, RequisitionItemSignOffFormSet, UpdateProcessTypeDBForm, UploadInventoryFileForm, ProcessTypeForm, RequisitionImageForm, WorkOrderMaterialImageUploadForm
-from ..models import Requisition, RequisitionItem, WorkOrderMaterial, Inventory, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage, WorkOrder, WorkOrderMaterialProcessTypeLog
+from ..models import Requisition, RequisitionItem, WorkOrderMaterial, MachineModel, ProcessType, RequisitionImage, WorkOrderMaterialTransaction, WorkOrderMaterialImage, WorkOrder, WorkOrderMaterialProcessTypeLog
 from inventory.models import Material
 from django.db import transaction
 import openpyxl
@@ -85,7 +85,7 @@ def view_inventory_database(request):
     if not request.user.is_superuser:
         messages.error(request, "您沒有權限執行此操作。")
         return redirect('core:homepage')
-    inventory_items = Inventory.objects.all()
+    inventory_items = Material.objects.all()
     context = {
         'inventory_items': inventory_items,
     }
@@ -350,10 +350,10 @@ def archived_work_order_material_list(request):
 
     if order_number:
         inventory_subquery_storage_bin = Subquery(
-            Inventory.objects.filter(material_number=OuterRef('material_number')).values('storage_bin')[:1]
+            Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
         )
         inventory_subquery_stock_quantity = Subquery(
-            Inventory.objects.filter(material_number=OuterRef('material_number')).values('stock_quantity')[:1]
+            Material.objects.filter(material_code=OuterRef('material_number')).values('system_quantity')[:1]
         )
 
         materials = WorkOrderMaterial.objects.filter(

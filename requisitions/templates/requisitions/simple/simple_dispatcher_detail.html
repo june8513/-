@@ -855,8 +855,8 @@
                             <div class="d-flex gap-3" style="font-size: 0.85rem;">
                                 <span>需求: <strong style="color: #1F2937;">{{ item.required_quantity|floatformat:"-2g" }}</strong></span>
                                 <span>欠料: <strong style="color: #DC2626;">{{ item.required_quantity|floatformat:"-2g" }}</strong></span>
-                                {% if item.expected_date %}
-                                <span style="color: #059669;">📅 預計: {{ item.expected_date|date:"Y-m-d" }}</span>
+                                {% if item.estimated_arrival_date %}
+                                <span style="color: #059669;">📅 預計: {{ item.estimated_arrival_date|date:"Y-m-d" }}</span>
                                 {% endif %}
                             </div>
                         </div>

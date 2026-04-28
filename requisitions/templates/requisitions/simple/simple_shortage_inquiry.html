@@ -318,12 +318,19 @@
     <div class="result-summary">
         <div class="summary-stats">
             <div class="stat-item">
-                <span>查詢結果：</span>
+                <span>總數/缺料數：</span>
+                <span class="stat-value">{{ total_items }}</span>
+                <span style="margin: 0 0.2rem;">/</span>
                 <span class="stat-value danger">{{ results|length }}</span>
-                <span>筆缺料</span>
+                <span>筆</span>
             </div>
             <div class="stat-item">
-                <span>涉及工單：</span>
+                <span>缺料率：</span>
+                <span class="stat-value {% if shortage_rate > 0 %}danger{% else %}info{% endif %}">{{ shortage_rate|floatformat:1 }}</span>
+                <span>%</span>
+            </div>
+            <div class="stat-item">
+                <span>工單：</span>
                 <span class="stat-value info">{{ order_count }}</span>
                 <span>張</span>
             </div>

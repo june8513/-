@@ -176,17 +176,6 @@ class RequisitionItem(models.Model):
     def __str__(self):
         return f"{self.item_name} ({self.required_quantity})"
 
-class Inventory(models.Model):
-    material_number = models.CharField(max_length=100, unique=True, verbose_name="物料")
-    storage_bin = models.CharField(max_length=100, blank=True, null=True, verbose_name="儲格")
-    stock_quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="庫存數量")
-
-    class Meta:
-        verbose_name = "庫存"
-        verbose_name_plural = "庫存"
-
-    def __str__(self):
-        return f"{self.material_number} - {self.storage_bin} ({self.stock_quantity})"
 
 class RequisitionImage(models.Model):
     requisition = models.ForeignKey(Requisition, on_delete=models.CASCADE, related_name='images', verbose_name="所屬撥料單")
@@ -266,6 +255,7 @@ class AutoUploadConfig(models.Model):
         ('semi_finished', '半成品資料 (Semi-Finished)'),
         ('semi_finished_model_db', '半成品機型資料庫 (Semi-Finished Model DB)'),
         ('shipping_customer', '出貨客戶資料 (Shipping & Customer)'),
+        ('supplier_data', '供應商資料 (Supplier Data)'),
     ]
     upload_type = models.CharField(max_length=50, choices=UPLOAD_TYPES, unique=True, verbose_name="上傳類型")
     file_path = models.CharField(max_length=255, verbose_name="檔案路徑", help_text="請輸入完整檔案路徑，例如 C:\\SAP\\inventory.xlsx")

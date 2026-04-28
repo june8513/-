@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from ..models import Requisition, WorkOrderMaterial, Inventory, RequisitionItem
+from ..models import Requisition, WorkOrderMaterial, RequisitionItem
 from inventory.models import Material
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator, EmptyPage

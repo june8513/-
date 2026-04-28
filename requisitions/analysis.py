@@ -1,4 +1,4 @@
-from .models import WorkOrderMaterial, Inventory, WorkOrder
+from .models import WorkOrderMaterial, WorkOrder
 from inventory.models import Material
 from django.db.models import Q, F, Sum, Max, Value, DecimalField, OuterRef, Subquery, ExpressionWrapper
 from django.db import models # Import models for models.DateField
@@ -32,9 +32,9 @@ def get_material_demand_analysis():
             output_field=DecimalField()
         ),
         current_stock=Subquery(
-            Inventory.objects.filter(
-                material_number=OuterRef('material_number')
-            ).values('stock_quantity')[:1],
+            Material.objects.filter(
+                material_code=OuterRef('material_number')
+            ).values('system_quantity')[:1],
             output_field=DecimalField()
         )
     ).filter(

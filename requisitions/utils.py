@@ -1430,3 +1430,56 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
     except Exception as e:
         tb_str = traceback.format_exc()
         raise type(e)(f"處理半成品 Excel 內容時發生錯誤: {e}\n{tb_str}")
+
+def process_supplier_data_excel(excel_file_path):
+    """
+    Processes an Excel file to update material supplier info based on the latest document date.
+    Expected columns: '品號', '供應商/供應工廠', '文件日期'
+    Returns the number of updated materials.
+    """
+    try:
+        # 讀取 Excel
+        df = pd.read_excel(excel_file_path, dtype=str)
+        
+        # 移除欄位名稱的空白
+        df.columns = df.columns.str.strip()
+        
+        # 檢查欄位
+        expected_columns = ['物料', '供應商/供應工廠', '文件日期']
+        if not all(col in df.columns for col in expected_columns):
+            missing = [c for c in expected_columns if c not in df.columns]
+            raise ValueError(f"供應商 Excel 缺少必要欄位: {', '.join(missing)}。目前的欄位有: {', '.join(df.columns)}")
+
+        # 1. 預處理：移除物料為空的行
+        df = df.dropna(subset=['物料'])
+        
+        # 2. 日期轉換：確保文件日期是 datetime 物件，以便正確排序
+        df['文件日期'] = pd.to_datetime(df['文件日期'], errors='coerce')
+        df = df.dropna(subset=['文件日期']) # 移除沒有日期的無效資料
+
+        # 3. 排序與去重：依物料與文件日期排序（日期由新到舊）
+        df = df.sort_values(by=['物料', '文件日期'], ascending=[True, False])
+        
+        # 4. 取得每個物料最新的一筆
+        latest_suppliers = df.drop_duplicates(subset=['物料'], keep='first')
+
+        updated_count = 0
+        
+        with transaction.atomic():
+            for _, row in latest_suppliers.iterrows():
+                material_code = str(row['物料']).strip()
+                supplier_name = str(row['供應商/供應工廠']).strip()
+                
+                # 更新 Material 模型的 purchaser 欄位（目前系統用來儲存供應商資訊）
+                updated = InvMaterial.objects.filter(material_code=material_code).update(
+                    purchaser=supplier_name
+                )
+                if updated > 0:
+                    updated_count += 1
+        
+        return updated_count
+
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        raise type(e)(f"處理供應商 Excel 時發生錯誤: {e}\n{tb_str}")
+
