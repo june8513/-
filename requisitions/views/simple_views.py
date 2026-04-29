@@ -22,7 +22,7 @@ from ..models import Requisition, RequisitionItem, WorkOrderMaterial, WorkOrder,
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
 from ..forms import RequisitionForm
 from inventory.models import Material
-from ..utils import get_sap_user
+from ..utils import get_sap_user, _update_requisition_alert
 
 
 def is_simple_applicant(user):
@@ -1276,16 +1276,25 @@ def simple_dispatcher_detail(request, category, pk):
                         item.save()
                         
                         # 記錄交易 (如果是退料)
-                        if old_qty > 0 and item.source_material:
-                            from requisitions.models import WorkOrderMaterialTransaction
-                            WorkOrderMaterialTransaction.objects.create(
-                                work_order_material=item.source_material,
-                                user=request.user,
-                                transaction_type='RETURN',
-                                quantity_change=-old_qty,
-                                new_confirmed_quantity=Decimal('0'),
-                                notes=f"簡易畫面執行退料 (物料狀態: {'已刪除' if is_deactivated else '正常'})"
-                            )
+                        if old_qty > 0:
+                            # 新增：記錄到物料變更歷程
+                            user_display_name = f"{request.user.first_name}{request.user.last_name}"
+                            if not user_display_name:
+                                user_display_name = request.user.username
+                            
+                            log_msg = f"執行退料 {item.material_number} (退料者：{user_display_name}，退料數量：{old_qty})"
+                            _update_requisition_alert(requisition.order_number, requisition.process_type, log_msg)
+
+                            if item.source_material:
+                                from requisitions.models import WorkOrderMaterialTransaction
+                                WorkOrderMaterialTransaction.objects.create(
+                                    work_order_material=item.source_material,
+                                    user=request.user,
+                                    transaction_type='RETURN',
+                                    quantity_change=-old_qty,
+                                    new_confirmed_quantity=Decimal('0'),
+                                    notes=f"簡易畫面執行退料 (物料狀態: {'已刪除' if is_deactivated else '正常'})"
+                                )
 
                         # 如果是已刪除的物料，歸零後直接移除 RequisitionItem
                         if is_deactivated:
