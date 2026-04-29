@@ -51,20 +51,24 @@ def homepage(request):
             start_of_week = now - timedelta(days=now.weekday())
             start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            # 獲取所有定義的投料點
-            finished_names = list(ProcessType.objects.values_list('name', flat=True).distinct().order_by('name'))
+            # 使用使用者提供的特定投料點清單 (成品)
+            target_finished_names = ['機械', '系統', '電裝', '鑄件', '護蓋', '刀庫', '出貨', '組件', '軟體研發部', '其他']
+            
+            # 獲取半成品投料點
             semi_names = list(SemiFinishedProcessType.objects.values_list('name', flat=True).distinct().order_by('name'))
+            # 如果資料表是空的，從現有申請單中抓取
+            if not semi_names:
+                semi_names = list(Requisition.objects.filter(requisition_type='semi_finished').values_list('process_type', flat=True).distinct())
             
             # 建立完整的投料點清單，成品優先
             all_names = []
-            for name in finished_names:
-                if name and name not in all_names:
-                    all_names.append({'name': name, 'type': 'finished'})
+            for name in target_finished_names:
+                all_names.append({'name': name, 'type': 'finished'})
             for name in semi_names:
                 if name and name not in [n['name'] for n in all_names]:
                     all_names.append({'name': name, 'type': 'semi_finished'})
 
-            # 批量獲取現有數據的統計 (避免迴圈中多次查詢)
+            # 批量獲取現有數據的統計
             stats_map = {item['process_type']: item for item in Requisition.objects.filter(is_archived=False).values('process_type').annotate(
                 total_count=Count('id'),
                 week_count=Count('id', filter=Q(created_at__gte=start_of_week))
