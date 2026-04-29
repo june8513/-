@@ -483,23 +483,6 @@
                 style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
     </div>
 
-    {% if has_over_dispatched_items %}
-    <div class="alert alert-danger d-flex justify-content-between align-items-start" role="alert"
-        style="border-radius: 12px;">
-        <div>
-            <strong>🚨 需求變更警示</strong>
-            <pre
-                style="white-space: pre-wrap; font-family: inherit; margin: 0.5rem 0 0;">{{ requisition.alert_message }}</pre>
-        </div>
-        <form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post"
-            onsubmit="return confirm('確定要解除此警示嗎？');" style="flex-shrink: 0; margin-left: 1rem;">
-            {% csrf_token %}
-            <input type="hidden" name="next"
-                value="{% url 'requisitions:simple_dispatcher_detail' category=category pk=requisition.pk %}">
-            <button type="submit" class="btn btn-danger btn-sm">解除警示</button>
-        </form>
-    </div>
-    {% endif %}
 
     {% if requisition.is_archived %}
     <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert" style="border-radius: 12px; margin-bottom: 1rem;">

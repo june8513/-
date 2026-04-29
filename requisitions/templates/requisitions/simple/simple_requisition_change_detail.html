@@ -123,20 +123,39 @@
         <h1 class="page-title">變更管理: {{ requisition.order_number }}</h1>
     </div>
 
+    <!-- 物料變更歷程 -->
+    <div class="section-card" style="border-left: 5px solid #6B7280;">
+        <h2 class="section-title">
+            <i class="fas fa-history"></i> 物料變更歷程
+        </h2>
+        <div style="max-height: 200px; overflow-y: auto; padding-right: 0.5rem;">
+            {% if alert_messages %}
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                {% for msg in alert_messages %}
+                    <div style="font-size: 0.9rem; color: #4B5563; padding: 0.5rem; background: #F9FAFB; border-radius: 8px; border: 1px solid #F3F4F6;">
+                        {{ msg }}
+                    </div>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-3 text-muted italic">目前無變更紀錄</div>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Section 1: 已撥料需退料 -->
-    <div class="section-card">
+    <div class="section-card" style="border-left: 5px solid #DC2626;">
         <h2 class="section-title" style="color: #DC2626;">
             <i class="fas fa-undo"></i> 已撥料需退料
             <span class="badge bg-danger rounded-pill ms-auto" style="font-size: 0.7em;">{{ to_return_items|length }}</span>
         </h2>
-        <p class="text-muted small mb-3">（已撥料但原始需求已移除或數量降低，需將多出的物料退回庫存）</p>
+        <p class="text-muted small mb-3">（已撥料但需求已移除或減量，需將多出的物料退回）</p>
         
         <div id="to-return-list">
             {% for item in to_return_items %}
             <div class="item-row" id="item-{{ item.pk }}">
                 <div class="item-header">
                     <span class="mat-number">{{ item.material_number }}</span>
-                    <button class="dismiss-btn" onclick="dismissItem({{ item.pk }})">解除警示</button>
                 </div>
                 <div class="mat-name mb-2">{{ item.item_name }}</div>
                 <div class="d-flex gap-2 flex-wrap">
@@ -151,32 +170,27 @@
         </div>
     </div>
 
-    <!-- Section 2: 新增/未撥料或已處理明細 -->
-    <div class="section-card">
+    <!-- Section 2: 需求變更警示 (新增/變更) -->
+    <div class="section-card" style="border-left: 5px solid #2563EB;">
         <h2 class="section-title" style="color: #2563EB;">
-            <i class="fas fa-list-check"></i> 變更新增 / 已解除項目
+            <i class="fas fa-exclamation-triangle"></i> 需求變更警示
         </h2>
+        <p class="text-muted small mb-3">（物料新增或需求增加，請確認是否需要補撥料）</p>
         
         <div id="other-changes-list">
             {% for item in other_changes %}
             <div class="item-row">
                 <div class="item-header">
                     <span class="mat-number">{{ item.material_number }}</span>
-                    {% if item.alert_dismissed %}
-                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">已解除</span>
-                    {% endif %}
                 </div>
                 <div class="mat-name mb-2">{{ item.item_name }}</div>
                 <div class="d-flex gap-2 flex-wrap">
                     <span class="qty-badge qty-required">需求: {{ item.required_quantity|floatformat:2 }}</span>
                     <span class="qty-badge qty-dispatched">已撥: {{ item.confirmed_quantity|floatformat:2 }}</span>
+                    {% if item.required_quantity > item.confirmed_quantity %}
+                    <span class="qty-badge" style="background: #FEF3C7; color: #92400E;">待補: {{ item.required_quantity|sub:item.confirmed_quantity|floatformat:2 }}</span>
+                    {% endif %}
                 </div>
-                {% if item.alert_dismissed %}
-                <div class="dismissed-info">
-                    <i class="fas fa-check-circle"></i>
-                    由 <strong>{{ item.alert_dismissed_by.username }}</strong> 於 {{ item.alert_dismissed_at|date:"m/d H:i" }} 解除
-                </div>
-                {% endif %}
             </div>
             {% empty %}
             <div class="text-center py-4 text-muted">無其他變更記錄</div>
@@ -184,31 +198,4 @@
         </div>
     </div>
 </div>
-
-<script>
-function dismissItem(itemPk) {
-    if (!confirm('確定要解除此物料的警示並移至下方區域嗎？')) return;
-    
-    fetch('{% url "requisitions:dismiss_requisition_item_alert" 0 %}'.replace('0', itemPk), {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Reload page to reflect changes in both sections
-            window.location.reload();
-        } else {
-            alert('操作失敗: ' + (data.message || '未知錯誤'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('發生通訊錯誤');
-    });
-}
-</script>
 {% endblock %}

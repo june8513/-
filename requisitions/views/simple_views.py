@@ -2018,29 +2018,21 @@ def simple_requisition_change_detail(request, pk):
     other_changes = []
     
     for item in items:
-        # 已撥料需退料: 已撥 > 需求 且 尚未解除
-        if item.confirmed_quantity > item.required_quantity and not item.alert_dismissed:
+        # 已撥料需退料: 已撥 > 需求
+        if item.confirmed_quantity > item.required_quantity:
             to_return_items.append(item)
-        else:
-            # 排除掉完全沒變更且也沒警示的項目嗎？
-            # 使用者需求是：新增的、沒有撥料數量的、以及上面已解除的
-            # 新增的/未撥料 通常指 confirmed_quantity == 0
-            # 或者我們可以顯示所有與警示訊息相關的項目
-            
-            # 如果 item.alert_dismissed 為 True，一定要出現在下面
-            if item.alert_dismissed:
-                other_changes.append(item)
-            elif item.confirmed_quantity == 0:
-                other_changes.append(item)
-            elif item.confirmed_quantity <= item.required_quantity and requisition.has_alert:
-                # 這裡可能需要更細的邏輯判斷哪些是「變更」過但不需要退料的
-                # 目前先照字面意思：新增或沒有撥料數量
-                other_changes.append(item)
+        elif item.required_quantity > item.confirmed_quantity:
+            # 需求 > 已撥 (新增或增量)
+            other_changes.append(item)
+        elif item.alert_dismissed:
+            # 即使數量一致，但若曾經有警示紀錄（且被標記過），也顯示在變更紀錄中
+            other_changes.append(item)
 
     context = {
         'requisition': requisition,
         'to_return_items': to_return_items,
         'other_changes': other_changes,
+        'alert_messages': requisition.alert_message.split('\n') if requisition.alert_message else [],
     }
     return render(request, 'requisitions/simple/simple_requisition_change_detail.html', context)
 
