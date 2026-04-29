@@ -2163,8 +2163,9 @@ def shortage_inquiry(request):
                     # 這一點的累計需求
                     cumulative_demand = float(detail['cumulative_demand'])
                     
-                    # 計算这一點的缺料量 (累計需求 - 庫存，最小為 0)
-                    row_shortage = max(0.0, cumulative_demand - current_stock)
+                    # 計算这一點的缺料量 (累計需求 - 庫存，最小為 0，且不能大於該單需求量)
+                    required_qty = float(detail['required_quantity'])
+                    row_shortage = min(required_qty, max(0.0, cumulative_demand - current_stock))
 
                     # 如果此工單在累計需求下還沒造成缺料，則視情況跳過？
                     # 使用者要求是「缺料查詢」，所以如果 row_shortage 為 0，代表此工單的需求目前庫存還夠支應
@@ -2267,7 +2268,9 @@ def shortage_inquiry_export(request):
             wo = work_order_map.get(order_num)
             
             cumulative_demand = float(detail['cumulative_demand'])
-            row_shortage = max(0.0, cumulative_demand - current_stock)
+            # 計算这一點的缺料量 (累計需求 - 庫存，最小為 0，且不能大於該單需求量)
+            required_qty = float(detail['required_quantity'])
+            row_shortage = min(required_qty, max(0.0, cumulative_demand - current_stock))
 
             if row_shortage <= 0:
                 continue

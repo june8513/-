@@ -2,7 +2,7 @@ from .models import WorkOrderMaterial, WorkOrder
 from inventory.models import Material
 from django.db.models import Q, F, Sum, Max, Value, DecimalField, OuterRef, Subquery, ExpressionWrapper
 from django.db import models # Import models for models.DateField
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Greatest
 from decimal import Decimal
 import datetime
 
@@ -28,7 +28,7 @@ def get_material_demand_analysis():
             output_field=models.DateField() # Assuming shipping_date is a DateField
         ),
         remaining_required_quantity=ExpressionWrapper(
-            F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0.00')),
+            Greatest(Decimal('0.00'), F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0.00'))),
             output_field=DecimalField()
         ),
         current_stock=Subquery(
@@ -107,12 +107,12 @@ def get_material_demand_analysis():
             output_field=models.DateField()
         ),
         remaining_required_quantity=ExpressionWrapper(
-            F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0.00')),
+            Greatest(Decimal('0.00'), F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0.00'))),
             output_field=DecimalField()
         )
     ).filter(
         remaining_required_quantity__gt=0
-    ).order_by('material_number', 'demand_date', 'shipping_date').values(
+    ).order_by('material_number', 'demand_date', 'shipping_date', 'pk').values(
         'material_number', 'demand_date', 'shipping_date', 'remaining_required_quantity'
     )
     
@@ -132,8 +132,12 @@ def get_material_demand_analysis():
         data['shortage_date'] = None # Initialize shortage_date (this is the demand date of the first shortage)
         data['first_shortage_shipping_date'] = None # New field for requirement 2
 
-        # Sort detail_orders by demand_date for running stock calculation
-        data['detail_orders'].sort(key=lambda x: (x['demand_date'] if x['demand_date'] else datetime.date.max))
+        # Sort detail_orders by demand_date, shipping_date, and pk for robust running stock calculation
+        data['detail_orders'].sort(key=lambda x: (
+            x['demand_date'] if x['demand_date'] else datetime.date.max,
+            x['shipping_date'] if x['shipping_date'] else datetime.date.max,
+            x['pk']
+        ))
 
         # Only proceed to find first_shortage_shipping_date if there is an overall shortage
         if data['is_shortage']:
