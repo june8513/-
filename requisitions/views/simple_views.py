@@ -1076,7 +1076,7 @@ def simple_dispatcher_merge(request, category):
             try:
                 items = RequisitionItem.objects.filter(
                     requisition__order_number__in=order_numbers,
-                    requisition__process_type__icontains=category,
+                    (Q(requisition__applicant__username=category) if current_type == 'semi_finished' else Q(requisition__process_type__icontains=category)),
                     material_number=material_number,
                     requisition__is_archived=False
                 ).exclude(dispatch_status='dispatched')
@@ -1109,7 +1109,7 @@ def simple_dispatcher_merge(request, category):
             try:
                 items = RequisitionItem.objects.filter(
                     requisition__order_number__in=order_numbers,
-                    requisition__process_type__icontains=category,
+                    (Q(requisition__applicant__username=category) if current_type == 'semi_finished' else Q(requisition__process_type__icontains=category)),
                     material_number=material_number,
                     requisition__is_archived=False
                 ).exclude(dispatch_status='dispatched')
@@ -1127,9 +1127,15 @@ def simple_dispatcher_merge(request, category):
         return JsonResponse({'success': False, 'message': '未知操作'})
 
     # GET: 查詢所選工單中的未撥料物料
+    # 根據類型決定過濾條件
+    if current_type == 'semi_finished':
+        filter_q = Q(requisition__applicant__username=category)
+    else:
+        filter_q = Q(requisition__process_type__icontains=category)
+
     undispatched_items = RequisitionItem.objects.filter(
+        filter_q,
         requisition__order_number__in=order_numbers,
-        requisition__process_type__icontains=category,
         requisition__is_archived=False
     ).exclude(dispatch_status='dispatched').select_related('requisition')
 
