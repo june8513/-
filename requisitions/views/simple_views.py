@@ -1284,6 +1284,7 @@ def simple_dispatcher_detail(request, category, pk):
                             
                             log_msg = f"執行退料 {item.material_number} (退料者：{user_display_name}，退料數量：{old_qty})"
                             _update_requisition_alert(requisition.order_number, requisition.process_type, log_msg)
+                            requisition.refresh_from_db()
 
                             if item.source_material:
                                 from requisitions.models import WorkOrderMaterialTransaction
