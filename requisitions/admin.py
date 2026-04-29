@@ -1,12 +1,18 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
-from .models import Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, UserProfile, RequisitionShareGroup, AIUserCorrection, Announcement
+from .models import (
+    Requisition, RequisitionItem, AutoUploadConfig, MaterialProcessTypeRule, 
+    UserProfile, RequisitionShareGroup, AIUserCorrection, Announcement,
+    WorkOrder, WorkOrderMaterial, MachineModel, ProcessType, SemiFinishedProcessType,
+    WorkOrderMaterialTransaction, WorkOrderMaterialProcessTypeLog
+)
 
 class RequisitionItemInline(admin.TabularInline):
     model = RequisitionItem
     fields = ('item_name', 'required_quantity', 'material_number', 'confirmed_quantity', 'is_signed_off', 'dispatch_status')
-    readonly_fields = ('is_signed_off',) # confirmed_quantity is editable via material_confirmation view
+    # Removed is_signed_off from readonly_fields to allow manual adjustment in back-end
+    readonly_fields = () 
     extra = 0
 
 class UserProfileInline(admin.StackedInline):
@@ -222,3 +228,46 @@ class AnnouncementAdmin(admin.ModelAdmin):
     def content_short(self, obj):
         return obj.content[:50]
     content_short.short_description = '公告內容'
+@admin.register(MachineModel)
+class MachineModelAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+@admin.register(ProcessType)
+class ProcessTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'machine_model', 'parent', 'is_kit')
+    list_filter = ('machine_model', 'is_kit')
+    search_fields = ('name',)
+
+@admin.register(SemiFinishedProcessType)
+class SemiFinishedProcessTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'color', 'order', 'is_active')
+    list_editable = ('order', 'is_active', 'color')
+    search_fields = ('name',)
+
+@admin.register(WorkOrder)
+class WorkOrderAdmin(admin.ModelAdmin):
+    list_display = ('order_number', 'customer_name', 'shipping_date', 'is_archived', 'created_at')
+    list_filter = ('is_archived', 'shipping_date')
+    search_fields = ('order_number', 'customer_name')
+    list_editable = ('is_archived',)
+
+@admin.register(WorkOrderMaterial)
+class WorkOrderMaterialAdmin(admin.ModelAdmin):
+    list_display = ('order_number', 'material_number', 'item_name', 'required_quantity', 'confirmed_quantity', 'is_signed_off', 'process_type', 'is_active')
+    list_filter = ('is_active', 'material_type', 'process_type')
+    search_fields = ('order_number', 'material_number', 'item_name')
+    list_editable = ('is_signed_off', 'is_active', 'confirmed_quantity')
+    raw_id_fields = ('machine_model', 'process_type')
+
+@admin.register(WorkOrderMaterialTransaction)
+class WorkOrderMaterialTransactionAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'work_order_material', 'user', 'transaction_type', 'quantity_change', 'new_confirmed_quantity')
+    list_filter = ('transaction_type', 'timestamp', 'user')
+    search_fields = ('work_order_material__material_number', 'work_order_material__order_number', 'notes')
+
+@admin.register(WorkOrderMaterialProcessTypeLog)
+class WorkOrderMaterialProcessTypeLogAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'work_order_material', 'user', 'old_process_type', 'new_process_type')
+    list_filter = ('timestamp', 'user')
+    search_fields = ('work_order_material__material_number', 'work_order_material__order_number')

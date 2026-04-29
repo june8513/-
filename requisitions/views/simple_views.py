@@ -2103,7 +2103,11 @@ def shortage_inquiry(request):
     total_items = 0
     shortage_rate = 0
     selected_process_type = ''
-    process_types = []
+    # 收集系統中所有固定的投料點名稱
+    from ..models import ProcessType, SemiFinishedProcessType
+    pt_set = set(ProcessType.objects.values_list('name', flat=True))
+    pt_set.update(SemiFinishedProcessType.objects.values_list('name', flat=True))
+    process_types = sorted([name for name in pt_set if name])
 
     if request.method == 'POST':
         import re
@@ -2143,16 +2147,6 @@ def shortage_inquiry(request):
             seen_orders = set()
             total_items = 0
             
-            # 收集所有可用的投料點供下拉選單使用
-            pt_set = set()
-            for material_key, data in all_materials_analysis.items():
-                for detail in data['detail_orders']:
-                    if detail['order_number'] in order_numbers:
-                        pt_name = detail.get('process_type_name')
-                        if pt_name:
-                            pt_set.add(pt_name)
-            process_types = sorted(list(pt_set))
-
             for material_key, data in all_materials_analysis.items():
                 # 篩選出屬於查詢工單的明細
                 relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
