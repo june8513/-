@@ -51,20 +51,34 @@ def homepage(request):
             start_of_week = now - timedelta(days=now.weekday())
             start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            # 獲取所有存在的投料點並統計
-            # 我們從 Requisition 中直接獲取現有的投料點名稱
-            stats = Requisition.objects.filter(is_archived=False).values('process_type').annotate(
+            # 獲取所有定義的投料點
+            finished_names = list(ProcessType.objects.values_list('name', flat=True).distinct().order_by('name'))
+            semi_names = list(SemiFinishedProcessType.objects.values_list('name', flat=True).distinct().order_by('name'))
+            
+            # 建立完整的投料點清單，成品優先
+            all_names = []
+            for name in finished_names:
+                if name and name not in all_names:
+                    all_names.append({'name': name, 'type': 'finished'})
+            for name in semi_names:
+                if name and name not in [n['name'] for n in all_names]:
+                    all_names.append({'name': name, 'type': 'semi_finished'})
+
+            # 批量獲取現有數據的統計 (避免迴圈中多次查詢)
+            stats_map = {item['process_type']: item for item in Requisition.objects.filter(is_archived=False).values('process_type').annotate(
                 total_count=Count('id'),
                 week_count=Count('id', filter=Q(created_at__gte=start_of_week))
-            ).order_by('process_type')
+            )}
             
-            for item in stats:
-                if item['process_type']:
-                    process_summaries.append({
-                        'name': item['process_type'],
-                        'total': item['total_count'],
-                        'week': item['week_count']
-                    })
+            for p_info in all_names:
+                name = p_info['name']
+                stat = stats_map.get(name, {'total_count': 0, 'week_count': 0})
+                process_summaries.append({
+                    'name': name,
+                    'total': stat['total_count'],
+                    'week': stat['week_count'],
+                    'type': p_info['type']
+                })
 
         context = {
             'is_admin': is_admin,
