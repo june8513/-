@@ -62,233 +62,46 @@
     </div>
 
     {% if is_supervisor or is_admin %}
-    <!-- 主管即時看板區塊 -->
-    <div class="card shadow-sm mb-5">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
-                    <path fill-rule="evenodd" d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L14.113 3.043a.5.5 0 0 1 .704.07"/>
-                </svg> 主管即時監控看板
+    <!-- 主管即時看板區塊 (投料點匯總) -->
+    <div class="row mb-5">
+        <div class="col-12 mb-3">
+            <h5 class="d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="me-2 text-primary" viewBox="0 0 16 16">
+                    <path d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L14.113 3.043a.5.5 0 0 1 .704.07"/>
+                </svg> 主管即時監控看板 (投料點)
             </h5>
-            <ul class="nav nav-pills card-header-pills" id="dashboardTab" role="tablist">
-                <li class="nav-item">
-                    <button class="nav-link active py-1 px-3" id="finished-monitor-tab" data-bs-toggle="tab" data-bs-target="#finished-monitor" type="button">成品</button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link py-1 px-3 text-white" id="semi-monitor-tab" data-bs-toggle="tab" data-bs-target="#semi-monitor" type="button">半成品</button>
-                </li>
-            </ul>
         </div>
-        <div class="card-body p-0">
-            <div class="tab-content" id="dashboardTabContent">
-                <!-- 成品監控 -->
-                <div class="tab-pane fade show active p-3" id="finished-monitor" role="tabpanel">
-                    <div class="row">
-                        <div class="col-lg-8">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover border">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>工單號</th>
-                                            <th>申請人</th>
-                                            <th>投料點</th>
-                                            <th>日期</th>
-                                            <th>狀態</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="finished-req-list">
-                                        {% for req in all_requisitions %}
-                                        <tr class="pagination-item">
-                                            <td><span class="fw-bold">{{ req.order_number }}</span></td>
-                                            <td>{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</td>
-                                            <td>{{ req.process_type|default:"-" }}</td>
-                                            <td>{{ req.created_at|date:"Y-m-d" }}</td>
-                                            <td>
-                                                {% if req.status == 'demand_submitted' %}<span class="badge bg-warning text-dark">待處理</span>
-                                                {% elif req.status == 'dispatch_in_progress' %}<span class="badge bg-info">處理中</span>
-                                                {% elif req.status == 'dispatch_completed' %}<span class="badge bg-success">已發料</span>
-                                                {% elif req.status == 'signed_off' %}<span class="badge bg-secondary">已簽收</span>
-                                                {% else %}<span class="badge bg-light text-dark">{{ req.status }}</span>{% endif %}
-                                            </td>
-                                        </tr>
-                                        {% empty %}
-                                        <tr><td colspan="5" class="text-center py-3 text-muted">暫無資料</td></tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <!-- 分頁控制 -->
-                            <div class="d-flex justify-content-center mt-2 pagination-controls" data-target="finished-req-list">
-                                <button class="btn btn-pagination btn-prev prev-page" disabled>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                        <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
-                                    </svg>
-                                </button>
-                                <span class="align-self-center page-info">第 1 頁</span>
-                                <button class="btn btn-pagination btn-next next-page">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                        <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-lg-4">
-                            <div class="card border-danger">
-                                <div class="card-header bg-danger text-white py-1">
-                                    <small class="fw-bold">欠料追蹤 (單號分組)</small>
-                                </div>
-                                <div class="accordion accordion-flush" id="shortageAccordion">
-                                    {% for req in shortage_requisitions %}
-                                    <div class="accordion-item shadow-none border-bottom pagination-item">
-                                        <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed py-2 px-3 small" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ req.id }}">
-                                                <span class="me-auto text-dark">工單: <strong>{{ req.order_number }}</strong></span>
-                                                <span class="badge bg-danger rounded-pill">{{ req.short_items|length }}</span>
-                                            </button>
-                                        </h2>
-                                        <div id="collapse{{ req.id }}" class="accordion-collapse collapse" data-bs-parent="#shortageAccordion">
-                                            <div class="accordion-body p-0">
-                                                <ul class="list-group list-group-flush" style="font-size: 0.8rem;">
-                                                    {% for item in req.short_items %}
-                                                    <li class="list-group-item bg-light p-2 border-start border-3 border-danger">
-                                                        <div class="d-flex justify-content-between">
-                                                            <span class="text-danger fw-bold">{{ item.material_number }}</span>
-                                                            <span class="text-secondary">缺:{{ item.required_quantity|floatformat:0 }}</span>
-                                                        </div>
-                                                        <div class="text-truncate" style="max-width: 180px;">{{ item.item_name }}</div>
-                                                    </li>
-                                                    {% endfor %}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% empty %}
-                                    <div class="p-4 text-center text-muted small">暫無缺料單據</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- 分頁控制 -->
-                                <div class="card-footer bg-white border-top-0 d-flex justify-content-center py-2 pagination-controls" data-target="shortageAccordion">
-                                    <button class="btn btn-pagination btn-prev prev-page" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                            <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
-                                        </svg>
-                                    </button>
-                                    <span class="align-self-center page-info">第 1 頁</span>
-                                    <button class="btn btn-pagination btn-next next-page">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                            <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        
+        {% for summary in process_summaries %}
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+            <div class="card h-100 shadow-sm border-0" style="border-radius: 16px; overflow: hidden; transition: transform 0.2s;">
+                <div class="card-header border-0 bg-primary text-white py-3">
+                    <h6 class="mb-0 fw-bold">{{ summary.name }}</h6>
                 </div>
-                <!-- 半成品監控 -->
-                <div class="tab-pane fade p-3" id="semi-monitor" role="tabpanel">
-                    <div class="row">
-                        <div class="col-lg-8">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover border">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>工單號</th>
-                                            <th>申請人</th>
-                                            <th>投料點</th>
-                                            <th>日期</th>
-                                            <th>狀態</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="semi-req-list">
-                                        {% for req in semi_all_requisitions %}
-                                        <tr class="pagination-item">
-                                            <td><span class="fw-bold">{{ req.order_number }}</span></td>
-                                            <td>{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</td>
-                                            <td>{{ req.process_type|default:"-" }}</td>
-                                            <td>{{ req.created_at|date:"Y-m-d" }}</td>
-                                            <td>
-                                                {% if req.status == 'demand_submitted' %}<span class="badge bg-warning text-dark">待處理</span>
-                                                {% elif req.status == 'dispatch_in_progress' %}<span class="badge bg-info">處理中</span>
-                                                {% elif req.status == 'dispatch_completed' %}<span class="badge bg-success">已發料</span>
-                                                {% elif req.status == 'signed_off' %}<span class="badge bg-secondary">已簽收</span>
-                                                {% else %}<span class="badge bg-light text-dark">{{ req.status }}</span>{% endif %}
-                                            </td>
-                                        </tr>
-                                        {% empty %}
-                                        <tr><td colspan="5" class="text-center py-3 text-muted">暫無資料</td></tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <!-- 分頁控制 -->
-                            <div class="d-flex justify-content-center mt-2 pagination-controls" data-target="semi-req-list">
-                                <button class="btn btn-pagination btn-prev prev-page" disabled>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                        <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
-                                    </svg>
-                                </button>
-                                <span class="align-self-center page-info">第 1 頁</span>
-                                <button class="btn btn-pagination btn-next next-page">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                        <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-                                    </svg>
-                                </button>
-                            </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted">本周申請</small>
+                            <span class="badge bg-primary-subtle text-primary rounded-pill">{{ summary.week }}</span>
                         </div>
-                        <div class="col-lg-4">
-                            <div class="card border-success">
-                                <div class="card-header bg-success text-white py-1">
-                                    <small class="fw-bold">半成品欠料 (單號分組)</small>
-                                </div>
-                                <div class="accordion accordion-flush" id="semiShortageAccordion">
-                                    {% for req in semi_shortage_requisitions %}
-                                    <div class="accordion-item shadow-none border-bottom pagination-item">
-                                        <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed py-2 px-3 small" type="button" data-bs-toggle="collapse" data-bs-target="#semiCollapse{{ req.id }}">
-                                                <span class="me-auto text-dark">工單: <strong>{{ req.order_number }}</strong></span>
-                                                <span class="badge bg-danger rounded-pill">{{ req.short_items|length }}</span>
-                                            </button>
-                                        </h2>
-                                        <div id="semiCollapse{{ req.id }}" class="accordion-collapse collapse" data-bs-parent="#semiShortageAccordion">
-                                            <div class="accordion-body p-0">
-                                                <ul class="list-group list-group-flush" style="font-size: 0.8rem;">
-                                                    {% for item in req.short_items %}
-                                                    <li class="list-group-item bg-light p-2 border-start border-3 border-success">
-                                                        <div class="d-flex justify-content-between">
-                                                            <span class="text-success fw-bold">{{ item.material_number }}</span>
-                                                            <span class="text-secondary">缺:{{ item.required_quantity|floatformat:0 }}</span>
-                                                        </div>
-                                                        <div class="text-truncate" style="max-width: 180px;">{{ item.item_name }}</div>
-                                                    </li>
-                                                    {% endfor %}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% empty %}
-                                    <div class="p-4 text-center text-muted small">暫無缺料單據</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- 分頁控制 -->
-                                <div class="card-footer bg-white border-top-0 d-flex justify-content-center py-2 pagination-controls" data-target="semiShortageAccordion">
-                                    <button class="btn btn-pagination btn-prev prev-page" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                            <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
-                                        </svg>
-                                    </button>
-                                    <span class="align-self-center page-info">第 1 頁</span>
-                                    <button class="btn btn-pagination btn-next next-page">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                            <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">總申請數</small>
+                            <span class="badge bg-light text-dark rounded-pill">{{ summary.total }}</span>
                         </div>
                     </div>
+                    <a href="{% url 'core:supervisor_process_detail' summary.name %}" class="btn btn-primary w-100 rounded-pill py-2 fw-bold">
+                        進入監控 <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
                 </div>
             </div>
         </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-light text-center py-5 border" style="border-radius: 16px; border-style: dashed !important;">
+                <p class="text-muted mb-0">目前暫無投料點資料</p>
+            </div>
+        </div>
+        {% endfor %}
     </div>
     {% endif %}
 

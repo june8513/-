@@ -1,6 +1,9 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Count, Q, F, DecimalField, Prefetch
 from requisitions.constants import GROUP_NAMES
-
+from requisitions.models import Requisition, RequisitionItem, ProcessType, SemiFinishedProcessType
 
 def homepage(request):
     """
@@ -40,38 +43,28 @@ def homepage(request):
         is_applicant = is_applicant_supervisor or request.user.groups.filter(name='申請人員').exists()
         is_material_handler = is_dispatcher_supervisor or request.user.groups.filter(name='撥料人員').exists()
         
-        # 為主管準備看板數據
-        all_requisitions = []
-        shortage_requisitions = []
-        semi_all_requisitions = []
-        semi_shortage_requisitions = []
-        
+        # 為主管準備看板數據 (投料點匯總)
+        process_summaries = []
         if is_admin or is_applicant_supervisor or is_dispatcher_supervisor:
-            from requisitions.models import Requisition, RequisitionItem
-            from django.db.models import Prefetch
+            # 計算本週起始日 (週一)
+            now = timezone.now()
+            start_of_week = now - timedelta(days=now.weekday())
+            start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            # 預加載缺料項
-            short_items_prefetch = Prefetch(
-                'items', 
-                queryset=RequisitionItem.objects.filter(dispatch_status='backordered'),
-                to_attr='short_items'
-            )
-
-            # 成品數據
-            all_requisitions = Requisition.objects.filter(requisition_type='finished').order_by('-created_at')[:20]
-            shortage_requisitions = Requisition.objects.filter(
-                requisition_type='finished',
-                is_archived=False,
-                items__dispatch_status='backordered'
-            ).distinct().prefetch_related(short_items_prefetch).order_by('-created_at')
+            # 獲取所有存在的投料點並統計
+            # 我們從 Requisition 中直接獲取現有的投料點名稱
+            stats = Requisition.objects.filter(is_archived=False).values('process_type').annotate(
+                total_count=Count('id'),
+                week_count=Count('id', filter=Q(created_at__gte=start_of_week))
+            ).order_by('process_type')
             
-            # 半成品數據
-            semi_all_requisitions = Requisition.objects.filter(requisition_type='semi_finished').order_by('-created_at')[:20]
-            semi_shortage_requisitions = Requisition.objects.filter(
-                requisition_type='semi_finished',
-                is_archived=False,
-                items__dispatch_status='backordered'
-            ).distinct().prefetch_related(short_items_prefetch).order_by('-created_at')
+            for item in stats:
+                if item['process_type']:
+                    process_summaries.append({
+                        'name': item['process_type'],
+                        'total': item['total_count'],
+                        'week': item['week_count']
+                    })
 
         context = {
             'is_admin': is_admin,
@@ -80,12 +73,63 @@ def homepage(request):
             'is_applicant_supervisor': is_applicant_supervisor,
             'is_dispatcher_supervisor': is_dispatcher_supervisor,
             'is_supervisor': is_applicant_supervisor or is_dispatcher_supervisor,
-            # 看板數據
-            'all_requisitions': all_requisitions,
-            'shortage_requisitions': shortage_requisitions,
-            'semi_all_requisitions': semi_all_requisitions,
-            'semi_shortage_requisitions': semi_shortage_requisitions,
+            'process_summaries': process_summaries,
         }
         return render(request, 'core/homepage.html', context)
     else:
         return render(request, 'core/landing.html')
+
+def supervisor_process_detail(request, process_name):
+    """
+    主管點進特定投料點後的詳細看板
+    """
+    if not request.user.is_authenticated:
+        return redirect('login')
+        
+    is_admin = request.user.is_superuser
+    is_supervisor = request.user.groups.filter(
+        name__in=[GROUP_NAMES['APPLICANT_SUPERVISOR'], GROUP_NAMES['DISPATCHER_SUPERVISOR']]
+    ).exists()
+    
+    if not (is_admin or is_supervisor):
+        return redirect('core:homepage')
+
+    # 計算本週起始日
+    now = timezone.now()
+    start_of_week = now - timedelta(days=now.weekday())
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # 預加載缺料項
+    short_items_prefetch = Prefetch(
+        'items', 
+        queryset=RequisitionItem.objects.filter(dispatch_status='backordered'),
+        to_attr='short_items'
+    )
+    
+    # 獲取該投料點的所有申請單，並計算進度
+    # 進度計算：(已撥數量 / 總項數) * 100
+    requisitions = Requisition.objects.filter(
+        process_type=process_name,
+        is_archived=False
+    ).annotate(
+        total_items_count=Count('items'),
+        dispatched_items_count=Count('items', filter=Q(items__dispatch_status='dispatched'))
+    ).prefetch_related(short_items_prefetch).order_by('-created_at')
+    
+    # 為了計算百分比，我們在 Python 中處理 (或使用 ExpressionWrapper，但這裡 Python 較直觀)
+    for req in requisitions:
+        if req.total_items_count > 0:
+            req.progress = int((req.dispatched_items_count / req.total_items_count) * 100)
+        else:
+            req.progress = 0
+
+    this_week_reqs = [r for r in requisitions if r.created_at >= start_of_week]
+    other_reqs = [r for r in requisitions if r.created_at < start_of_week]
+    
+    context = {
+        'process_name': process_name,
+        'this_week_reqs': this_week_reqs,
+        'other_reqs': other_reqs,
+        'start_of_week': start_of_week,
+    }
+    return render(request, 'core/supervisor_process_detail.html', context)

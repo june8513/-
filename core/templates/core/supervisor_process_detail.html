@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ process_name }} 監控看板 - 撥料系統{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{% url 'core:homepage' %}">儀表板</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ process_name }}</li>
+                </ol>
+            </nav>
+            <h1 class="display-6 mb-0">{{ process_name }} 即時監控看板</h1>
+        </div>
+        <a href="{% url 'core:homepage' %}" class="btn btn-outline-secondary rounded-pill">
+            <i class="fas fa-chevron-left me-1"></i> 返回
+        </a>
+    </div>
+
+    <!-- Section 1: 本周申請單 -->
+    <div class="card shadow-sm mb-5 border-0" style="border-radius: 16px;">
+        <div class="card-header bg-primary text-white py-3" style="border-radius: 16px 16px 0 0;">
+            <h5 class="mb-0 fw-bold"><i class="fas fa-calendar-week me-2"></i> 本周申請單 (自 {{ start_of_week|date:"Y-m-d" }})</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">工單單號 (點擊查看缺料)</th>
+                            <th>申請人</th>
+                            <th>需求日期</th>
+                            <th style="width: 200px;">撥料進度</th>
+                            <th class="text-center pe-4">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in this_week_reqs %}
+                        <tr>
+                            <td class="ps-4">
+                                <a href="#shortage-{{ req.id }}" class="text-decoration-none fw-bold text-primary" data-bs-toggle="collapse">
+                                    <i class="fas fa-search-plus me-1 small"></i> {{ req.order_number }}
+                                </a>
+                                {% if req.short_items %}
+                                <span class="badge bg-danger-subtle text-danger rounded-pill ms-2" style="font-size: 0.7rem;">缺料: {{ req.short_items|length }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</td>
+                            <td>{{ req.request_date|date:"Y-m-d" }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-grow-1" style="height: 8px; border-radius: 4px;">
+                                        <div class="progress-bar {% if req.progress == 100 %}bg-success{% else %}bg-primary{% endif %}" role="progressbar" style="width: {{ req.progress }}%"></div>
+                                    </div>
+                                    <span class="ms-2 small fw-bold">{{ req.progress }}%</span>
+                                </div>
+                            </td>
+                            <td class="text-center pe-4">
+                                <a href="{% url 'requisitions:simple_dispatcher_detail' category='finished' pk=req.pk %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">查看</a>
+                            </td>
+                        </tr>
+                        <!-- 缺料細節摺疊層 -->
+                        <tr class="collapse bg-light" id="shortage-{{ req.id }}">
+                            <td colspan="5" class="p-0">
+                                <div class="p-3 border-start border-4 border-danger ms-4 my-2 bg-white shadow-sm" style="border-radius: 0 8px 8px 0;">
+                                    <h6 class="fw-bold text-danger mb-2"><i class="fas fa-exclamation-triangle me-1"></i> 缺料項目明細</h6>
+                                    {% if req.short_items %}
+                                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-2">
+                                        {% for item in req.short_items %}
+                                        <div class="col">
+                                            <div class="p-2 border rounded bg-light d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <div class="fw-bold small">{{ item.material_number }}</div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">{{ item.item_name|truncatechars:20 }}</div>
+                                                </div>
+                                                <span class="badge bg-danger rounded-pill">缺 {{ item.required_quantity|floatformat:0 }}</span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted small mb-0">此工單目前無欠料紀錄。</p>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center py-5 text-muted">本周暫無申請單據</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: 本周以外的申請單 -->
+    <div class="card shadow-sm border-0" style="border-radius: 16px;">
+        <div class="card-header bg-secondary text-white py-3" style="border-radius: 16px 16px 0 0;">
+            <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2"></i> 歷史/其他申請單</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">工單單號 (點擊查看缺料)</th>
+                            <th>申請人</th>
+                            <th>需求日期</th>
+                            <th style="width: 200px;">撥料進度</th>
+                            <th class="text-center pe-4">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in other_reqs %}
+                        <tr>
+                            <td class="ps-4">
+                                <a href="#shortage-{{ req.id }}" class="text-decoration-none fw-bold text-secondary" data-bs-toggle="collapse">
+                                    <i class="fas fa-search-plus me-1 small"></i> {{ req.order_number }}
+                                </a>
+                                {% if req.short_items %}
+                                <span class="badge bg-danger-subtle text-danger rounded-pill ms-2" style="font-size: 0.7rem;">缺料: {{ req.short_items|length }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</td>
+                            <td>{{ req.request_date|date:"Y-m-d" }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-grow-1" style="height: 8px; border-radius: 4px;">
+                                        <div class="progress-bar {% if req.progress == 100 %}bg-success{% else %}bg-secondary{% endif %}" role="progressbar" style="width: {{ req.progress }}%"></div>
+                                    </div>
+                                    <span class="ms-2 small fw-bold">{{ req.progress }}%</span>
+                                </div>
+                            </td>
+                            <td class="text-center pe-4">
+                                <a href="{% url 'requisitions:simple_dispatcher_detail' category='finished' pk=req.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">查看</a>
+                            </td>
+                        </tr>
+                        <!-- 缺料細節摺疊層 -->
+                        <tr class="collapse bg-light" id="shortage-{{ req.id }}">
+                            <td colspan="5" class="p-0">
+                                <div class="p-3 border-start border-4 border-danger ms-4 my-2 bg-white shadow-sm" style="border-radius: 0 8px 8px 0;">
+                                    <h6 class="fw-bold text-danger mb-2"><i class="fas fa-exclamation-triangle me-1"></i> 缺料項目明細</h6>
+                                    {% if req.short_items %}
+                                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-2">
+                                        {% for item in req.short_items %}
+                                        <div class="col">
+                                            <div class="p-2 border rounded bg-light d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <div class="fw-bold small">{{ item.material_number }}</div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">{{ item.item_name|truncatechars:20 }}</div>
+                                                </div>
+                                                <span class="badge bg-danger rounded-pill">缺 {{ item.required_quantity|floatformat:0 }}</span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted small mb-0">此工單目前無欠料紀錄。</p>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center py-5 text-muted">暫無歷史申請單據</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .collapse.show {
+        display: table-row !important;
+    }
+</style>
+{% endblock %}
