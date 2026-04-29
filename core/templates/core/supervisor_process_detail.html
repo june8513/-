@@ -9,10 +9,10 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1">
                     <li class="breadcrumb-item"><a href="{% url 'core:homepage' %}">儀表板</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">{{ process_name }}</li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ display_name }}</li>
                 </ol>
             </nav>
-            <h1 class="display-6 mb-0">{{ process_name }} 即時監控看板</h1>
+            <h1 class="display-6 mb-0">{{ display_name }} 即時監控看板</h1>
         </div>
         <a href="{% url 'core:homepage' %}" class="btn btn-outline-secondary rounded-pill">
             <i class="fas fa-chevron-left me-1"></i> 返回

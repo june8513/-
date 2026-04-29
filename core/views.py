@@ -65,6 +65,7 @@ def homepage(request):
                 stat = finished_stats.get(name, {'total_count': 0, 'week_count': 0})
                 process_summaries.append({
                     'name': name,
+                    'display_name': name,
                     'total': stat['total_count'],
                     'week': stat['week_count'],
                     'type': 'finished'
@@ -74,16 +75,27 @@ def homepage(request):
             semi_stats = Requisition.objects.filter(
                 requisition_type='semi_finished',
                 is_archived=False
-            ).values('applicant__username').annotate(
+            ).values(
+                'applicant__username', 
+                'applicant__first_name', 
+                'applicant__last_name'
+            ).annotate(
                 total_count=Count('id'),
                 week_count=Count('id', filter=Q(created_at__gte=start_of_week))
             ).order_by('applicant__username')
             
             for stat in semi_stats:
                 username = stat['applicant__username']
+                first_name = stat['applicant__first_name']
+                last_name = stat['applicant__last_name']
+                
                 if username:
+                    # 格式化姓名：如果有姓或名就組合，否則用帳號
+                    display_name = f"{last_name}{first_name}" if (last_name or first_name) else username
+                    
                     process_summaries.append({
                         'name': username,
+                        'display_name': display_name,
                         'total': stat['total_count'],
                         'week': stat['week_count'],
                         'type': 'semi_finished'
@@ -139,7 +151,14 @@ def supervisor_process_detail(request, process_name):
         dispatched_items_count=Count('items', filter=Q(items__dispatch_status='dispatched'))
     ).prefetch_related(short_items_prefetch).order_by('-created_at')
     
-    # 為了計算百分比，我們在 Python 中處理 (或使用 ExpressionWrapper，但這裡 Python 較直觀)
+    # 嘗試獲取顯示名稱 (如果是領料人則顯示姓名)
+    display_name = process_name
+    first_req = requisitions.first()
+    if first_req and first_req.requisition_type == 'semi_finished':
+        u = first_req.applicant
+        display_name = f"{u.last_name}{u.first_name}" if (u.last_name or u.first_name) else u.username
+
+    # 為了計算百分比，我們在 Python 中處理
     for req in requisitions:
         if req.total_items_count > 0:
             req.progress = int((req.dispatched_items_count / req.total_items_count) * 100)
@@ -151,6 +170,7 @@ def supervisor_process_detail(request, process_name):
     
     context = {
         'process_name': process_name,
+        'display_name': display_name,
         'this_week_reqs': this_week_reqs,
         'other_reqs': other_reqs,
         'start_of_week': start_of_week,
