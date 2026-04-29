@@ -134,6 +134,32 @@
         color: white;
     }
 
+    .filter-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+        margin-top: 1rem;
+    }
+
+    .filter-item {
+        flex: 1;
+    }
+
+    .select-input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.3s;
+        background-color: white;
+    }
+
+    .select-input:focus {
+        border-color: #6366F1;
+    }
+
     .result-summary {
         display: flex;
         align-items: center;
@@ -301,13 +327,25 @@
             <label class="input-label">輸入工單號碼</label>
             <div class="input-hint">支援批量輸入，每行一個工單號碼，或以逗號、空白鍵分隔。可直接從 Excel 貼上。</div>
             <textarea class="input-textarea" name="order_numbers" placeholder="例：&#10;100003541&#10;100003614&#10;100003700">{{ submitted_orders }}</textarea>
-            <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-                <a href="{% url 'requisitions:sync_mps_order_info' %}" class="btn-sync" onclick="this.innerHTML='<i class=\'fas fa-sync-alt spinning\'></i> 同步中...';">
-                    <i class="fas fa-sync-alt"></i> 同步 MPS 工單資訊
-                </a>
-                <button type="submit" class="btn-query">
-                    <i class="fas fa-search"></i> 查詢缺料
-                </button>
+            
+            <div class="filter-row">
+                <div class="filter-item">
+                    <label class="input-label">投料點篩選 (選填)</label>
+                    <select name="process_type" class="select-input">
+                        <option value="">-- 全部投料點 --</option>
+                        {% for pt in process_types %}
+                        <option value="{{ pt }}" {% if selected_process_type == pt %}selected{% endif %}>{{ pt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <a href="{% url 'requisitions:sync_mps_order_info' %}" class="btn-sync" onclick="this.innerHTML='<i class=\'fas fa-sync-alt spinning\'></i> 同步中...';">
+                        <i class="fas fa-sync-alt"></i> 同步 MPS 工單資訊
+                    </a>
+                    <button type="submit" class="btn-query">
+                        <i class="fas fa-search"></i> 查詢缺料
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -338,6 +376,7 @@
         <form method="POST" action="{% url 'requisitions:shortage_inquiry_export' %}">
             {% csrf_token %}
             <input type="hidden" name="order_numbers" value="{{ submitted_orders }}">
+            <input type="hidden" name="process_type" value="{{ selected_process_type }}">
             <button type="submit" class="btn-export">
                 <i class="fas fa-file-excel"></i> 匯出 Excel
             </button>
@@ -354,7 +393,7 @@
                     <th class="sortable" onclick="sortTable(3)">品號</th>
                     <th class="sortable" onclick="sortTable(4)">品名</th>
                     <th class="sortable" onclick="sortTable(5)">供應商</th>
-                    <th class="sortable" onclick="sortTable(6)">投料點</th>
+                    <th>投料點</th>
                     <th class="sortable" style="text-align: right;" onclick="sortTable(7)">此單需求</th>
                     <th class="sortable" style="text-align: right;" onclick="sortTable(8)">累計需求</th>
                     <th class="sortable" style="text-align: right;" onclick="sortTable(9)">庫存量</th>

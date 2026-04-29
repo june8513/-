@@ -2102,6 +2102,8 @@ def shortage_inquiry(request):
     order_count = 0
     total_items = 0
     shortage_rate = 0
+    selected_process_type = ''
+    process_types = []
 
     if request.method == 'POST':
         import re
@@ -2109,6 +2111,7 @@ def shortage_inquiry(request):
         submitted_orders = raw_text
         # 解析工單號碼：支援換行、逗號、空白分隔
         order_numbers = [o.strip() for o in re.split(r'[\n\r,\s\t]+', raw_text) if o.strip()]
+        selected_process_type = request.POST.get('process_type', '')
 
         if not order_numbers:
             messages.warning(request, "請輸入至少一個工單號碼。")
@@ -2139,14 +2142,29 @@ def shortage_inquiry(request):
             results = []
             seen_orders = set()
             total_items = 0
+            
+            # 收集所有可用的投料點供下拉選單使用
+            pt_set = set()
+            for material_key, data in all_materials_analysis.items():
+                for detail in data['detail_orders']:
+                    if detail['order_number'] in order_numbers:
+                        pt_name = detail.get('process_type_name')
+                        if pt_name:
+                            pt_set.add(pt_name)
+            process_types = sorted(list(pt_set))
 
             for material_key, data in all_materials_analysis.items():
                 # 篩選出屬於查詢工單的明細
                 relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
+                
+                # 投料點篩選 (在此處篩選會影響 total_items 的統計)
+                if selected_process_type:
+                    relevant_details = [d for d in relevant_details if d.get('process_type_name') == selected_process_type]
+
                 if not relevant_details:
                     continue
                 
-                # 計算總筆數
+                # 計算總筆數 (反映篩選後的總數)
                 total_items += len(relevant_details)
 
                 # 只顯示全域分析後確認為缺料的物料
@@ -2201,6 +2219,8 @@ def shortage_inquiry(request):
         'order_count': order_count,
         'total_items': total_items,
         'shortage_rate': shortage_rate,
+        'process_types': process_types,
+        'selected_process_type': selected_process_type,
     })
 
 
@@ -2218,6 +2238,7 @@ def shortage_inquiry_export(request):
     import re
     raw_text = request.POST.get('order_numbers', '')
     order_numbers = [o.strip() for o in re.split(r'[\n\r,\s\t]+', raw_text) if o.strip()]
+    selected_process_type = request.POST.get('process_type', '')
 
     if not order_numbers:
         messages.error(request, "無可匯出的資料。")
@@ -2252,6 +2273,11 @@ def shortage_inquiry_export(request):
 
     for material_key, data in all_materials_analysis.items():
         relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
+        
+        # 投料點篩選
+        if selected_process_type:
+            relevant_details = [d for d in relevant_details if d.get('process_type_name') == selected_process_type]
+
         if not relevant_details:
             continue
 
