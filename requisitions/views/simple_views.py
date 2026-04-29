@@ -485,8 +485,18 @@ def simple_applicant_detail(request, pk):
     dispatched = items.filter(dispatch_status='dispatched').count()
     progress = int((dispatched / total * 100) if total > 0 else 0)
     
-    # 標記缺料物料
+    # 取得即時庫存資料 (避免顯示建立時的過期數據)
+    material_numbers = [item.material_number for item in items]
+    realtime_stocks = {m.material_code: m for m in Material.objects.filter(material_code__in=material_numbers)}
+    
+    # 標記缺料物料與即時庫存檢查
     for item in items:
+        # 更新即時庫存與儲格資訊
+        m_info = realtime_stocks.get(item.material_number)
+        if m_info:
+            item.stock_quantity = m_info.system_quantity
+            item.storage_bin = m_info.bin
+        
         if item.dispatch_status == 'backordered':
             item.is_shortage = True
             # 嘗試取得預計入料日期
@@ -497,7 +507,7 @@ def simple_applicant_detail(request, pk):
         else:
             item.is_shortage = False
             
-        # 檢查庫存是否不足
+        # 檢查庫存是否不足 (使用即時庫存)
         item.is_insufficient_stock = False
         if item.stock_quantity is not None and item.required_quantity is not None:
              # 如果尚未撥料且庫存 < 需求，標記為庫存不足
