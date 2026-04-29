@@ -37,8 +37,6 @@ def get_material_demand_analysis():
             ).values('system_quantity')[:1],
             output_field=DecimalField()
         )
-    ).filter(
-        remaining_required_quantity__gt=0
     )
 
     # Aggregate in Python
@@ -110,8 +108,6 @@ def get_material_demand_analysis():
             Greatest(Decimal('0.00'), F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0.00'))),
             output_field=DecimalField()
         )
-    ).filter(
-        remaining_required_quantity__gt=0
     ).order_by('material_number', 'demand_date', 'shipping_date', 'pk').values(
         'material_number', 'demand_date', 'shipping_date', 'remaining_required_quantity'
     )
