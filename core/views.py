@@ -3,7 +3,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count, Q, F, DecimalField, Prefetch
 from requisitions.constants import GROUP_NAMES
-from requisitions.models import Requisition, RequisitionItem, ProcessType, SemiFinishedProcessType
+from requisitions.models import Requisition, RequisitionItem, ProcessType, SemiFinishedProcessType, WorkOrderMaterial
 
 def homepage(request):
     """
