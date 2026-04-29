@@ -51,38 +51,43 @@ def homepage(request):
             start_of_week = now - timedelta(days=now.weekday())
             start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            # 使用使用者提供的特定投料點清單 (成品)
+            # 1. 成品投料點 (使用固定清單)
             target_finished_names = ['機械', '系統', '電裝', '鑄件', '護蓋', '刀庫', '出貨', '組件', '軟體研發部', '其他']
-            
-            # 獲取半成品投料點
-            semi_names = list(SemiFinishedProcessType.objects.values_list('name', flat=True).distinct().order_by('name'))
-            # 如果資料表是空的，從現有申請單中抓取
-            if not semi_names:
-                semi_names = list(Requisition.objects.filter(requisition_type='semi_finished').values_list('process_type', flat=True).distinct())
-            
-            # 建立完整的投料點清單，成品優先
-            all_names = []
-            for name in target_finished_names:
-                all_names.append({'name': name, 'type': 'finished'})
-            for name in semi_names:
-                if name and name not in [n['name'] for n in all_names]:
-                    all_names.append({'name': name, 'type': 'semi_finished'})
-
-            # 批量獲取現有數據的統計
-            stats_map = {item['process_type']: item for item in Requisition.objects.filter(is_archived=False).values('process_type').annotate(
+            finished_stats = {item['process_type']: item for item in Requisition.objects.filter(
+                requisition_type='finished',
+                is_archived=False
+            ).values('process_type').annotate(
                 total_count=Count('id'),
                 week_count=Count('id', filter=Q(created_at__gte=start_of_week))
             )}
             
-            for p_info in all_names:
-                name = p_info['name']
-                stat = stats_map.get(name, {'total_count': 0, 'week_count': 0})
+            for name in target_finished_names:
+                stat = finished_stats.get(name, {'total_count': 0, 'week_count': 0})
                 process_summaries.append({
                     'name': name,
                     'total': stat['total_count'],
                     'week': stat['week_count'],
-                    'type': p_info['type']
+                    'type': 'finished'
                 })
+            
+            # 2. 半成品投料點 (依領料人分組，比照撥料介面)
+            semi_stats = Requisition.objects.filter(
+                requisition_type='semi_finished',
+                is_archived=False
+            ).values('applicant__username').annotate(
+                total_count=Count('id'),
+                week_count=Count('id', filter=Q(created_at__gte=start_of_week))
+            ).order_by('applicant__username')
+            
+            for stat in semi_stats:
+                username = stat['applicant__username']
+                if username:
+                    process_summaries.append({
+                        'name': username,
+                        'total': stat['total_count'],
+                        'week': stat['week_count'],
+                        'type': 'semi_finished'
+                    })
 
         context = {
             'is_admin': is_admin,
@@ -125,9 +130,9 @@ def supervisor_process_detail(request, process_name):
     )
     
     # 獲取該投料點的所有申請單，並計算進度
-    # 進度計算：(已撥數量 / 總項數) * 100
+    # 成品依據 process_type，半成品依據 applicant__username
     requisitions = Requisition.objects.filter(
-        process_type=process_name,
+        Q(process_type=process_name) | Q(applicant__username=process_name),
         is_archived=False
     ).annotate(
         total_items_count=Count('items'),
