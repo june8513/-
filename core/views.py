@@ -158,12 +158,21 @@ def supervisor_process_detail(request, process_name):
         u = first_req.applicant
         display_name = f"{u.last_name}{u.first_name}" if (u.last_name or u.first_name) else u.username
 
+    # 獲取所有相關的機型名稱
+    order_numbers = [r.order_number for r in requisitions]
+    machine_model_map = {item['order_number']: item['machine_model__name'] for item in WorkOrderMaterial.objects.filter(
+        order_number__in=order_numbers,
+        machine_model__isnull=False
+    ).values('order_number', 'machine_model__name')}
+
     # 為了計算百分比，我們在 Python 中處理
     for req in requisitions:
         if req.total_items_count > 0:
             req.progress = int((req.dispatched_items_count / req.total_items_count) * 100)
         else:
             req.progress = 0
+        # 賦予機型名稱
+        req.machine_model_name = machine_model_map.get(req.order_number, "未知機型")
 
     this_week_reqs = [r for r in requisitions if r.created_at >= start_of_week]
     other_reqs = [r for r in requisitions if r.created_at < start_of_week]
