@@ -253,6 +253,11 @@ def simple_applicant_create(request):
                                     
                                     is_dispatched = final_confirmed > 0 and final_confirmed >= material.required_quantity
 
+                                    # 嘗試抓取即時庫存與儲格 (半成品)
+                                    main_material = Material.objects.filter(material_code=material.material_number).first()
+                                    stock_quantity = main_material.system_quantity if main_material else Decimal('0')
+                                    storage_bin = main_material.bin if main_material else ''
+
                                     items_to_create.append(RequisitionItem(
                                         requisition=requisition,
                                         source_material=material,
@@ -260,7 +265,8 @@ def simple_applicant_create(request):
                                         material_number=material.material_number,
                                         item_name=material.item_name,
                                         required_quantity=material.required_quantity,
-                                        stock_quantity=0,
+                                        stock_quantity=stock_quantity,
+                                        storage_bin=storage_bin,
                                         confirmed_quantity=final_confirmed,
                                         dispatch_status='dispatched' if is_dispatched else None,
                                         dispatched_by=dispatched_by,
@@ -1075,8 +1081,8 @@ def simple_dispatcher_merge(request, category):
             material_number = request.POST.get('material_number')
             try:
                 items = RequisitionItem.objects.filter(
-                    requisition__order_number__in=order_numbers,
                     (Q(requisition__applicant__username=category) if current_type == 'semi_finished' else Q(requisition__process_type__icontains=category)),
+                    requisition__order_number__in=order_numbers,
                     material_number=material_number,
                     requisition__is_archived=False
                 ).exclude(dispatch_status='dispatched')
@@ -1108,8 +1114,8 @@ def simple_dispatcher_merge(request, category):
             material_number = request.POST.get('material_number')
             try:
                 items = RequisitionItem.objects.filter(
-                    requisition__order_number__in=order_numbers,
                     (Q(requisition__applicant__username=category) if current_type == 'semi_finished' else Q(requisition__process_type__icontains=category)),
+                    requisition__order_number__in=order_numbers,
                     material_number=material_number,
                     requisition__is_archived=False
                 ).exclude(dispatch_status='dispatched')
@@ -1148,7 +1154,10 @@ def simple_dispatcher_merge(request, category):
         sort_args = ['storage_bin', 'material_number']
         sort_param = 'bin'
 
-    undispatched_items = undispatched_items.order_by(*sort_args)
+    # 取得即時儲位資訊 (避免顯示過期或空白數據)
+    from inventory.models import Material as InvMaterial
+    material_codes = list(undispatched_items.values_list('material_number', flat=True).distinct())
+    real_bins = dict(InvMaterial.objects.filter(material_code__in=material_codes).values_list('material_code', 'bin'))
 
     # 按物料編號分組合併
     from collections import OrderedDict
@@ -1156,10 +1165,12 @@ def simple_dispatcher_merge(request, category):
     for item in undispatched_items:
         key = item.material_number
         if key not in merged:
+            # 優先使用即時儲位
+            live_bin = real_bins.get(key)
             merged[key] = {
                 'material_number': item.material_number,
                 'item_name': item.item_name,
-                'storage_bin': item.storage_bin or '-',
+                'storage_bin': live_bin if live_bin else (item.storage_bin or '-'),
                 'orders': [],
                 'total_qty': 0,
             }
@@ -1481,11 +1492,11 @@ def simple_dispatcher_detail(request, category, pk):
     from inventory.models import Material as InvMaterial
     material_codes = [item.material_number for item in items_list]
     
-    # 庫存對照表
-    live_stock = dict(
-        InvMaterial.objects.filter(material_code__in=material_codes)
-        .values_list('material_code', 'system_quantity')
-    )
+    # 庫存對照表 (包含儲位)
+    live_inventory = {
+        m[0]: {'qty': m[1], 'bin': m[2]}
+        for m in InvMaterial.objects.filter(material_code__in=material_codes).values_list('material_code', 'system_quantity', 'bin')
+    }
     
     # 預計入料日期對照表 (從 WorkOrderMaterial 取得最新的日期)
     from django.db.models import Max
@@ -1497,10 +1508,11 @@ def simple_dispatcher_detail(request, category, pk):
     )
 
     for item in items_list:
-        # 庫存
-        live_qty = live_stock.get(item.material_number)
-        if live_qty is not None:
-            item.stock_quantity = live_qty
+        # 庫存與儲位
+        inv_info = live_inventory.get(item.material_number)
+        if inv_info:
+            item.stock_quantity = inv_info['qty']
+            item.storage_bin = inv_info['bin']
             
         # 預計入料日期
         item.estimated_arrival_date = arrival_dates.get(item.material_number)
