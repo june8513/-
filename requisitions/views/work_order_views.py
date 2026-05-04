@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from ..models import WorkOrder, WorkOrderMaterial, ProcessType, Requisition
-from django.db.models import Sum, Value, DecimalField, OuterRef, Subquery, F
+from django.db.models import Sum, Value, DecimalField, OuterRef, Subquery, F, Exists
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.db import transaction
@@ -25,12 +25,18 @@ def work_order_list(request):
     ).exclude(material_number="PARENT_SCOPE").values('machine_model__name')[:1]
 
     active_work_orders = WorkOrder.objects.filter(is_archived=False).annotate(
-        machine_model_name=Subquery(machine_model_subquery)
+        machine_model_name=Subquery(machine_model_subquery),
+        is_semi_finished=Exists(WorkOrderMaterial.objects.filter(
+            order_number=OuterRef('order_number'),
+            material_type='semi_finished'
+        ))
     ).order_by(order)
 
     archived_work_orders = WorkOrder.objects.filter(is_archived=True).order_by('-updated_at')
     
-    work_orders_data = []
+    finished_data = []
+    semi_finished_data = []
+    
     for wo in active_work_orders:
         materials = WorkOrderMaterial.objects.filter(order_number=wo.order_number).exclude(material_number="PARENT_SCOPE")
         
@@ -60,14 +66,20 @@ def work_order_list(request):
                 'requisition_pk': requisition.pk if requisition else None
             })
             
-        work_orders_data.append({
+        data = {
             'work_order': wo,
             'machine_model': machine_model_name,
             'process_type_progress': process_type_progress,
-        })
+        }
+        
+        if wo.is_semi_finished:
+            semi_finished_data.append(data)
+        else:
+            finished_data.append(data)
 
     context = {
-        'work_orders_data': work_orders_data,
+        'finished_data': finished_data,
+        'semi_finished_data': semi_finished_data,
         'archived_work_orders': archived_work_orders,
         'current_sort': sort_by.lstrip('-'),
         'current_direction': direction,
@@ -102,4 +114,4 @@ def toggle_work_order_archive(request, order_number):
             else:
                 messages.success(request, f"工單 {order_number} 及其所有相關申請單已取消歸檔。")
             
-    return redirect(reverse('requisitions:work_order_list') + '#work-order-list-table')
+    return redirect(reverse('requisitions:work_order_list') + '#work-order-tabs-container')
