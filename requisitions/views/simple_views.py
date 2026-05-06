@@ -62,10 +62,7 @@ def simple_applicant_home(request):
         requisition_type=current_type
     )
     
-    # 如果是主管，顯示所有申請單
-    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
-    if is_supervisor:
-        base_qs = Requisition.objects.all()
+
     
     # 依狀態分類
     pending_reqs = list(base_qs.filter(status='demand_submitted', is_archived=False).order_by('-created_at'))
@@ -1190,12 +1187,20 @@ def simple_dispatcher_merge(request, category):
 
     category_color = PROCESS_CATEGORY_COLORS.get(category, '#6B7280')
 
+    merged_items_list = list(merged.values())
+    if sort_param == 'material':
+        merged_items_list.sort(key=lambda x: x['material_number'] or '')
+    elif sort_param == 'name':
+        merged_items_list.sort(key=lambda x: (x['item_name'] or '', x['material_number'] or ''))
+    else:
+        merged_items_list.sort(key=lambda x: (x['storage_bin'] or '', x['material_number'] or ''))
+
     context = {
         'category': category,
         'category_color': category_color,
         'current_type': current_type,
         'order_numbers': order_numbers,
-        'merged_items': list(merged.values()),
+        'merged_items': merged_items_list,
         'total_items': undispatched_items.count(),
         'sort_param': sort_param,
     }
@@ -1590,6 +1595,10 @@ def simple_dispatcher_detail(request, category, pk):
                      item.expected_date = item.source_material.estimated_arrival_date
                  else:
                      item.expected_date = None
+
+    # 如果是以儲位排序，需要在更新即時儲位後重新排序
+    if sort_param == 'bin':
+        items_list.sort(key=lambda x: (x.storage_bin or '', x.material_number or ''))
     
     # 取得類型參數
     current_type = request.GET.get('type', 'finished')

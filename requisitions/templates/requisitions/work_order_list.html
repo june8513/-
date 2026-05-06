@@ -103,7 +103,7 @@
                                     <div class="p-3 d-flex flex-wrap justify-content-center">
                                         {% for pt in data.process_type_progress %}
                                             {% if pt.requisition_pk %}
-                                                <a href="{% url 'requisitions:requisition_detail' pt.requisition_pk %}" class="circular-progress-container text-center m-3 text-decoration-none">
+                                                <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ data.work_order.order_number }}&process_type_name={{ pt.name }}" class="circular-progress-container text-center m-3 text-decoration-none">
                                                     <div class="circular-progress" data-progress="{{ pt.progress }}">
                                                         <div class="circular-progress-value">0%</div>
                                                     </div>
@@ -199,7 +199,7 @@
                                     <div class="p-3 d-flex flex-wrap justify-content-center">
                                         {% for pt in data.process_type_progress %}
                                             {% if pt.requisition_pk %}
-                                                <a href="{% url 'requisitions:requisition_detail' pt.requisition_pk %}" class="circular-progress-container text-center m-3 text-decoration-none">
+                                                <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ data.work_order.order_number }}&process_type_name={{ pt.name }}" class="circular-progress-container text-center m-3 text-decoration-none">
                                                     <div class="circular-progress" data-progress="{{ pt.progress }}">
                                                         <div class="circular-progress-value">0%</div>
                                                     </div>

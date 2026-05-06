@@ -1285,6 +1285,19 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
                 WorkOrder.objects.get_or_create(order_number=str(order_number).strip())
 
             uploaded_material_keys = set()
+            
+            # Pre-fetch RequisitionItems for auto-dispatching
+            existing_semi_qs = WorkOrderMaterial.objects.filter(
+                order_number__in=all_order_numbers_in_upload,
+                material_type='semi_finished',
+                is_active=True
+            )
+            wom_primary_item = {}
+            for req_item in RequisitionItem.objects.filter(source_material__in=existing_semi_qs):
+                if req_item.source_material_id not in wom_primary_item or not req_item.is_supplementary:
+                    wom_primary_item[req_item.source_material_id] = req_item
+            
+            items_to_update_sap_dict = {}
 
             for _, row in df_aggregated.iterrows():
                 order_number_clean = str(row.get(order_col)).strip()
@@ -1379,6 +1392,16 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
                         if existing.confirmed_quantity != confirmed_quantity:
                             existing.confirmed_quantity = confirmed_quantity
                             is_dirty = True
+                        
+                        # 同步更新 RequisitionItem
+                        if existing.id in wom_primary_item:
+                            req_item = wom_primary_item[existing.id]
+                            # 如果上傳的數量大於目前申請單上的數量，則更新申請單
+                            if float(req_item.confirmed_quantity or 0) < float(confirmed_quantity):
+                                req_item.confirmed_quantity = confirmed_quantity
+                                if float(confirmed_quantity) > 0 and float(confirmed_quantity) >= float(req_item.required_quantity):
+                                    req_item.dispatch_status = 'dispatched'
+                                items_to_update_sap_dict[req_item.id] = req_item
                     
                     # 更新需求日期
                     if demand_date and existing.demand_date != demand_date:
@@ -1420,6 +1443,20 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
                         material.is_active = False
                         material.save()
                         deactivated_count += 1
+            
+            # Commit RequisitionItem updates for auto-dispatch
+            if items_to_update_sap_dict:
+                from .models import get_sap_user
+                from django.utils import timezone
+                sap_user = get_sap_user()
+                now = timezone.now()
+                items_to_update = list(items_to_update_sap_dict.values())
+                for item in items_to_update:
+                    if item.dispatch_status == 'dispatched':
+                        item.dispatched_by = sap_user
+                        item.dispatched_at = now
+                RequisitionItem.objects.bulk_update(items_to_update, ['confirmed_quantity', 'dispatch_status', 'dispatched_by', 'dispatched_at'], batch_size=2000)
+                print(f"[Semi-Finished Sync] 自動撥料了 {len(items_to_update)} 筆明細項目")
 
         return {
             'created_count': created_count,

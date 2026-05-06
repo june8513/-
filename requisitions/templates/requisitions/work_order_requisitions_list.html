@@ -12,7 +12,7 @@
             <p>此工單包含以下撥料申請單。請選擇您想查看的項目：</p>
             <div class="list-group">
                 {% for req in requisitions %}
-                    <a href="{% url 'requisitions:requisition_detail' req.pk %}" class="list-group-item list-group-item-action">
+                    <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ order_number }}&process_type_name={{ req.process_type }}" class="list-group-item list-group-item-action">
                         <strong>投料點:</strong> {{ req.process_type }} | 
                         <strong>狀態:</strong> {{ req.get_status_display }} |
                         <strong>申請人:</strong> {{ req.applicant.username }} |

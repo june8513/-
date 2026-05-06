@@ -66,7 +66,7 @@
                     {% for req in requisitions %}
                         <tr>
                             {# Row 1 #}
-                            <td data-label="訂單單號"><a href="{% url 'requisitions:requisition_detail' pk=req.pk %}" class="requisition-link">{{ req.order_number }}</a></td> {# Link to detail page #}
+                            <td data-label="訂單單號"><a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="requisition-link">{{ req.order_number }}</a></td>
                             <td data-label="需求流程">{{ req.process_type }}</td>
                             <td data-label="申請人">{{ req.applicant.username }}</td>
                             
