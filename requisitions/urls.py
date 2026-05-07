@@ -35,13 +35,17 @@ urlpatterns = [
     path('simple/applicant/create/', simple_views.simple_applicant_create, name='simple_applicant_create'),
     path('simple/applicant/<int:pk>/', simple_views.simple_applicant_detail, name='simple_applicant_detail'),
     path('simple/applicant/<int:pk>/sign-off/', simple_views.simple_applicant_sign_off, name='simple_applicant_sign_off'),
+    path('simple/applicant/item/<int:item_id>/report-issue/', simple_views.report_item_issue, name='report_item_issue'),
     path('simple/applicant/<int:pk>/update-process-type/', simple_views.simple_applicant_update_process_type, name='simple_applicant_update_process_type'),
     path('simple/applicant/<int:pk>/update-request-date/', simple_views.simple_applicant_update_request_date, name='simple_applicant_update_request_date'),
     path('simple/applicant/<int:pk>/delete/', simple_views.simple_applicant_delete, name='simple_applicant_delete'),
     path('simple/dispatcher/', simple_views.simple_dispatcher_home, name='simple_dispatcher_home'),
     path('simple/dispatcher/<str:category>/', simple_views.simple_dispatcher_category, name='simple_dispatcher_category'),
+    path('simple/dispatcher/<str:category>/shortage/', simple_views.simple_dispatcher_shortage, name='simple_dispatcher_shortage'),
     path('simple/dispatcher/<str:category>/merge/', simple_views.simple_dispatcher_merge, name='simple_dispatcher_merge'),
     path('simple/dispatcher/<str:category>/<int:pk>/', simple_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
+    path('simple/dispatcher/item/<int:item_id>/resolve-issue/', simple_views.resolve_item_issue, name='resolve_item_issue'),
+    path('simple/dispatcher/item/<int:item_id>/dispatch/', simple_views.simple_dispatch_item_ajax, name='simple_dispatch_item_ajax'),
     path('simple/dispatcher/announcement/update/', simple_views.update_announcement, name='update_announcement'),
 
     # Excel export for simple interface

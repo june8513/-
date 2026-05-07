@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}欠料彙整 - {{ category }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simple-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #F3F4F6;
+        padding: 0.75rem 0;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #F3F4F6;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        text-decoration: none;
+        color: #374151;
+    }
+
+    .back-btn:hover {
+        background: #E5E7EB;
+    }
+
+    .page-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: white;
+        margin-left: 0.5rem;
+    }
+
+    .search-bar-container {
+        margin-bottom: 1rem;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        border: 1px solid #D1D5DB;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+        border-color: #3B82F6;
+        ring: 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .shortage-card {
+        background: white;
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.1s;
+    }
+
+    .bin-badge {
+        background: #FEE2E2;
+        color: #B91C1C;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        min-width: 60px;
+        text-align: center;
+    }
+
+    .mat-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .mat-header-line {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .mat-number {
+        font-weight: 600;
+        color: #111827;
+        font-size: 0.95rem;
+    }
+
+    .order-number {
+        font-size: 0.8rem;
+        color: #6B7280;
+        background: #F3F4F6;
+        padding: 1px 4px;
+        border-radius: 4px;
+    }
+
+    .mat-name {
+        font-size: 0.85rem;
+        color: #4B5563;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+
+    .qty-area {
+        text-align: right;
+        min-width: 60px;
+    }
+
+    .qty-val {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #DC2626;
+    }
+
+    .action-area {
+        flex-shrink: 0;
+    }
+
+    .replenish-btn {
+        background: #10B981;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .replenish-btn:hover {
+        background: #059669;
+    }
+
+    .replenish-btn:disabled {
+        background: #D1D5DB;
+        cursor: not-allowed;
+    }
+
+    .dispatched-label {
+        color: #10B981;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #9CA3AF;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .toast-message {
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #059669;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 12px;
+        z-index: 1000;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .toast-message.error {
+        background: #DC2626;
+    }
+
+    @media (max-width: 640px) {
+        .shortage-card {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .bin-badge {
+            order: 1;
+        }
+        .qty-area {
+            order: 2;
+            flex: 1;
+        }
+        .mat-info {
+            order: 3;
+            width: 100%;
+            flex: none;
+        }
+        .action-area {
+            order: 4;
+            width: 100%;
+            text-align: right;
+            border-top: 1px dashed #E5E7EB;
+            padding-top: 0.5rem;
+            margin-top: 0.25rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-container">
+    <div class="page-header">
+        <a href="{% url 'requisitions:simple_dispatcher_category' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
+            class="back-btn">←</a>
+        <h1 class="page-title">待撥欠料彙整
+            <span class="category-badge" style="background: {{ category_color }};">{{ category }}</span>
+        </h1>
+    </div>
+
+    <div class="search-bar-container">
+        <input type="text" id="shortageSearch" class="search-input" placeholder="搜尋工單、物料、品名或儲格..." oninput="filterShortages()">
+    </div>
+
+    <div id="shortageList">
+        {% if shortage_items %}
+        {% for item in shortage_items %}
+        <div class="shortage-card" data-search="{{ item.order_number }} {{ item.material_number }} {{ item.item_name }} {{ item.storage_bin }}">
+            <div class="bin-badge">{{ item.storage_bin|default:"-" }}</div>
+            <div class="mat-info">
+                <div class="mat-header-line">
+                    <span class="mat-number">{{ item.material_number }}</span>
+                    <span class="order-number">{{ item.order_number }}</span>
+                    <span style="font-size: 0.8rem; color: #DC2626; font-weight: 600;">📅 {{ item.requisition.request_date|date:"m/d" }}</span>
+                </div>
+                <span class="mat-name">{{ item.item_name }}</span>
+            </div>
+            <div class="qty-area">
+                <div class="qty-val">{{ item.required_quantity|floatformat:0 }}</div>
+                <div style="font-size: 0.7rem; color: #9CA3AF;">需求</div>
+            </div>
+            <div class="action-area">
+                <button class="replenish-btn" onclick="quickDispatch({{ item.pk }}, this)">補料</button>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
+            <p style="font-size: 1.1rem; font-weight: 600; color: #4B5563;">目前沒有待撥欠料物料</p>
+            <p style="font-size: 0.9rem; margin-top: 0.5rem;">太棒了！所有物料都已處理完成。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const csrfToken = '{{ csrf_token }}';
+
+    function showToast(msg, isError) {
+        const t = document.createElement('div');
+        t.className = 'toast-message' + (isError ? ' error' : '');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => {
+            t.style.opacity = '0';
+            t.style.transition = 'opacity 0.5s';
+            setTimeout(() => t.remove(), 500);
+        }, 2000);
+    }
+
+    function filterShortages() {
+        const query = document.getElementById('shortageSearch').value.toLowerCase();
+        const cards = document.querySelectorAll('.shortage-card');
+        cards.forEach(card => {
+            const searchText = card.getAttribute('data-search').toLowerCase();
+            card.style.display = searchText.includes(query) ? 'flex' : 'none';
+        });
+    }
+
+    function quickDispatch(itemPk, btn) {
+        if (!confirm('確認補料完成？')) return;
+
+        btn.disabled = true;
+        btn.textContent = '處理中...';
+
+        const formData = new FormData();
+        formData.append('action', 'dispatch');
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        // 使用原本 Detail 頁面的 AJAX 端點邏輯
+        // 由於我們只是要標記已撥料，我們可以直接呼叫 dispatcher_detail 的 AJAX 操作
+        // 為了通用性，我們呼叫一個通用的 AJAX 端點或是直接在 View 處理
+        // 這裡我們假設 dispatcher_detail 的邏輯可以被複用
+        
+        // 使用 Django template 標籤動態產生 URL 前綴，避免路徑錯誤
+        const url = "{% url 'requisitions:simple_dispatch_item_ajax' item_id=0 %}".replace('0', itemPk);
+        
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('補料成功');
+                const actionArea = btn.parentElement;
+                actionArea.innerHTML = '<span class="dispatched-label">✓ 已補料</span>';
+                setTimeout(() => {
+                    btn.closest('.shortage-card').style.opacity = '0.5';
+                }, 500);
+            } else {
+                showToast(data.message || '操作失敗', true);
+                btn.disabled = false;
+                btn.textContent = '補料';
+            }
+        })
+        .catch(() => {
+            showToast('伺服器錯誤', true);
+            btn.disabled = false;
+            btn.textContent = '補料';
+        });
+    }
+</script>
+{% endblock %}

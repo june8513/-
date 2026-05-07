@@ -1236,8 +1236,10 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
         
         # 已交貨/領料數量欄位（可選）
         delivered_col = None
-        for col_name in ['領料數量 (EINHEIT)', '領料數量(EINHEIT)', '領料數量', '已交貨數量 (GMEIN)', '已交貨數量(GMEIN)', '已交貨數量']:
-            if col_name in df_upload.columns:
+        for col_name in df_upload.columns:
+            # 使用更寬鬆的匹配，包含領料數量或已交貨數量關鍵字
+            clean_col = col_name.replace(' ', '').replace('\n', '')
+            if '領料數量' in clean_col or '已交貨數量' in clean_col:
                 delivered_col = col_name
                 break
         
@@ -1399,7 +1401,7 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
                             # 如果上傳的數量大於目前申請單上的數量，則更新申請單
                             if float(req_item.confirmed_quantity or 0) < float(confirmed_quantity):
                                 req_item.confirmed_quantity = confirmed_quantity
-                                if float(confirmed_quantity) > 0 and float(confirmed_quantity) >= float(req_item.required_quantity):
+                                if float(confirmed_quantity) > 0:
                                     req_item.dispatch_status = 'dispatched'
                                 items_to_update_sap_dict[req_item.id] = req_item
                     
@@ -1446,7 +1448,6 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
             
             # Commit RequisitionItem updates for auto-dispatch
             if items_to_update_sap_dict:
-                from .models import get_sap_user
                 from django.utils import timezone
                 sap_user = get_sap_user()
                 now = timezone.now()
@@ -1456,7 +1457,28 @@ def process_semi_finished_excel(excel_file_path, required_qty_col=None, process_
                         item.dispatched_by = sap_user
                         item.dispatched_at = now
                 RequisitionItem.objects.bulk_update(items_to_update, ['confirmed_quantity', 'dispatch_status', 'dispatched_by', 'dispatched_at'], batch_size=2000)
-                print(f"[Semi-Finished Sync] 自動撥料了 {len(items_to_update)} 筆明細項目")
+                
+                # 更新受影響的申請單狀態
+                affected_requisition_ids = set(item.requisition_id for item in items_to_update)
+                for req_id in affected_requisition_ids:
+                    try:
+                        req = Requisition.objects.get(id=req_id)
+                        all_items = req.items.all()
+                        total_count = all_items.count()
+                        dispatched_count = all_items.filter(dispatch_status='dispatched').count()
+                        
+                        if dispatched_count == total_count and total_count > 0:
+                            if req.status != 'dispatch_completed':
+                                req.status = 'dispatch_completed'
+                                req.save()
+                        elif dispatched_count > 0:
+                            if req.status == 'demand_submitted':
+                                req.status = 'dispatch_in_progress'
+                                req.save()
+                    except Requisition.DoesNotExist:
+                        continue
+
+                print(f"[Semi-Finished Sync] 自動撥料了 {len(items_to_update)} 筆明細項目，並同步更新了相關申請單狀態")
 
         return {
             'created_count': created_count,

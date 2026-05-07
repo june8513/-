@@ -17,6 +17,7 @@ from decimal import Decimal
 from datetime import date
 import pandas as pd
 import io
+import traceback
 
 from ..models import Requisition, RequisitionItem, WorkOrderMaterial, WorkOrder, ProcessType, RequisitionShareGroup, Announcement, MachineModel, WorkOrderMaterialTransaction
 from ..constants import GROUP_NAMES, PROCESS_CATEGORY_NAMES, PROCESS_CATEGORY_COLORS
@@ -248,7 +249,7 @@ def simple_applicant_create(request):
                                         dispatched_by = get_sap_user()
                                         dispatched_at = timezone.now()
                                     
-                                    is_dispatched = final_confirmed > 0 and final_confirmed >= material.required_quantity
+                                    is_dispatched = final_confirmed > 0
 
                                     # 嘗試抓取即時庫存與儲格 (半成品)
                                     main_material = Material.objects.filter(material_code=material.material_number).first()
@@ -744,7 +745,8 @@ def simple_applicant_sign_off(request, pk):
                 dispatched_items = RequisitionItem.objects.filter(
                     requisition=requisition,
                     dispatch_status='dispatched',
-                    is_signed_off=False
+                    is_signed_off=False,
+                    has_issue=False
                 )
                 for item in dispatched_items:
                     item.is_signed_off = True
@@ -764,7 +766,7 @@ def simple_applicant_sign_off(request, pk):
                         item_pk = key.split('_')[-1]
                         try:
                             item = RequisitionItem.objects.get(pk=item_pk, requisition=requisition)
-                            if not item.is_signed_off:
+                            if not item.is_signed_off and not item.has_issue:
                                 item.is_signed_off = True
                                 item.sign_off_by = request.user
                                 item.sign_off_date = timezone.now()
@@ -797,6 +799,60 @@ def simple_applicant_sign_off(request, pk):
     
     return redirect('requisitions:simple_applicant_detail', pk=pk)
 
+@login_required
+@require_POST
+def report_item_issue(request, item_id):
+    """申請人回報物料異況"""
+    item = get_object_or_404(RequisitionItem, pk=item_id)
+    description = request.POST.get('description', '').strip()
+    
+    if not description:
+        return JsonResponse({'success': False, 'message': '請填寫異況說明。'})
+        
+    if item.is_signed_off:
+        return JsonResponse({'success': False, 'message': '此項目已簽收，無法回報異況。'})
+        
+    if item.dispatch_status != 'dispatched':
+        return JsonResponse({'success': False, 'message': '此項目尚未完成撥料，無法回報異況。'})
+        
+    with transaction.atomic():
+        from requisitions.models import RequisitionItemIssue
+        RequisitionItemIssue.objects.create(
+            requisition_item=item,
+            reported_by=request.user,
+            description=description
+        )
+        item.has_issue = True
+        item.save()
+        
+    return JsonResponse({'success': True, 'message': '異況已回報。'})
+
+@login_required
+@require_POST
+def resolve_item_issue(request, item_id):
+    """撥料員解除物料異況"""
+    item = get_object_or_404(RequisitionItem, pk=item_id)
+    resolution_notes = request.POST.get('resolution_notes', '').strip()
+    
+    # 權限檢查：只有撥料員或管理員可以解除
+    if not (is_simple_dispatcher(request.user) or request.user.is_superuser):
+        return JsonResponse({'success': False, 'message': '您沒有權限解除異況。'})
+        
+    with transaction.atomic():
+        from requisitions.models import RequisitionItemIssue
+        # 標記所有未解決的異況為已解決
+        unresolved_issues = item.issues.filter(is_resolved=False)
+        for issue in unresolved_issues:
+            issue.is_resolved = True
+            issue.resolved_by = request.user
+            issue.resolved_at = timezone.now()
+            issue.resolution_notes = resolution_notes
+            issue.save()
+            
+        item.has_issue = False
+        item.save()
+        
+    return JsonResponse({'success': True, 'message': '異況已解除。'})
 
 # =====================
 # 簡易撥料人員視圖
@@ -1024,6 +1080,71 @@ def simple_dispatcher_category(request, category):
         'shortage_items': shortage_items,
     }
     return render(request, 'requisitions/simple/simple_dispatcher_category.html', context)
+
+
+@login_required
+def simple_dispatcher_shortage(request, category):
+    """待撥欠料彙整 - 獨立網頁頁面呈現該分類下的所有欠料物料"""
+    if not is_simple_dispatcher(request.user) and not request.user.is_superuser:
+        return redirect('requisitions:requisition_list')
+
+    current_type = request.GET.get('type', 'finished')
+    category_color = PROCESS_CATEGORY_COLORS.get(category, '#6B7280')
+
+    # 取得該分類下的待處理申請單
+    pending_requisitions = Requisition.objects.filter(
+        process_type__icontains=category,
+        status__in=['demand_submitted', 'dispatch_in_progress'],
+        is_archived=False
+    )
+    
+    # 取得所有待撥申請單中的缺料項目
+    shortage_items = RequisitionItem.objects.filter(
+        requisition__in=pending_requisitions,
+        dispatch_status='backordered'
+    ).select_related('requisition', 'source_material').order_by('storage_bin', 'order_number', 'material_number')
+    
+    context = {
+        'category': category,
+        'category_color': category_color,
+        'shortage_items': shortage_items,
+        'current_type': current_type,
+    }
+    return render(request, 'requisitions/simple/simple_dispatcher_shortage.html', context)
+
+
+@login_required
+@require_POST
+def simple_dispatch_item_ajax(request, item_id):
+    """通用單項撥料 AJAX 處理"""
+    from django.http import JsonResponse
+    try:
+        item = RequisitionItem.objects.get(pk=item_id)
+        
+        # 標記為已撥料
+        item.confirmed_quantity = item.required_quantity
+        item.dispatch_status = 'dispatched'
+        item.dispatched_by = request.user
+        item.dispatched_at = timezone.now()
+        item.save()
+        
+        # 更新申請單狀態
+        requisition = item.requisition
+        items = requisition.items.all()
+        dispatched_count = items.filter(dispatch_status='dispatched').count()
+        if dispatched_count == items.count():
+            requisition.status = 'dispatch_completed'
+        else:
+            requisition.status = 'dispatch_in_progress'
+        requisition.save()
+        
+        return JsonResponse({'success': True, 'message': '撥料成功'})
+    except RequisitionItem.DoesNotExist:
+        return JsonResponse({'success': False, 'message': '找不到指定的物料項目'})
+    except Exception as e:
+        error_msg = traceback.format_exc()
+        print(f"Replenishment error: {error_msg}")
+        return JsonResponse({'success': False, 'message': f'系統錯誤: {str(e)}'})
 
 
 @login_required

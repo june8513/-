@@ -433,6 +433,38 @@
     .replenish-btn:hover {
         background: #059669;
     }
+
+    /* Search Bar Styles */
+    .search-container {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #3B82F6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9CA3AF;
+        font-size: 1.1rem;
+        pointer-events: none;
+    }
     </style>
 {% endblock %}
 
@@ -469,9 +501,6 @@
     }
 
 
-    function toggleShortageModal(show) {
-        document.getElementById('shortageModal').style.display = show ? 'flex' : 'none';
-    }
 
     function quickDispatch(itemPk, btn) {
         if (!confirm('確認已完成此物料撥料？')) return;
@@ -535,7 +564,20 @@
     let currentBatchAction = 'dispatch';
     
     function toggleBatchMode(actionType) {
-        if (!isBatchMode || currentBatchAction !== actionType) {
+        if (isBatchMode && (!actionType || currentBatchAction === actionType)) {
+            // 關閉模式
+            isBatchMode = false;
+            document.body.classList.remove('batch-mode-active');
+            document.getElementById('batchActionBar').style.display = 'none';
+            // Uncheck all
+            document.querySelectorAll('.batch-checkbox-input').forEach(cb => {
+                cb.checked = false;
+                cb.closest('.requisition-card').classList.remove('selected');
+            });
+            document.getElementById('selectAllBatch').checked = false;
+            updateBatchCount();
+        } else {
+            // 開啟或切換模式
             isBatchMode = true;
             currentBatchAction = actionType || 'dispatch';
             document.body.classList.add('batch-mode-active');
@@ -553,17 +595,6 @@
                 btn.style.background = '#10B981';
                 btn.style.borderColor = '#10B981';
             }
-        } else {
-            isBatchMode = false;
-            document.body.classList.remove('batch-mode-active');
-            document.getElementById('batchActionBar').style.display = 'none';
-            // Uncheck all
-            document.querySelectorAll('.batch-checkbox-input').forEach(cb => {
-                cb.checked = false;
-                cb.closest('.requisition-card').classList.remove('selected');
-            });
-            document.getElementById('selectAllBatch').checked = false;
-            updateBatchCount();
         }
     }
 
@@ -633,6 +664,47 @@
             window.location.href = mergeUrl;
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('categorySearch');
+        const cards = document.querySelectorAll('.requisition-card');
+        const sections = document.querySelectorAll('.section-title');
+
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase().trim();
+            
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            sections.forEach(section => {
+                let nextEl = section.nextElementSibling;
+                let hasVisibleCards = false;
+                let visibleCount = 0;
+
+                while (nextEl && !nextEl.classList.contains('section-title')) {
+                    if (nextEl.classList.contains('requisition-card')) {
+                        if (nextEl.style.display !== 'none') {
+                            hasVisibleCards = true;
+                            visibleCount++;
+                        }
+                    }
+                    nextEl = nextEl.nextElementSibling;
+                }
+
+                section.style.display = (hasVisibleCards || query === '') ? '' : 'none';
+                const countBadge = section.querySelector('.count');
+                if (countBadge && query !== '') {
+                    countBadge.textContent = visibleCount;
+                }
+            });
+        });
+    });
 </script>
 {% endblock %}
 
@@ -657,9 +729,16 @@
 
     <div class="copy-btns" style="flex-wrap: wrap;">
         <button type="button" class="copy-btn" onclick="copyAllOrders()">📋 複製所有工單號</button>
-        <button type="button" class="shortage-btn" onclick="toggleShortageModal(true)">🚨 查看待撥欠料物料</button>
+        <a href="{% url 'requisitions:simple_dispatcher_shortage' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" 
+           class="shortage-btn" style="text-decoration: none; display: inline-block;">🚨 查看待撥欠料物料</a>
         <button type="button" class="copy-btn" style="text-decoration: none; background: #E0E7FF; border-color: #C7D2FE; color: #3730A3;" onclick="toggleBatchMode('export')">📊 選擇工單並匯出 Excel</button>
         <button type="button" class="copy-btn" style="background:#DBEAFE; border-color:#BFDBFE; color:#1E40AF;" onclick="toggleBatchMode('dispatch')">📦 批量合併撥料</button>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="categorySearch" class="search-input" placeholder="搜尋工單單號、申請人或備註...">
     </div>
 
     <!-- 待撥料申請單 -->
@@ -782,48 +861,6 @@
     {% endfor %}
     {% endif %}
 
-    <!-- Shortage Modal -->
-    <div id="shortageModal" class="modal-overlay" onclick="toggleShortageModal(false)">
-        <div class="modal-container" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <div class="modal-title">待撥欠料彙整 ({{ category }})</div>
-                <div class="close-modal" onclick="toggleShortageModal(false)">&times;</div>
-            </div>
-            <div class="modal-body">
-                {% if shortage_items %}
-                <table class="shortage-table">
-                    <thead>
-                        <tr>
-                            <th onclick="sortShortageTable(0)" style="cursor:pointer;">儲格 ⇅</th>
-                            <th onclick="sortShortageTable(1)" style="cursor:pointer;">工單 ⇅</th>
-                            <th onclick="sortShortageTable(2)" style="cursor:pointer;">物料 ⇅</th>
-                            <th onclick="sortShortageTable(3)" style="cursor:pointer;">品名 ⇅</th>
-                            <th onclick="sortShortageTable(4)" style="cursor:pointer; text-align:right;">數量 ⇅</th>
-                            <th style="text-align:center;">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in shortage_items %}
-                        <tr>
-                            <td><span class="bin-badge">{{ item.storage_bin|default:"-" }}</span></td>
-                            <td style="font-size:0.8rem;">{{ item.order_number }}</td>
-                            <td style="font-weight:600;">{{ item.material_number }}</td>
-                            <td style="font-size:0.8rem; color:#6B7280;">{{ item.item_name }}</td>
-                            <td style="text-align:right; font-weight:600; color:#DC2626;">{{ item.required_quantity|floatformat:0 }}</td>
-                            <td style="text-align:center;">
-                                <button type="button" class="replenish-btn"
-                                    onclick="quickDispatch({{ item.pk }}, this)">補料</button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div style="padding: 2rem; text-align: center; color: #9CA3AF;">目前無待撥欠料項目</div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
 
     <!-- Batch Action Bottom Bar -->
     <div id="batchActionBar">

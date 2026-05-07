@@ -169,12 +169,34 @@ class RequisitionItem(models.Model):
     is_supplementary = models.BooleanField(default=False, verbose_name="是否為補撥")
     parent_item = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='supplementary_items', verbose_name="原始項目")
 
+    # 新增：異況追蹤
+    has_issue = models.BooleanField(default=False, verbose_name="有未解決異況")
+
     class Meta:
         verbose_name = "撥料物料明細"
         verbose_name_plural = "撥料物料明細"
 
     def __str__(self):
         return f"{self.item_name} ({self.required_quantity})"
+
+class RequisitionItemIssue(models.Model):
+    requisition_item = models.ForeignKey(RequisitionItem, on_delete=models.CASCADE, related_name='issues', verbose_name="所屬明細")
+    reported_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='reported_issues', verbose_name="回報人")
+    reported_at = models.DateTimeField(auto_now_add=True, verbose_name="回報時間")
+    description = models.TextField(verbose_name="異況說明")
+    is_resolved = models.BooleanField(default=False, verbose_name="已解除")
+    resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_issues', verbose_name="解除人")
+    resolved_at = models.DateTimeField(null=True, blank=True, verbose_name="解除時間")
+    resolution_notes = models.TextField(blank=True, null=True, verbose_name="結案紀錄")
+
+    class Meta:
+        verbose_name = "明細異況紀錄"
+        verbose_name_plural = "明細異況紀錄"
+        ordering = ['-reported_at']
+
+    def __str__(self):
+        status = "已解除" if self.is_resolved else "未解決"
+        return f"{self.requisition_item.item_name} 異況 ({status})"
 
 
 class RequisitionImage(models.Model):

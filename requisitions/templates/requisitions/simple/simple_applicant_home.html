@@ -279,6 +279,38 @@
         font-size: 0.9rem;
         margin-bottom: 0.5rem;
     }
+
+    /* Search Bar Styles */
+    .search-container {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #3B82F6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9CA3AF;
+        font-size: 1.1rem;
+        pointer-events: none;
+    }
     </style>
 {% endblock %}
 
@@ -298,6 +330,12 @@
         <div class="user-badge">
             {{ user.first_name }}{{ user.last_name }}{% if not user.first_name %}{{ user.username }}{% endif %}
         </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="simpleSearch" class="search-input" placeholder="搜尋工單單號、投料點或備註...">
     </div>
 
     <!-- 成品/半成品標籤切換 -->
@@ -515,4 +553,60 @@
 </div>
 
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('simpleSearch');
+            const cards = document.querySelectorAll('.requisition-card');
+            const sections = document.querySelectorAll('.section-title');
+
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.toLowerCase().trim();
+                
+                // Filter cards
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    if (text.includes(query)) {
+                        card.style.display = '';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                // Update section visibility and counts
+                sections.forEach(section => {
+                    let nextEl = section.nextElementSibling;
+                    let hasVisibleCards = false;
+                    let visibleCount = 0;
+
+                    // Iterate through elements until next section title
+                    while (nextEl && !nextEl.classList.contains('section-title')) {
+                        if (nextEl.classList.contains('requisition-card')) {
+                            if (nextEl.style.display !== 'none') {
+                                hasVisibleCards = true;
+                                visibleCount++;
+                            }
+                        }
+                        nextEl = nextEl.nextElementSibling;
+                    }
+
+                    // Show/hide section title
+                    section.style.display = (hasVisibleCards || query === '') ? '' : 'none';
+                    
+                    // Optional: Update count badge
+                    const countBadge = section.querySelector('.section-count');
+                    if (countBadge && query !== '') {
+                        countBadge.textContent = visibleCount;
+                    } else if (countBadge) {
+                        // Reset to original count if needed (but since it's Django rendered, we'd need to store original)
+                    }
+                });
+
+                // Handle empty states
+                document.querySelectorAll('.empty-state-sm').forEach(empty => {
+                    empty.style.display = query === '' ? '' : 'none';
+                });
+            });
+        });
+    </script>
 {% endblock %}

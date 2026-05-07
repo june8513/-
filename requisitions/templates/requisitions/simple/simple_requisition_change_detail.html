@@ -121,6 +121,10 @@
     <div class="page-header">
         <a href="javascript:history.back()" class="back-btn">←</a>
         <h1 class="page-title">變更管理: {{ requisition.order_number }}</h1>
+        <form action="{% url 'requisitions:dismiss_requisition_alert' requisition.pk %}" method="post" onsubmit="return confirm('確定已完成變更處理，要解除此警示嗎？');" style="margin-left: auto; margin-right: 1rem;">
+            {% csrf_token %}
+            <button type="submit" class="dismiss-btn" style="padding: 0.5rem 1rem; border-radius: 8px;">✅ 解除警示</button>
+        </form>
     </div>
 
     <!-- 物料變更歷程 -->

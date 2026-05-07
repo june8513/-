@@ -550,6 +550,20 @@
                 </span>
                 {% endif %}
             </div>
+            {% if item.has_issue %}
+            <div style="background: #FFF5F5; border: 1px solid #FED7D7; padding: 0.75rem; border-radius: 8px; margin-top: 0.75rem; width: 100%;">
+                <div style="color: #C53030; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.25rem;">⚠️ 申請人回報異況</div>
+                {% for issue in item.issues.all %}
+                    {% if not issue.is_resolved %}
+                    <div style="font-size: 0.9rem; color: #4A5568; margin-bottom: 0.5rem;">
+                        {{ issue.description }}
+                        <span style="font-size: 0.8rem; color: #A0AEC0; margin-left: 0.5rem;">({{ issue.reported_at|date:"m/d H:i" }})</span>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+                <button type="button" class="btn btn-sm btn-danger" style="border-radius: 6px; font-weight: 600;" onclick="openResolveModal({{ item.pk }}, '{{ item.material_number }}')">解除異況</button>
+            </div>
+            {% endif %}
         </div>
         <form method="post" class="material-actions">
             {% csrf_token %}
@@ -890,5 +904,90 @@
             });
         }
     });
+
+    // 解除異況相關邏輯
+    let resolveIssueModal;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const resolveModalEl = document.getElementById('resolveIssueModal');
+        if (resolveModalEl) {
+            resolveIssueModal = new bootstrap.Modal(resolveModalEl);
+        }
+        
+        const submitResolveBtn = document.getElementById('submitResolveBtn');
+        if (submitResolveBtn) {
+            submitResolveBtn.addEventListener('click', function() {
+                const itemId = document.getElementById('resolveItemId').value;
+                const resolutionNotes = document.getElementById('resolutionNotes').value;
+                const btn = this;
+                
+                btn.disabled = true;
+                btn.textContent = '解除中...';
+                
+                const formData = new FormData();
+                formData.append('resolution_notes', resolutionNotes);
+                
+                fetch(`/requisitions/simple/dispatcher/item/${itemId}/resolve-issue/`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert(data.message);
+                        btn.disabled = false;
+                        btn.textContent = '確定解除';
+                    }
+                })
+                .catch(err => {
+                    alert('系統發生錯誤，請稍後再試。');
+                    btn.disabled = false;
+                    btn.textContent = '確定解除';
+                });
+            });
+        }
+    });
+
+    window.openResolveModal = function(itemId, materialNumber) {
+        if (!resolveIssueModal) return;
+        document.getElementById('resolveItemId').value = itemId;
+        document.getElementById('resolveMaterialInfo').textContent = materialNumber;
+        document.getElementById('resolutionNotes').value = '';
+        resolveIssueModal.show();
+    };
 </script>
+
+<!-- 解除異況 Modal -->
+<div class="modal fade" id="resolveIssueModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6; padding: 1.25rem;">
+                <h5 class="modal-title" style="font-weight: 700; color: #1F2937;">解除物料異況</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p style="font-weight: 600; color: #374151; margin-bottom: 1rem;">
+                    物料：<span id="resolveMaterialInfo"></span>
+                </p>
+                <form id="resolveIssueForm">
+                    <input type="hidden" id="resolveItemId" name="item_id">
+                    <div class="mb-3">
+                        <label for="resolutionNotes" class="form-label" style="font-size: 0.9rem; color: #6B7280;">結案紀錄（可選填）</label>
+                        <textarea class="form-control" id="resolutionNotes" name="resolution_notes" rows="3" placeholder="例如：已補足數量、已請購..." style="border-radius: 8px; border: 1px solid #D1D5DB; padding: 0.75rem;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #F3F4F6; padding: 1.25rem;">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="border-radius: 8px; font-weight: 600;">取消</button>
+                <button type="button" class="btn btn-danger" id="submitResolveBtn" style="border-radius: 8px; font-weight: 600;">確定解除</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

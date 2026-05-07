@@ -304,6 +304,38 @@
     .indicator.active {
         background: #F59E0B;
     }
+
+    /* Search Bar Styles */
+    .search-container {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #3B82F6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9CA3AF;
+        font-size: 1.1rem;
+        pointer-events: none;
+    }
 </style>
 {% endblock %}
 
@@ -323,6 +355,12 @@
         <div class="user-badge">
             {{ user.first_name }}{{ user.last_name }}{% if not user.first_name %}{{ user.username }}{% endif %}
         </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="dispatcherSearch" class="search-input" placeholder="搜尋投料點...">
     </div>
 
     {% if announcements or can_publish %}

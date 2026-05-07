@@ -211,7 +211,7 @@
                                 <select class="form-control-sm" name="applicant_id" required>
                                     <option value="">請選擇</option>
                                     {% for app in applicants %}
-                                    <option value="{{ app.id }}" {% if app.id|stringformat:"s" == item.applicant_id|stringformat:"s" %}selected{% endif %}>{{ app.first_name|default:app.username }}</option>
+                                    <option value="{{ app.id }}" {% if app.id|stringformat:"s" == item.applicant_id|stringformat:"s" %}selected{% endif %}>{{ app.first_name }}{{ app.last_name }}{% if not app.first_name %}{{ app.username }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                             </td>
