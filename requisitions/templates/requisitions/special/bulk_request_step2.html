@@ -55,10 +55,10 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>工單號碼</th>
-                            <th>物料號碼 / 品名 / 上層說明</th>
-                            <th class="text-center">工單需求量</th>
-                            <th class="text-center">已撥料數量</th>
+                            <th class="sortable" onclick="sortTable(0)">工單號碼 <i class="fas fa-sort ms-1 text-muted"></i></th>
+                            <th class="sortable" onclick="sortTable(1)">物料號碼 / 品名 / 上層說明 <i class="fas fa-sort ms-1 text-muted"></i></th>
+                            <th class="text-center sortable" onclick="sortTable(2)">工單需求量 <i class="fas fa-sort ms-1 text-muted"></i></th>
+                            <th class="text-center sortable" onclick="sortTable(3)">已撥料數量 <i class="fas fa-sort ms-1 text-muted"></i></th>
                             <th style="width: 200px;">申請領料量</th>
                             <th class="text-center">操作</th>
                         </tr>
@@ -66,11 +66,11 @@
                     <tbody>
                         {% for item in items %}
                         <tr class="item-row" id="row_{{ item.id }}">
-                            <td>
+                            <td data-sort-value="{{ item.order_number }}">
                                 <span class="fw-bold">{{ item.order_number }}</span><br>
                                 <small class="text-muted">{{ item.machine_model.name }}</small>
                             </td>
-                            <td>
+                            <td data-sort-value="{{ item.material_number }}">
                                 <span class="badge bg-secondary">{{ item.material_number }}</span>
                                 {% if item.operation_description %}<span class="text-muted small ms-1">({{ item.operation_description }})</span>{% endif %}<br>
                                 {{ item.item_name }}
@@ -78,10 +78,10 @@
                                 <div class="text-muted small mt-1"><i class="fas fa-level-up-alt"></i> 上層: {{ item.parent_material_description }}</div>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" data-sort-value="{{ item.required_quantity }}">
                                 <span class="fs-5">{{ item.required_quantity }}</span>
                             </td>
-                            <td class="text-center text-primary fw-bold">
+                            <td class="text-center text-primary fw-bold" data-sort-value="{{ item.total_confirmed_quantity }}">
                                 <span class="fs-5">{{ item.total_confirmed_quantity|floatformat:0 }}</span>
                             </td>
                             <td>
@@ -139,6 +139,46 @@ function removeRow(id) {
             location.reload();
         }
     }
+}
+
+let currentSort = { index: -1, direction: 'asc' };
+function sortTable(index) {
+    const table = document.querySelector(".table");
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr.item-row"));
+    
+    if (currentSort.index === index) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.index = index;
+        currentSort.direction = 'asc';
+    }
+
+    const sortedRows = rows.sort((a, b) => {
+        const valA = a.cells[index].getAttribute('data-sort-value') || a.cells[index].textContent.trim();
+        const valB = b.cells[index].getAttribute('data-sort-value') || b.cells[index].textContent.trim();
+        
+        const numA = parseFloat(valA);
+        const numB = parseFloat(valB);
+        
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return currentSort.direction === 'asc' ? numA - numB : numB - numA;
+        }
+        return currentSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    });
+
+    tbody.append(...sortedRows);
+    
+    // 更新圖示
+    const headers = table.querySelectorAll("th.sortable i");
+    headers.forEach((icon, i) => {
+        if (i === index) {
+            icon.className = currentSort.direction === 'asc' ? 'fas fa-sort-up ms-1' : 'fas fa-sort-down ms-1';
+            icon.classList.remove('text-muted');
+        } else {
+            icon.className = 'fas fa-sort ms-1 text-muted';
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {

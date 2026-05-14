@@ -133,6 +133,41 @@ def shortage_inquiry(request):
     pt_set.update(SemiFinishedProcessType.objects.values_list('name', flat=True))
     process_types = sorted([name for name in pt_set if name])
 
+    # 定義所有可能的欄位
+    all_columns = [
+        {'id': 'order_number', 'name': '工單號碼', 'default': True},
+        {'id': 'customer_name', 'name': '客戶', 'default': True},
+        {'id': 'machine_model', 'name': '機型', 'default': True},
+        {'id': 'material_number', 'name': '品號', 'default': True},
+        {'id': 'item_name', 'name': '品名', 'default': True},
+        {'id': 'supplier', 'name': '供應商', 'default': True},
+        {'id': 'process_type', 'name': '投料點', 'default': True},
+        {'id': 'required_quantity', 'name': '此單需求', 'default': True},
+        {'id': 'total_demand', 'name': '累計需求', 'default': True},
+        {'id': 'stock_quantity', 'name': '庫存量', 'default': True},
+        {'id': 'shortage', 'name': '缺料', 'default': True},
+        {'id': 'demand_date', 'name': '需求日期', 'default': True},
+        {'id': 'shipping_date', 'name': '出貨日期', 'default': True},
+        {'id': 'estimated_arrival', 'name': '預計入料', 'default': True},
+    ]
+    
+    # 獲取顯示欄位 (從 POST)
+    selected_display_ids = request.POST.getlist('display_columns')
+    if not selected_display_ids:
+        # 預設顯示欄位
+        selected_display_ids = [col['id'] for col in all_columns if col.get('default')]
+    
+    # 獲取匯出欄位 (從 POST)
+    selected_export_ids = request.POST.getlist('export_columns')
+    if not selected_export_ids:
+        # 預設匯出欄位 (與顯示一致或全部)
+        selected_export_ids = [col['id'] for col in all_columns if col.get('default')]
+    
+    # 在 all_columns 中標記狀態 (為了前端渲染)
+    for col in all_columns:
+        col['display_selected'] = col['id'] in selected_display_ids
+        col['export_selected'] = col['id'] in selected_export_ids
+
     if request.method == 'POST':
         import re
         raw_text = request.POST.get('order_numbers', '')
@@ -252,6 +287,9 @@ def shortage_inquiry(request):
         'process_types': process_types,
         'selected_process_type': selected_process_type,
         'mps_sync_time': mps_sync_time,
+        'all_columns': all_columns,
+        'selected_display_ids': selected_display_ids,
+        'selected_export_ids': selected_export_ids,
     })
 
 
@@ -302,6 +340,33 @@ def shortage_inquiry_export(request):
     total_items = 0
     seen_orders = set()
 
+    # 獲取使用者選擇的匯出欄位
+    selected_export_columns = request.POST.getlist('export_columns')
+    if not selected_export_columns:
+        # 預設全部
+        selected_export_columns = [
+            'order_number', 'customer_name', 'machine_model', 'material_number', 'item_name', 
+            'supplier', 'process_type', 'required_quantity', 'total_demand', 'stock_quantity', 
+            'shortage', 'demand_date', 'shipping_date', 'estimated_arrival'
+        ]
+
+    column_map = {
+        'order_number': '工單號碼',
+        'customer_name': '客戶',
+        'machine_model': '機型',
+        'material_number': '品號',
+        'item_name': '品名',
+        'supplier': '供應商',
+        'process_type': '投料點',
+        'required_quantity': '此工單需求量',
+        'total_demand': '累計未滿足需求',
+        'stock_quantity': '庫存量',
+        'shortage': '缺料',
+        'demand_date': '需求日期',
+        'shipping_date': '出貨日期',
+        'estimated_arrival': '預計入料',
+    }
+
     for material_key, data in all_materials_analysis.items():
         relevant_details = [d for d in data['detail_orders'] if d['order_number'] in order_numbers]
         
@@ -334,24 +399,32 @@ def shortage_inquiry_export(request):
 
             seen_orders.add(order_num)
 
-            rows.append({
-                '工單號碼': order_num,
-                '客戶': wo.customer_name if wo and wo.customer_name else '',
-                '機型': detail.get('machine_model_name', ''),
-                '品號': data['material_number'],
-                '品名': data['item_name'],
-                '供應商': supplier_map.get(data['material_number'], ''),
-                '投料點': detail.get('process_type_name', ''),
-                '此工單需求量': float(detail['required_quantity']),
-                '累計未滿足需求': cumulative_demand,
-                '庫存量': current_stock,
-                '缺料': row_shortage,
-                '需求日期': detail.get('demand_date') or '',
-                '出貨日期': detail.get('shipping_date') or (wo.shipping_date if wo else '') or '',
-                '預計入料': data.get('estimated_arrival_date') or '',
-            })
+            row_data = {}
+            if 'order_number' in selected_export_columns: row_data[column_map['order_number']] = order_num
+            if 'customer_name' in selected_export_columns: row_data[column_map['customer_name']] = wo.customer_name if wo and wo.customer_name else ''
+            if 'machine_model' in selected_export_columns: row_data[column_map['machine_model']] = detail.get('machine_model_name', '')
+            if 'material_number' in selected_export_columns: row_data[column_map['material_number']] = data['material_number']
+            if 'item_name' in selected_export_columns: row_data[column_map['item_name']] = data['item_name']
+            if 'supplier' in selected_export_columns: row_data[column_map['supplier']] = supplier_map.get(data['material_number'], '')
+            if 'process_type' in selected_export_columns: row_data[column_map['process_type']] = detail.get('process_type_name', '')
+            if 'required_quantity' in selected_export_columns: row_data[column_map['required_quantity']] = float(detail['required_quantity'])
+            if 'total_demand' in selected_export_columns: row_data[column_map['total_demand']] = cumulative_demand
+            if 'stock_quantity' in selected_export_columns: row_data[column_map['stock_quantity']] = current_stock
+            if 'shortage' in selected_export_columns: row_data[column_map['shortage']] = row_shortage
+            if 'demand_date' in selected_export_columns: row_data[column_map['demand_date']] = detail.get('demand_date') or ''
+            if 'shipping_date' in selected_export_columns: row_data[column_map['shipping_date']] = detail.get('shipping_date') or (wo.shipping_date if wo else '') or ''
+            if 'estimated_arrival' in selected_export_columns: row_data[column_map['estimated_arrival']] = data.get('estimated_arrival_date') or ''
+            
+            rows.append(row_data)
 
-    rows.sort(key=lambda x: (x['工單號碼'], x['品號']))
+    # 排序：依工單號 -> 品號 (如果欄位存在的話)
+    sort_key_1 = column_map['order_number'] if 'order_number' in selected_export_columns else None
+    sort_key_2 = column_map['material_number'] if 'material_number' in selected_export_columns else None
+    
+    if sort_key_1 and sort_key_2:
+        rows.sort(key=lambda x: (x.get(sort_key_1, ''), x.get(sort_key_2, '')))
+    elif sort_key_1:
+        rows.sort(key=lambda x: x.get(sort_key_1, ''))
 
     # 計算統計資料
     shortage_count = len(rows)

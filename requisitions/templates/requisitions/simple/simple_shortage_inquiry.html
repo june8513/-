@@ -104,6 +104,18 @@
         color: #111827;
     }
 
+    /* 自訂欄位按鈕樣式 */
+    .form-check-input:checked + .form-check-label {
+        background-color: #6366F1 !important;
+        color: white !important;
+        border-color: #6366F1 !important;
+        box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+    }
+
+    .form-check-label:hover {
+        background-color: #F3F4F6;
+    }
+
     .btn-sync i.spinning {
         animation: spin 1s linear infinite;
     }
@@ -328,8 +340,8 @@
             <div class="input-hint">支援批量輸入，每行一個工單號碼，或以逗號、空白鍵分隔。可直接從 Excel 貼上。</div>
             <textarea class="input-textarea" name="order_numbers" placeholder="例：&#10;100003541&#10;100003614&#10;100003700">{{ submitted_orders }}</textarea>
             
-            <div class="filter-row">
-                <div class="filter-item">
+            <div class="filter-row" style="align-items: flex-end;">
+                <div class="filter-item" style="flex: 1;">
                     <label class="input-label">投料點篩選 (選填)</label>
                     <select name="process_type" class="select-input">
                         <option value="">-- 全部投料點 --</option>
@@ -338,7 +350,56 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div style="display: flex; gap: 0.75rem;">
+                
+                <div class="filter-item" style="flex: 1.5;">
+                    <label class="input-label"><i class="fas fa-desktop"></i> 網頁顯示欄位</label>
+                    <div class="dropdown">
+                        <button class="select-input text-start dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #F9FAFB; border: 1px solid #D1D5DB; padding: 0.75rem;">
+                            勾選要顯示的欄位...
+                        </button>
+                        <div class="dropdown-menu p-2 shadow-lg" style="min-width: 350px; max-height: 450px; overflow-y: auto;" onclick="event.stopPropagation()">
+                            <h6 class="dropdown-header border-bottom mb-2 pb-2">網頁顯示設定</h6>
+                            <div class="row g-0">
+                                {% for col in all_columns %}
+                                <div class="col-6 p-1">
+                                    <div class="form-check p-0">
+                                        <input class="form-check-input d-none" type="checkbox" name="display_columns" value="{{ col.id }}" id="disp_{{ col.id }}" {% if col.display_selected %}checked{% endif %}>
+                                        <label class="form-check-label d-block p-2 rounded-2 border text-center" for="disp_{{ col.id }}" style="cursor: pointer; transition: all 0.2s;">
+                                            {{ col.name }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-item" style="flex: 1.5;">
+                    <label class="input-label"><i class="fas fa-file-excel"></i> EXCEL 匯出欄位</label>
+                    <div class="dropdown">
+                        <button class="select-input text-start dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #F9FAFB; border: 1px solid #D1D5DB; padding: 0.75rem;">
+                            勾選匯出的欄位...
+                        </button>
+                        <div class="dropdown-menu p-2 shadow-lg" style="min-width: 350px; max-height: 450px; overflow-y: auto;" onclick="event.stopPropagation()">
+                            <h6 class="dropdown-header border-bottom mb-2 pb-2">EXCEL 匯出設定</h6>
+                            <div class="row g-0">
+                                {% for col in all_columns %}
+                                <div class="col-6 p-1">
+                                    <div class="form-check p-0">
+                                        <input class="form-check-input d-none" type="checkbox" name="export_columns" value="{{ col.id }}" id="exp_{{ col.id }}" {% if col.export_selected %}checked{% endif %}>
+                                        <label class="form-check-label d-block p-2 rounded-2 border text-center" for="exp_{{ col.id }}" style="cursor: pointer; transition: all 0.2s;">
+                                            {{ col.name }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; padding-bottom: 2px;">
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
                         <a href="{% url 'requisitions:sync_mps_order_info' %}" class="btn-sync" onclick="this.innerHTML='<i class=\'fas fa-sync-alt spinning\'></i> 同步中...';">
                             <i class="fas fa-sync-alt"></i> 同步 MPS 工單資訊
@@ -382,6 +443,9 @@
             {% csrf_token %}
             <input type="hidden" name="order_numbers" value="{{ submitted_orders }}">
             <input type="hidden" name="process_type" value="{{ selected_process_type }}">
+            {% for cid in selected_export_ids %}
+            <input type="hidden" name="export_columns" value="{{ cid }}">
+            {% endfor %}
             <button type="submit" class="btn-export">
                 <i class="fas fa-file-excel"></i> 匯出 Excel
             </button>
@@ -392,41 +456,43 @@
         <table class="result-table">
             <thead>
                 <tr>
-                    <th class="sortable" onclick="sortTable(0)">工單號碼</th>
-                    <th class="sortable" onclick="sortTable(1)">客戶</th>
-                    <th class="sortable" onclick="sortTable(2)">機型</th>
-                    <th class="sortable" onclick="sortTable(3)">品號</th>
-                    <th class="sortable" onclick="sortTable(4)">品名</th>
-                    <th class="sortable" onclick="sortTable(5)">供應商</th>
-                    <th>投料點</th>
-                    <th class="sortable" style="text-align: right;" onclick="sortTable(7)">此單需求</th>
-                    <th class="sortable" style="text-align: right;" onclick="sortTable(8)">累計需求</th>
-                    <th class="sortable" style="text-align: right;" onclick="sortTable(9)">庫存量</th>
-                    <th class="sortable" style="text-align: right;" onclick="sortTable(10)">缺料</th>
-                    <th class="sortable" onclick="sortTable(11)">需求日期</th>
-                    <th class="sortable" onclick="sortTable(12)">出貨日期</th>
-                    <th class="sortable" onclick="sortTable(13)">預計入料</th>
+                    {% if 'order_number' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">工單號碼</th>{% endif %}
+                    {% if 'customer_name' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">客戶</th>{% endif %}
+                    {% if 'machine_model' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">機型</th>{% endif %}
+                    {% if 'material_number' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">品號</th>{% endif %}
+                    {% if 'item_name' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">品名</th>{% endif %}
+                    {% if 'supplier' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">供應商</th>{% endif %}
+                    {% if 'process_type' in selected_display_ids %}<th>投料點</th>{% endif %}
+                    {% if 'required_quantity' in selected_display_ids %}<th class="sortable" style="text-align: right;" onclick="sortTable(this)">此單需求</th>{% endif %}
+                    {% if 'total_demand' in selected_display_ids %}<th class="sortable" style="text-align: right;" onclick="sortTable(this)">累計需求</th>{% endif %}
+                    {% if 'stock_quantity' in selected_display_ids %}<th class="sortable" style="text-align: right;" onclick="sortTable(this)">庫存量</th>{% endif %}
+                    {% if 'shortage' in selected_display_ids %}<th class="sortable" style="text-align: right;" onclick="sortTable(this)">缺料</th>{% endif %}
+                    {% if 'demand_date' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">需求日期</th>{% endif %}
+                    {% if 'shipping_date' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">出貨日期</th>{% endif %}
+                    {% if 'estimated_arrival' in selected_display_ids %}<th class="sortable" onclick="sortTable(this)">預計入料</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for item in results %}
                 <tr class="{% if item.shortage > 0 %}shortage-row{% endif %}">
-                    <td class="mono-text" style="font-weight: 700;">{{ item.order_number }}</td>
-                    <td>{{ item.customer_name|default:"-" }}</td>
-                    <td>{{ item.machine_model|default:"-" }}</td>
-                    <td class="mono-text">{{ item.material_number }}</td>
-                    <td>{{ item.item_name|truncatechars:25 }}</td>
-                    <td>{{ item.supplier|default:"-" }}</td>
-                    <td><span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">{{ item.process_type|default:"-" }}</span></td>
-                    <td style="text-align: right; font-weight: 600;" data-sort-value="{{ item.required_quantity }}">{{ item.required_quantity }}</td>
-                    <td style="text-align: right; color: #7C3AED; font-weight: 600;" data-sort-value="{{ item.total_demand }}">{{ item.total_demand }}</td>
-                    <td style="text-align: right;" data-sort-value="{{ item.stock_quantity }}">{{ item.stock_quantity }}</td>
+                    {% if 'order_number' in selected_display_ids %}<td class="mono-text" style="font-weight: 700;">{{ item.order_number }}</td>{% endif %}
+                    {% if 'customer_name' in selected_display_ids %}<td>{{ item.customer_name|default:"-" }}</td>{% endif %}
+                    {% if 'machine_model' in selected_display_ids %}<td>{{ item.machine_model|default:"-" }}</td>{% endif %}
+                    {% if 'material_number' in selected_display_ids %}<td class="mono-text">{{ item.material_number }}</td>{% endif %}
+                    {% if 'item_name' in selected_display_ids %}<td>{{ item.item_name|truncatechars:25 }}</td>{% endif %}
+                    {% if 'supplier' in selected_display_ids %}<td>{{ item.supplier|default:"-" }}</td>{% endif %}
+                    {% if 'process_type' in selected_display_ids %}<td><span style="background: #E0E7FF; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">{{ item.process_type|default:"-" }}</span></td>{% endif %}
+                    {% if 'required_quantity' in selected_display_ids %}<td style="text-align: right; font-weight: 600;" data-sort-value="{{ item.required_quantity }}">{{ item.required_quantity }}</td>{% endif %}
+                    {% if 'total_demand' in selected_display_ids %}<td style="text-align: right; color: #7C3AED; font-weight: 600;" data-sort-value="{{ item.total_demand }}">{{ item.total_demand }}</td>{% endif %}
+                    {% if 'stock_quantity' in selected_display_ids %}<td style="text-align: right;" data-sort-value="{{ item.stock_quantity }}">{{ item.stock_quantity }}</td>{% endif %}
+                    {% if 'shortage' in selected_display_ids %}
                     <td style="text-align: right;" data-sort-value="{{ item.shortage }}">
                         <span class="shortage-badge critical">{{ item.shortage }}</span>
                     </td>
-                    <td data-sort-value="{{ item.demand_date|date:'Y-m-d' }}">{{ item.demand_date|date:"Y-m-d"|default:"-" }}</td>
-                    <td data-sort-value="{{ item.shipping_date|date:'Y-m-d' }}">{{ item.shipping_date|date:"Y-m-d"|default:"-" }}</td>
-                    <td data-sort-value="{{ item.estimated_arrival|date:'Y-m-d' }}">{{ item.estimated_arrival|date:"Y-m-d"|default:"-" }}</td>
+                    {% endif %}
+                    {% if 'demand_date' in selected_display_ids %}<td data-sort-value="{{ item.demand_date|date:'Y-m-d' }}">{{ item.demand_date|date:"Y-m-d"|default:"-" }}</td>{% endif %}
+                    {% if 'shipping_date' in selected_display_ids %}<td data-sort-value="{{ item.shipping_date|date:'Y-m-d' }}">{{ item.shipping_date|date:"Y-m-d"|default:"-" }}</td>{% endif %}
+                    {% if 'estimated_arrival' in selected_display_ids %}<td data-sort-value="{{ item.estimated_arrival|date:'Y-m-d' }}">{{ item.estimated_arrival|date:"Y-m-d"|default:"-" }}</td>{% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -446,11 +512,14 @@
 <script>
     let currentSort = { index: -1, direction: 'asc' };
 
-    function sortTable(index) {
+    function sortTable(headerElement) {
         const table = document.querySelector(".result-table");
         const tbody = table.querySelector("tbody");
         const rows = Array.from(tbody.querySelectorAll("tr"));
-        const headers = table.querySelectorAll("thead th");
+        if (rows.length === 0) return;
+
+        const headers = Array.from(table.querySelectorAll("thead th"));
+        const index = headers.indexOf(headerElement);
 
         // Toggle direction
         if (currentSort.index === index) {
@@ -473,14 +542,14 @@
             const cellA = a.cells[index];
             const cellB = b.cells[index];
             
-            // Use data-sort-value if available, else textContent
-            let valA = cellA.getAttribute('data-sort-value') || cellA.textContent.trim();
-            let valB = cellB.getAttribute('data-sort-value') || cellB.textContent.trim();
+            if (!cellA || !cellB) return 0;
 
-            // Handle numeric values
+            const valA = cellA.getAttribute('data-sort-value') || cellA.textContent.trim();
+            const valB = cellB.getAttribute('data-sort-value') || cellB.textContent.trim();
+
             const numA = parseFloat(valA);
             const numB = parseFloat(valB);
-            
+
             if (!isNaN(numA) && !isNaN(numB)) {
                 return currentSort.direction === 'asc' ? numA - numB : numB - numA;
             }
