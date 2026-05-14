@@ -339,9 +339,14 @@
                     </select>
                 </div>
                 <div style="display: flex; gap: 0.75rem;">
-                    <a href="{% url 'requisitions:sync_mps_order_info' %}" class="btn-sync" onclick="this.innerHTML='<i class=\'fas fa-sync-alt spinning\'></i> 同步中...';">
-                        <i class="fas fa-sync-alt"></i> 同步 MPS 工單資訊
-                    </a>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
+                        <a href="{% url 'requisitions:sync_mps_order_info' %}" class="btn-sync" onclick="this.innerHTML='<i class=\'fas fa-sync-alt spinning\'></i> 同步中...';">
+                            <i class="fas fa-sync-alt"></i> 同步 MPS 工單資訊
+                        </a>
+                        {% if mps_sync_time %}
+                        <small style="color: #9CA3AF; font-size: 0.75rem;"><i class="fas fa-clock"></i> 上次同步: {{ mps_sync_time }}</small>
+                        {% endif %}
+                    </div>
                     <button type="submit" class="btn-query">
                         <i class="fas fa-search"></i> 查詢缺料
                     </button>

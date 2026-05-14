@@ -29,11 +29,12 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th class="ps-4">工單單號 (點擊查看缺料)</th>
-                            <th>申請人</th>
-                            <th>需求日期</th>
-                            <th style="width: 200px;">撥料進度</th>
-                            <th class="text-center pe-4">機型</th>
+                            <th class="ps-4" style="width: 20%;">工單單號 (點擊查看缺料)</th>
+                            <th style="width: 10%;">申請人</th>
+                            <th style="width: 10%;">需求日期</th>
+                            <th style="width: 180px;">撥料 / 簽收</th>
+                            <th class="ps-3">機型</th>
+                            <th class="text-center pe-4" style="width: 100px;">操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -50,20 +51,22 @@
                             <td>{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</td>
                             <td>{{ req.request_date|date:"Y-m-d" }}</td>
                             <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="progress flex-grow-1" style="height: 8px; border-radius: 4px;">
-                                        <div class="progress-bar {% if req.progress == 100 %}bg-success{% else %}bg-primary{% endif %}" role="progressbar" style="width: {{ req.progress }}%"></div>
-                                    </div>
-                                    <span class="ms-2 small fw-bold">{{ req.progress }}%</span>
-                                </div>
+                                <span class="small fw-bold text-primary">撥料: {{ req.progress }}%</span>
+                                <span class="mx-1 text-muted">|</span>
+                                <span class="small fw-bold text-success">簽收: {{ req.sign_progress }}%</span>
                             </td>
-                            <td class="text-center pe-4 small fw-bold text-muted">
+                            <td class="ps-3 small fw-bold text-muted">
                                 {{ req.machine_model_name }}
+                            </td>
+                            <td class="text-center pe-4">
+                                <a href="{% url 'requisitions:simple_applicant_detail' req.id %}" class="btn btn-sm btn-outline-primary rounded-pill">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
                             </td>
                         </tr>
                         <!-- 缺料細節摺疊層 -->
                         <tr class="collapse bg-light" id="shortage-{{ req.id }}">
-                            <td colspan="5" class="p-0">
+                            <td colspan="6" class="p-0">
                                 <div class="p-3 border-start border-4 border-danger ms-4 my-2 bg-white shadow-sm" style="border-radius: 0 8px 8px 0;">
                                     <h6 class="fw-bold text-danger mb-2"><i class="fas fa-exclamation-triangle me-1"></i> 缺料項目明細</h6>
                                     {% if req.short_items %}
@@ -105,11 +108,12 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th class="ps-4">工單單號 (點擊查看缺料)</th>
-                            <th>申請人</th>
-                            <th>需求日期</th>
-                            <th style="width: 200px;">撥料進度</th>
-                            <th class="text-center pe-4">機型</th>
+                            <th class="ps-4" style="width: 20%;">工單單號 (點擊查看缺料)</th>
+                            <th style="width: 10%;">申請人</th>
+                            <th style="width: 10%;">需求日期</th>
+                            <th style="width: 180px;">撥料 / 簽收</th>
+                            <th class="ps-3">機型</th>
+                            <th class="text-center pe-4" style="width: 100px;">操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -126,20 +130,22 @@
                             <td>{% if req.applicant.last_name or req.applicant.first_name %}{{ req.applicant.last_name }}{{ req.applicant.first_name }}{% else %}{{ req.applicant.username }}{% endif %}</td>
                             <td>{{ req.request_date|date:"Y-m-d" }}</td>
                             <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="progress flex-grow-1" style="height: 8px; border-radius: 4px;">
-                                        <div class="progress-bar {% if req.progress == 100 %}bg-success{% else %}bg-secondary{% endif %}" role="progressbar" style="width: {{ req.progress }}%"></div>
-                                    </div>
-                                    <span class="ms-2 small fw-bold">{{ req.progress }}%</span>
-                                </div>
+                                <span class="small fw-bold text-primary">撥料: {{ req.progress }}%</span>
+                                <span class="mx-1 text-muted">|</span>
+                                <span class="small fw-bold text-success">簽收: {{ req.sign_progress }}%</span>
                             </td>
-                            <td class="text-center pe-4 small fw-bold text-muted">
+                            <td class="ps-3 small fw-bold text-muted">
                                 {{ req.machine_model_name }}
+                            </td>
+                            <td class="text-center pe-4">
+                                <a href="{% url 'requisitions:simple_applicant_detail' req.id %}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
                             </td>
                         </tr>
                         <!-- 缺料細節摺疊層 -->
                         <tr class="collapse bg-light" id="shortage-{{ req.id }}">
-                            <td colspan="5" class="p-0">
+                            <td colspan="6" class="p-0">
                                 <div class="p-3 border-start border-4 border-danger ms-4 my-2 bg-white shadow-sm" style="border-radius: 0 8px 8px 0;">
                                     <h6 class="fw-bold text-danger mb-2"><i class="fas fa-exclamation-triangle me-1"></i> 缺料項目明細</h6>
                                     {% if req.short_items %}

@@ -78,20 +78,23 @@
                 <div class="card-body p-3">
                     <!-- Line 1: Process Name -->
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="mb-0 fw-bold text-dark" style="font-size: 1.1rem;">{{ summary.display_name }}</h6>
-                        {% if summary.type == 'semi_finished' %}
-                        <span style="font-size: 0.65rem; background: #F3F4F6; color: #6B7280; padding: 1px 6px; border-radius: 4px;">半成品</span>
-                        {% endif %}
+                        <div class="d-flex align-items-center gap-2">
+                            <h6 class="mb-0 fw-bold text-dark" style="font-size: 1.1rem;">{{ summary.display_name }}</h6>
+                            {% if summary.type == 'semi_finished' %}
+                            <span style="font-size: 0.65rem; background: #F3F4F6; color: #6B7280; padding: 1px 6px; border-radius: 4px;">半成品</span>
+                            {% endif %}
+                        </div>
+                        <span style="background: #FDF2F8; color: #BE185D; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
+                            總計: {{ summary.total }}
+                        </span>
                     </div>
                     
                     <!-- Line 2: Stats & Action -->
-                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center justify-content-between mt-3">
                         <div class="d-flex align-items-center gap-2" style="font-size: 0.85rem;">
-                            <span class="text-muted">本周: <strong class="text-primary">{{ summary.week }}</strong></span>
+                            <span class="text-muted">撥料: <strong class="text-primary">{{ summary.dispatch_progress }}%</strong></span>
                             <span style="color: #9CA3AF;">|</span>
-                            <span style="background: #FDF2F8; color: #BE185D; padding: 2px 8px; border-radius: 6px; font-weight: 700;">
-                                總計: {{ summary.total }}
-                            </span>
+                            <span class="text-muted">簽收: <strong class="text-success">{{ summary.sign_progress }}%</strong></span>
                         </div>
                         <a href="{% url 'core:supervisor_process_detail' summary.name %}" class="btn btn-sm btn-primary px-3 rounded-pill fw-bold" style="font-size: 0.8rem;">
                             進入

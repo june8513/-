@@ -4,7 +4,7 @@
 {% block extra_css %}
 <style>
     .simple-container {
-        max-width: 700px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 1rem;
     }
@@ -441,6 +441,16 @@
             <span class="info-label">工單單號</span>
             <span class="info-value">{{ requisition.order_number }}</span>
         </div>
+        <div class="info-row">
+            <span class="info-label">需求人員</span>
+            <span class="info-value">
+                {% if requisition.demand_person %}
+                {{ requisition.demand_person.last_name }}{{ requisition.demand_person.first_name }} ({{ requisition.demand_person.username }})
+                {% else %}
+                {{ requisition.remarks|slice:":20" }} (非系統用戶)
+                {% endif %}
+            </span>
+        </div>
         <div class="info-row" id="process-type-row">
             {% if requisition.requisition_type == 'semi_finished' %}
             <span class="info-label">領料人</span>
@@ -515,7 +525,9 @@
             class="material-item {% if item.dispatch_status == 'dispatched' %}dispatched{% elif item.is_shortage %}shortage{% endif %}">
             <div class="material-info">
                 <div class="material-number">
+                    <span class="badge bg-primary" style="font-size: 0.8rem; margin-right: 0.5rem;">工單: {{ item.order_number }}</span>
                     {{ item.material_number }}
+                    <span class="badge bg-light text-dark border ms-1">儲格: {{ item.storage_bin }}</span>
                     {% if item.dispatch_status == 'dispatched' %}
                     <span class="material-dispatch-info" style="font-size: 0.8rem; color: #6B7280; margin-left: 0.5rem; font-weight: normal;">
                         {% if item.dispatched_at %}📅 {{ item.dispatched_at|date:"Y-m-d" }}{% endif %}
@@ -691,7 +703,21 @@
 {% block extra_js %}
 <script>
     (function () {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrfToken = getCookie('csrftoken');
         function showToast(message, success) {
             const toast = document.createElement('div');
             toast.className = 'alert ' + (success ? 'alert-success' : 'alert-danger');

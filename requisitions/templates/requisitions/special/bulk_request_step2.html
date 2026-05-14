@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}批量申請 - 步驟 2 - 撥料系統{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:simple_applicant_home' %}">簡易申請首頁</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:special_request_home' %}">特殊申請功能</a></li>
+                    <li class="breadcrumb-item active">確認物料與數量</li>
+                </ol>
+            </nav>
+            <h1 class="display-6">確認申請明細 (步驟 2/2)</h1>
+            <p class="text-muted">系統已根據您的資料庫篩選出以下物料。請確認領料數量並輸入基本資訊。</p>
+        </div>
+    </div>
+
+    <form method="post" id="requestForm">
+        {% csrf_token %}
+        <input type="hidden" name="step" value="submit">
+        <input type="hidden" name="order_numbers" value="{{ order_numbers }}">
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="request_date" class="form-label fw-bold">需求日期</label>
+                            <input type="date" class="form-control" id="request_date" name="request_date" required value="{{ today|date:'Y-m-d' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="demand_person" class="form-label fw-bold">需求人員姓名 (將作為申請單名稱)</label>
+                            <input type="text" class="form-control" id="demand_person" name="demand_person" required placeholder="例如：張小明" value="{% if user.last_name or user.first_name %}{{ user.last_name }}{{ user.first_name }}{% else %}{{ user.username }}{% endif %}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <span>匹配物料明細</span>
+                <span class="badge bg-primary" id="itemCountBadge">{{ items|length }} 筆</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>工單號碼</th>
+                            <th>物料號碼 / 品名 / 上層說明</th>
+                            <th class="text-center">工單需求量</th>
+                            <th class="text-center">已撥料數量</th>
+                            <th style="width: 200px;">申請領料量</th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr class="item-row" id="row_{{ item.id }}">
+                            <td>
+                                <span class="fw-bold">{{ item.order_number }}</span><br>
+                                <small class="text-muted">{{ item.machine_model.name }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ item.material_number }}</span>
+                                {% if item.operation_description %}<span class="text-muted small ms-1">({{ item.operation_description }})</span>{% endif %}<br>
+                                {{ item.item_name }}
+                                {% if item.parent_material_description %}
+                                <div class="text-muted small mt-1"><i class="fas fa-level-up-alt"></i> 上層: {{ item.parent_material_description }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="fs-5">{{ item.required_quantity }}</span>
+                            </td>
+                            <td class="text-center text-primary fw-bold">
+                                <span class="fs-5">{{ item.total_confirmed_quantity|floatformat:0 }}</span>
+                            </td>
+                            <td>
+                                <div class="input-group">
+                                    <input type="number" step="1" class="form-control qty-input" 
+                                           name="qty_{{ item.id }}" 
+                                           value="{{ item.required_quantity|stringformat:".0f" }}" 
+                                           max="{{ item.required_quantity }}" 
+                                           data-max="{{ item.required_quantity }}"
+                                           required>
+                                    <span class="input-group-text">pcs</span>
+                                </div>
+                                <div class="invalid-feedback d-none">申請數量不能大於工單數量</div>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow('{{ item.id }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                沒有找到匹配的物料。請確認您的工單號碼是否正確，或檢查物料資料庫。
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-5">
+            <a href="{% url 'requisitions:special_bulk_request' %}" class="btn btn-outline-secondary me-md-2">上一步</a>
+            <button type="submit" class="btn btn-primary px-5" {% if not items %}disabled{% endif %}>建立申請單</button>
+        </div>
+    </form>
+</div>
+
+<script>
+function removeRow(id) {
+    const row = document.getElementById('row_' + id);
+    if (row) {
+        row.remove();
+        
+        // 更新上方顯示的總筆數
+        const countBadge = document.getElementById('itemCountBadge');
+        const rows = document.querySelectorAll('.item-row');
+        if (countBadge) {
+            countBadge.textContent = rows.length + ' 筆';
+        }
+
+        // 如果全部刪光了，重新整理以顯示空狀態
+        if (rows.length === 0) {
+            location.reload();
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const inputs = document.querySelectorAll('.qty-input');
+    const form = document.getElementById('requestForm');
+
+    inputs.forEach(input => {
+        input.addEventListener('input', function() {
+            const max = parseFloat(this.getAttribute('data-max'));
+            const val = parseFloat(this.value);
+            const feedback = this.parentElement.nextElementSibling;
+
+            if (val > max) {
+                this.classList.add('is-invalid');
+                feedback.classList.remove('d-none');
+            } else {
+                this.classList.remove('is-invalid');
+                feedback.classList.add('d-none');
+            }
+        });
+    });
+
+    form.addEventListener('submit', function(e) {
+        let hasError = false;
+        inputs.forEach(input => {
+            const max = parseFloat(input.getAttribute('data-max'));
+            const val = parseFloat(input.value);
+            if (val > max) hasError = true;
+        });
+
+        if (hasError) {
+            e.preventDefault();
+            alert('部分物料的申請數量超過工單需求量，請修正後再提交。');
+        }
+    });
+});
+</script>
+{% endblock %}

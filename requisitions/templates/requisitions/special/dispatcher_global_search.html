@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% load requisition_filters %}
+
+{% block title %}搜尋 - {{ process_type }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4 align-items-center">
+        <div class="col-lg-6">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:simple_dispatcher_home' %}">撥料首頁</a></li>
+                    <li class="breadcrumb-item active">搜尋 ({{ process_type }})</li>
+                </ol>
+            </nav>
+            <h1 class="display-6 mb-3">搜尋：<span class="text-primary">{{ process_type }}</span></h1>
+            
+            <div class="category-switcher d-flex flex-wrap gap-2 mb-3">
+                {% for cat in categories %}
+                <a href="?category={{ cat }}" class="btn btn-sm {% if cat == process_type %}btn-primary{% else %}btn-outline-secondary{% endif %}" style="{% if cat == process_type %}background-color: {{ category_colors|get_item:cat }}; border-color: {{ category_colors|get_item:cat }};{% endif %}">
+                    {{ cat }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <form method="get" class="input-group input-group-lg shadow-sm">
+                <input type="hidden" name="category" value="{{ process_type }}">
+                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" name="q" id="globalSearch" class="form-control border-start-0 ps-0" placeholder="搜尋工單、物料、品名..." value="{{ query }}">
+                <button type="submit" class="btn btn-primary">搜尋</button>
+            </form>
+            <div class="text-muted small mt-2">
+                <i class="fas fa-info-circle me-1"></i> 目前顯示：{{ items|length }} 筆待撥項目
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm overflow-hidden">
+        <div class="table-responsive" style="max-height: 75vh;">
+            <table class="table table-hover align-middle mb-0" id="itemTable">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th>工單號碼</th>
+                        <th>物料號碼</th>
+                        <th>品名規格</th>
+                        <th class="text-center">需求量</th>
+                        <th>申請單/人員</th>
+                        <th class="text-center">狀態</th>
+                        <th class="text-center">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr class="item-row" data-order="{{ item.order_number }}" data-material="{{ item.material_number }}" data-name="{{ item.item_name|lower }}">
+                        <td><span class="fw-bold">{{ item.order_number }}</span></td>
+                        <td><span class="badge bg-secondary fs-6">{{ item.material_number }}</span></td>
+                        <td>{{ item.item_name }}</td>
+                        <td class="text-center fs-5 fw-bold text-primary">{{ item.required_quantity }}</td>
+                        <td>
+                            <div class="fw-bold text-primary">{{ item.requisition.order_number }}</div>
+                            <small class="text-muted d-block">ID: {{ item.requisition.id }}</small>
+                            <span class="text-dark" style="font-size: 0.85rem;">{{ item.requisition.remarks|default:"(無備註)" }}</span>
+                        </td>
+                        <td class="text-center">
+                            {% if item.requisition.is_archived %}
+                            <span class="badge bg-secondary">已歸檔</span>
+                            {% elif item.dispatch_status == 'dispatched' %}
+                            <span class="badge bg-success">已撥料</span>
+                            {% elif item.dispatch_status == 'backordered' %}
+                            <span class="badge bg-danger">欠料</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">待撥料</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if not item.dispatch_status %}
+                            <button type="button" class="btn btn-success btn-sm px-3 dispatch-btn" 
+                                    data-item-id="{{ item.id }}"
+                                    data-material="{{ item.material_number }}">
+                                <i class="fas fa-check me-1"></i> 撥料
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm px-3" disabled>
+                                <i class="fas fa-check me-1"></i> 已處理
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                            目前沒有待撥料的項目。
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('globalSearch');
+    const rows = document.querySelectorAll('.item-row');
+
+    // 即時搜尋邏輯
+    searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        rows.forEach(row => {
+            const order = row.getAttribute('data-order').toLowerCase();
+            const material = row.getAttribute('data-material').toLowerCase();
+            const name = row.getAttribute('data-name');
+            
+            if (order.includes(query) || material.includes(query) || name.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+
+    // 非同步撥料邏輯
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    document.querySelectorAll('.dispatch-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.getAttribute('data-item-id');
+            const material = this.getAttribute('data-material');
+            const row = this.closest('tr');
+
+            if (!confirm(`確認要對物料 ${material} 進行撥料嗎？`)) return;
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            fetch(`/requisitions/simple/dispatcher/item/${itemId}/dispatch/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    row.style.transition = 'all 0.5s ease';
+                    row.style.background = '#d1fae5';
+                    setTimeout(() => {
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 500);
+                    }, 500);
+                } else {
+                    alert('撥料失敗：' + data.message);
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-check me-1"></i> 撥料';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('系統錯誤，請稍後再試。');
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-check me-1"></i> 撥料';
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

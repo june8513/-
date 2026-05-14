@@ -1,15 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ category }} - 撥料人員</div>
-
-    </div>
-{% endblock %}
+{% block title %}{{ display_name|default:category }} - 撥料人員{% endblock %}
 
 {% block extra_css %}
 <style>
     .simple-container {
-        max-width: 700px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 1rem;
         padding-bottom: 80px; /* Add padding for batch bar */
@@ -723,7 +720,7 @@
         <a href="{% url 'requisitions:simple_dispatcher_home' %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}"
             class="back-btn">←</a>
         <h1 class="page-title">
-            <span class="category-badge" data-color="{{ category_color }}">{{ category }}</span>
+            <span class="category-badge" data-color="{{ category_color }}">{{ display_name|default:category }}</span>
         </h1>
     </div>
 
@@ -732,6 +729,7 @@
         <a href="{% url 'requisitions:simple_dispatcher_shortage' category=category %}{% if current_type == 'semi_finished' %}?type=semi_finished{% endif %}" 
            class="shortage-btn" style="text-decoration: none; display: inline-block;">🚨 查看待撥欠料物料</a>
         <button type="button" class="copy-btn" style="text-decoration: none; background: #E0E7FF; border-color: #C7D2FE; color: #3730A3;" onclick="toggleBatchMode('export')">📊 選擇工單並匯出 Excel</button>
+        <a href="{% url 'requisitions:special_global_dispatch' %}" class="copy-btn" style="background: #FFFBEB; border-color: #FDE68A; color: #92400E; text-decoration: none; display: inline-flex; align-items: center;">🔍 搜尋</a>
         <button type="button" class="copy-btn" style="background:#DBEAFE; border-color:#BFDBFE; color:#1E40AF;" onclick="toggleBatchMode('dispatch')">📦 批量合併撥料</button>
     </div>
 
@@ -753,7 +751,7 @@
         </div>
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span style="font-size: 0.85rem; color: #6B7280; line-height: 1;">
                     {% if current_type == 'semi_finished' %}
                     {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}
@@ -801,7 +799,7 @@
         class="requisition-card">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span style="font-size: 0.85rem; color: #6B7280; line-height: 1;">
                     {{ req.process_type }} · {% if req.status == 'signed_off' %}已簽收{% else %}待簽收{% endif %}
                 </span>

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}批量申請 - 步驟 1 - 撥料系統{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:simple_applicant_home' %}">簡易申請首頁</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:special_request_home' %}">特殊申請功能</a></li>
+                    <li class="breadcrumb-item active">批量工單物料申請</li>
+                </ol>
+            </nav>
+            <h1 class="display-6">成品工單物料申請 (步驟 1/2)</h1>
+            <p class="text-muted">請輸入要申請的工單單號，系統將比對您資料庫中的物料。</p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-primary">
+        <div class="card-header bg-primary text-white">
+            <i class="fas fa-barcode me-2"></i> 輸入工單單號
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="step" value="match">
+                <div class="mb-3">
+                    <label for="order_numbers" class="form-label fw-bold">工單清單</label>
+                    <textarea class="form-control" id="order_numbers" name="order_numbers" rows="10" placeholder="例如：
+100001234
+100001235
+100001236" required></textarea>
+                    <div class="form-text">每行一個工單單號，支援大量複製貼上。</div>
+                </div>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'requisitions:special_request_home' %}" class="btn btn-outline-secondary me-md-2">取消</a>
+                    <button type="submit" class="btn btn-primary px-5">下一步：比對物料</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

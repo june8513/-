@@ -9,12 +9,16 @@ from .views import (
     material_upload_views,
     requisition_management_views,
     api_views,
-    assistant_views,
-    simple_views,
+    simple_applicant_views,
+    simple_dispatcher_views,
+    simple_export_views,
+    simple_fast_dispatch_views,
+    simple_shortage_views,
     work_order_views,
     operation_rule_views,
     semi_finished_views,
     material_completeness_views,
+    special_request_views,
 )
 
 app_name = 'requisitions'
@@ -22,46 +26,49 @@ app_name = 'requisitions'
 urlpatterns = [
     # Simple interface URLs - 簡易介面路由
     # Fast Dispatch (快速撥料)
-    path('simple/dispatcher/fast-dispatch/', simple_views.simple_dispatcher_fast_dispatch, name='simple_dispatcher_fast_dispatch'),
-    path('simple/dispatcher/fast-dispatch/execute/', simple_views.simple_dispatcher_fast_dispatch_execute, name='simple_dispatcher_fast_dispatch_execute'),
+    path('simple/dispatcher/fast-dispatch/', simple_fast_dispatch_views.simple_dispatcher_fast_dispatch, name='simple_dispatcher_fast_dispatch'),
+    path('simple/dispatcher/fast-dispatch/execute/', simple_fast_dispatch_views.simple_dispatcher_fast_dispatch_execute, name='simple_dispatcher_fast_dispatch_execute'),
 
     # Shortage Inquiry (缺料查詢)
-    path('simple/shortage-inquiry/', simple_views.shortage_inquiry, name='shortage_inquiry'),
-    path('simple/shortage-inquiry/export/', simple_views.shortage_inquiry_export, name='shortage_inquiry_export'),
-    path('simple/shortage-inquiry/sync-mps/', simple_views.sync_mps_order_info, name='sync_mps_order_info'),
+    path('simple/shortage-inquiry/', simple_shortage_views.shortage_inquiry, name='shortage_inquiry'),
+    path('simple/shortage-inquiry/export/', simple_shortage_views.shortage_inquiry_export, name='shortage_inquiry_export'),
+    path('simple/shortage-inquiry/sync-mps/', simple_shortage_views.sync_mps_order_info, name='sync_mps_order_info'),
 
 
-    path('simple/applicant/', simple_views.simple_applicant_home, name='simple_applicant_home'),
-    path('simple/applicant/create/', simple_views.simple_applicant_create, name='simple_applicant_create'),
-    path('simple/applicant/<int:pk>/', simple_views.simple_applicant_detail, name='simple_applicant_detail'),
-    path('simple/applicant/<int:pk>/sign-off/', simple_views.simple_applicant_sign_off, name='simple_applicant_sign_off'),
-    path('simple/applicant/item/<int:item_id>/report-issue/', simple_views.report_item_issue, name='report_item_issue'),
-    path('simple/applicant/<int:pk>/update-process-type/', simple_views.simple_applicant_update_process_type, name='simple_applicant_update_process_type'),
-    path('simple/applicant/<int:pk>/update-request-date/', simple_views.simple_applicant_update_request_date, name='simple_applicant_update_request_date'),
-    path('simple/applicant/<int:pk>/delete/', simple_views.simple_applicant_delete, name='simple_applicant_delete'),
-    path('simple/dispatcher/', simple_views.simple_dispatcher_home, name='simple_dispatcher_home'),
-    path('simple/dispatcher/<str:category>/', simple_views.simple_dispatcher_category, name='simple_dispatcher_category'),
-    path('simple/dispatcher/<str:category>/shortage/', simple_views.simple_dispatcher_shortage, name='simple_dispatcher_shortage'),
-    path('simple/dispatcher/<str:category>/merge/', simple_views.simple_dispatcher_merge, name='simple_dispatcher_merge'),
-    path('simple/dispatcher/<str:category>/<int:pk>/', simple_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
-    path('simple/dispatcher/item/<int:item_id>/resolve-issue/', simple_views.resolve_item_issue, name='resolve_item_issue'),
-    path('simple/dispatcher/item/<int:item_id>/dispatch/', simple_views.simple_dispatch_item_ajax, name='simple_dispatch_item_ajax'),
-    path('simple/dispatcher/announcement/update/', simple_views.update_announcement, name='update_announcement'),
+    path('simple/applicant/', simple_applicant_views.simple_applicant_home, name='simple_applicant_home'),
+    path('simple/applicant/create/', simple_applicant_views.simple_applicant_create, name='simple_applicant_create'),
+    path('simple/applicant/<int:pk>/', simple_applicant_views.simple_applicant_detail, name='simple_applicant_detail'),
+    path('simple/applicant/<int:pk>/sign-off/', simple_applicant_views.simple_applicant_sign_off, name='simple_applicant_sign_off'),
+    path('simple/applicant/item/<int:item_id>/report-issue/', simple_applicant_views.report_item_issue, name='report_item_issue'),
+    path('simple/applicant/<int:pk>/update-process-type/', simple_applicant_views.simple_applicant_update_process_type, name='simple_applicant_update_process_type'),
+    path('simple/applicant/<int:pk>/update-request-date/', simple_applicant_views.simple_applicant_update_request_date, name='simple_applicant_update_request_date'),
+    path('simple/applicant/<int:pk>/delete/', simple_applicant_views.simple_applicant_delete, name='simple_applicant_delete'),
+    path('simple/dispatcher/', simple_dispatcher_views.simple_dispatcher_home, name='simple_dispatcher_home'),
+    path('simple/dispatcher/<str:category>/', simple_dispatcher_views.simple_dispatcher_category, name='simple_dispatcher_category'),
+    path('simple/dispatcher/<str:category>/shortage/', simple_dispatcher_views.simple_dispatcher_shortage, name='simple_dispatcher_shortage'),
+    path('simple/dispatcher/<str:category>/merge/', simple_dispatcher_views.simple_dispatcher_merge, name='simple_dispatcher_merge'),
+    path('simple/dispatcher/<str:category>/<int:pk>/', simple_dispatcher_views.simple_dispatcher_detail, name='simple_dispatcher_detail'),
+    path('simple/dispatcher/item/<int:item_id>/resolve-issue/', simple_applicant_views.resolve_item_issue, name='resolve_item_issue'),
+    path('simple/dispatcher/item/<int:item_id>/dispatch/', simple_dispatcher_views.simple_dispatch_item_ajax, name='simple_dispatch_item_ajax'),
+    path('simple/dispatcher/announcement/update/', simple_dispatcher_views.update_announcement, name='update_announcement'),
 
     # Excel export for simple interface
-    path('simple/applicant/export/excel/', simple_views.export_simple_applicant_requisitions_excel, name='export_simple_applicant_requisition_excel'),
-    path('simple/dispatcher/<str:category>/export/excel/', simple_views.export_simple_dispatcher_requisitions_excel, name='export_simple_dispatcher_requisition_excel'),
-    path('simple/requisition/<int:pk>/export/excel/', simple_views.export_single_requisition_excel, name='export_single_requisition_excel'),
-    path('simple/requisition/<int:pk>/change-alert/', simple_views.simple_requisition_change_detail, name='simple_requisition_change_detail'),
-    path('simple/requisition-item/<int:item_pk>/dismiss-alert/', simple_views.dismiss_requisition_item_alert, name='dismiss_requisition_item_alert'),
+    path('simple/applicant/export/excel/', simple_export_views.export_simple_applicant_requisitions_excel, name='export_simple_applicant_requisition_excel'),
+    path('simple/dispatcher/<str:category>/export/excel/', simple_export_views.export_simple_dispatcher_requisitions_excel, name='export_simple_dispatcher_requisition_excel'),
+    path('simple/requisition/<int:pk>/export/excel/', simple_export_views.export_single_requisition_excel, name='export_single_requisition_excel'),
+    path('simple/requisition/<int:pk>/change-alert/', simple_shortage_views.simple_requisition_change_detail, name='simple_requisition_change_detail'),
+    path('simple/requisition-item/<int:item_pk>/dismiss-alert/', simple_shortage_views.dismiss_requisition_item_alert, name='dismiss_requisition_item_alert'),
+
+    # Special Request URLs
+    path('simple/special-request/', special_request_views.special_request_home, name='special_request_home'),
+    path('simple/special-request/update-materials/', special_request_views.update_user_materials_view, name='special_update_materials'),
+    path('simple/special-request/bulk-request/', special_request_views.bulk_requisition_form_view, name='special_bulk_request'),
+    path('simple/special-request/global-dispatch/', special_request_views.global_dispatch_search_view, name='special_global_dispatch'),
 
     path('work_orders/', work_order_views.work_order_list, name='work_order_list'),
     path('work_orders/<str:order_number>/toggle_archive/', work_order_views.toggle_work_order_archive, name='toggle_work_order_archive'),
     path('work_orders/<str:order_number>/requisitions/', work_order_views.work_order_requisitions_list, name='work_order_requisitions_list'),
-    path('assistant/', assistant_views.assistant_view, name='assistant'),
-    path('api/natural_action/', api_views.natural_action_view, name='natural_action'),
-    path('api/check_task_status/<str:task_id>/', api_views.check_task_status, name='check_task_status'),
-    path('api/save_ai_correction/', api_views.save_ai_correction, name='save_ai_correction'),
+
     path('api/shortage_materials/', api_views.shortage_materials_api, name='shortage_materials_api'),
     path('api/requisition_items/shortages/', api_views.requisition_items_shortages_api, name='requisition_items_shortages_api'),
     path('finished_goods_dispatch/', dispatch_views.finished_goods_dispatch, name='finished_goods_dispatch'),
@@ -71,7 +78,7 @@ urlpatterns = [
     path('batch_dispatch_view/', dispatch_views.batch_dispatch_view, name='batch_dispatch_view'),
     path('batch_dispatch_action/', dispatch_views.batch_dispatch_action, name='batch_dispatch_action'),
     path('list/', requisition_management_views.requisition_list, name='requisition_list'),
-    path('<int:pk>/detail/', requisition_management_views.requisition_detail, name='requisition_detail'),
+
     path('archived_list/', requisition_management_views.archived_requisition_list, name='archived_requisition_list'), # Renamed from ''
     path('list/export/excel/', material_export_views.export_requisitions_excel, name='export_requisitions_excel'),
     path('archived_list/export/excel/', material_export_views.export_archived_requisitions_excel, name='export_archived_requisitions_excel'),
@@ -85,13 +92,13 @@ urlpatterns = [
     path('upload_order_model_excel/', material_upload_views.upload_order_model_excel, name='upload_order_model_excel'),
     path('upload_material_details_excel/', material_upload_views.upload_material_details_excel, name='upload_material_details_excel'),
 
-    path('<int:pk>/sign_off/', requisition_management_views.requisition_sign_off, name='requisition_sign_off'),
+
     path('<int:pk>/delete/', requisition_management_views.requisition_delete, name='requisition_delete'), # New URL for deleting requisition
     path('history/', requisition_management_views.requisition_history, name='requisition_history'),
     path('login/', auth_views.user_login, name='login'),
     path('logout/', auth_views.user_logout, name='logout'),
     path('register/', auth_views.user_register, name='register'),
-    path('<int:pk>/sign_off_item/<int:item_pk>/', requisition_management_views.sign_off_item, name='sign_off_item'),
+
     path('update_db/', material_upload_views.update_process_type_db, name='update_process_type_db'),
     path('upload_inventory/', material_upload_views.upload_inventory_data, name='upload_inventory_data'),
     path('bulk_upload/', material_upload_views.bulk_upload, name='bulk_upload'),

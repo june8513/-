@@ -6,7 +6,7 @@
 {% block extra_css %}
 <style>
     .simple-container {
-        max-width: 800px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 1rem;
     }
@@ -535,8 +535,10 @@
     <div class="material-card {{ item.card_class }}" data-item-pk="{{ item.pk }}" data-dispatched-by-id="{{ item.dispatched_by_id|default:'' }}">
         <div class="material-info-area">
             <div class="material-top-row">
-                <span class="mat-number">{{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}{% if item.sign_off_date %} {{ item.sign_off_date|date:"Y-m-d" }}{% endif %}){% endif %}</span>{% endif %}</span>
-                {% if item.storage_bin %}<span class="mat-bin">{{ item.storage_bin }}</span>{% endif %}
+                <span class="mat-number">
+                    <span class="badge bg-primary" style="font-size: 0.8rem; margin-right: 0.5rem;">工單: {{ item.order_number }}</span>
+                    {{ item.material_number }}{% if item.has_backlog %} <span class="warning-icon">⚠️</span>{% endif %}{% if item.is_signed_off %} <span style="color:#10B981;font-size:0.8rem;">✓簽收{% if item.sign_off_by %} ({{ item.sign_off_by.first_name }}{{ item.sign_off_by.last_name }}{% if not item.sign_off_by.first_name %}{{ item.sign_off_by.username }}{% endif %}{% if item.sign_off_date %} {{ item.sign_off_date|date:"Y-m-d" }}{% endif %}){% endif %}</span>{% endif %}</span>
+                {% if item.storage_bin %}<span class="mat-bin">儲格: {{ item.storage_bin }}</span>{% endif %}
                 <span class="mat-detail"><span class="qty-label">需求:</span> <span class="qty-value">{{ item.required_quantity }}</span></span>
                 <span class="mat-detail"><span class="qty-label">庫存:</span> <span class="qty-value" {% if item.is_insufficient_stock %}style="color:#DC2626;font-weight:700;"{% endif %}>{{ item.stock_quantity }}</span>{% if item.is_insufficient_stock %} <span title="庫存不足" style="font-size:0.8rem;">⚠️</span>{% endif %}</span>
             </div>

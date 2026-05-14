@@ -1,0 +1,13 @@
+[Unit]
+Description=MPS Order Info Sync Service
+After=network.target material_requisition.service
+
+[Service]
+Type=oneshot
+User=june
+WorkingDirectory=/home/june/material-requisition
+Environment="PATH=/home/june/material-requisition/venv/bin"
+ExecStart=/home/june/material-requisition/venv/bin/python /home/june/material-requisition/scripts/sync_mps_order_info.py
+
+[Install]
+WantedBy=multi-user.target

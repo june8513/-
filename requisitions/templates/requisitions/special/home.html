@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}特殊申請功能 - 撥料系統{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:simple_applicant_home' %}">簡易申請首頁</a></li>
+                    <li class="breadcrumb-item active">特殊申請功能</li>
+                </ol>
+            </nav>
+            <h1 class="display-6">特殊申請功能</h1>
+            <p class="text-muted">請選擇您要執行的操作。</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-body text-center d-flex flex-column">
+                    <h5 class="card-title text-primary">
+                        <i class="fas fa-list-alt me-2"></i> 成品工單物料申請
+                    </h5>
+                    <p class="card-text">批量輸入工單單號，系統將自動比對您的個人物料資料庫並建立申請單。</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'requisitions:special_bulk_request' %}" class="btn btn-primary btn-lg w-100">開始申請</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-success">
+                <div class="card-body text-center d-flex flex-column">
+                    <h5 class="card-title text-success">
+                        <i class="fas fa-database me-2"></i> 資料庫物料儲存更新
+                    </h5>
+                    <p class="card-text">維護您感興趣的物料清單，用於批量申請時的自動篩選功能。</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'requisitions:special_update_materials' %}" class="btn btn-success btn-lg w-100">更新資料庫</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

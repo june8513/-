@@ -278,6 +278,23 @@
         font-weight: 600;
     }
 
+    .btn-undo {
+        padding: 0.2rem 0.5rem;
+        background: #F3F4F6;
+        color: #6B7280;
+        border: 1px solid #D1D5DB;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .btn-undo:hover {
+        background: #E5E7EB;
+        color: #374151;
+    }
+
     .sort-bar {
         display: flex;
         gap: 0.5rem;
@@ -387,7 +404,7 @@
             {% for o in mat.orders %}
             <div class="order-row" id="item-{{ o.pk }}">
                 <span class="order-num" style="display: flex; align-items: center;">
-                    {{ o.order_number }}
+                    工單: {{ o.order_number }}
                     <span style="font-size: 0.75rem; color: #6B7280; font-weight: normal; margin-left: 0.5rem; background: #F3F4F6; padding: 0.15rem 0.4rem; border-radius: 4px;">需: {{ o.request_date|date:"m/d" }}</span>
                 </span>
                 <span class="order-qty">{{ o.required_quantity|floatformat:0 }}</span>
@@ -436,12 +453,46 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + row.querySelector('.order-num').innerHTML + '</span>'
-                        + '<span class="order-qty">' + row.querySelector('.order-qty').innerHTML + '</span>'
-                        + '<span class="dispatched-label">✓ 已撥料</span>';
+                    const orderNumHtml = row.querySelector('.order-num').innerHTML;
+                    const orderQtyHtml = row.querySelector('.order-qty').innerHTML;
+                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + orderNumHtml + '</span>'
+                        + '<span class="order-qty">' + orderQtyHtml + '</span>'
+                        + '<span class="dispatched-label" style="margin-right:0.5rem;">✓ 已撥料</span>'
+                        + '<button class="btn-undo" onclick="undoItem(' + pk + ', this)">還原</button>';
                     showToast('已撥料');
                 } else {
                     showToast(data.message || '操作失敗', true);
+                    btn.disabled = false;
+                }
+            })
+            .catch(() => { showToast('伺服器錯誤', true); btn.disabled = false; });
+    }
+
+    function undoItem(pk, btn) {
+        const row = btn.closest('.order-row');
+        btn.disabled = true;
+        const formData = new FormData();
+        formData.append('action', 'undo_item');
+        formData.append('item_pk', pk);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const orderNumHtml = row.querySelector('.order-num').innerHTML;
+                    const orderQtyHtml = row.querySelector('.order-qty').innerHTML;
+                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + orderNumHtml + '</span>'
+                        + '<span class="order-qty">' + orderQtyHtml + '</span>'
+                        + '<button class="btn-dispatch" style="margin-right:0.5rem;" onclick="dispatchItem(' + pk + ', this)">撥料</button>'
+                        + '<button class="btn-backorder" onclick="backorderItem(' + pk + ', this)">缺料</button>';
+                    showToast('已還原');
+                } else {
+                    showToast(data.message || '還原失敗', true);
                     btn.disabled = false;
                 }
             })
@@ -464,9 +515,12 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + row.querySelector('.order-num').innerHTML + '</span>'
-                        + '<span class="order-qty">' + row.querySelector('.order-qty').innerHTML + '</span>'
-                        + '<span class="backordered-label">⚠ 缺料</span>';
+                    const orderNumHtml = row.querySelector('.order-num').innerHTML;
+                    const orderQtyHtml = row.querySelector('.order-qty').innerHTML;
+                    row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + orderNumHtml + '</span>'
+                        + '<span class="order-qty">' + orderQtyHtml + '</span>'
+                        + '<span class="backordered-label" style="margin-right:0.5rem;">⚠ 缺料</span>'
+                        + '<button class="btn-undo" onclick="undoItem(' + pk + ', this)">還原</button>';
                     showToast('已標記缺料');
                 } else {
                     showToast(data.message || '操作失敗', true);
@@ -496,13 +550,18 @@
             .then(data => {
                 if (data.success) {
                     showToast(data.message);
-                    btn.outerHTML = '<span class="dispatched-label" style="font-size:1rem; margin-right:0.5rem;">✓ 已撥料</span>';
-                    if (siblingBtn) siblingBtn.remove();
+                    btn.parentElement.innerHTML = '<span class="dispatched-label" style="font-size:1rem; margin-right:0.5rem;">✓ 已撥料</span>'
+                        + '<button class="btn-undo" onclick="undoMaterial(\'' + materialNumber + '\', this)">還原</button>'
+                        + '<span class="expand-icon" style="margin-left: 0.25rem;">▶</span>';
                     
                     card.querySelectorAll('.order-row').forEach(row => {
-                        row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + row.querySelector('.order-num').innerHTML + '</span>'
-                            + '<span class="order-qty">' + row.querySelector('.order-qty').innerHTML + '</span>'
-                            + '<span class="dispatched-label">✓ 已撥料</span>';
+                        const pk = row.id.split('-')[1];
+                        const orderNumHtml = row.querySelector('.order-num').innerHTML;
+                        const orderQtyHtml = row.querySelector('.order-qty').innerHTML;
+                        row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + orderNumHtml + '</span>'
+                            + '<span class="order-qty">' + orderQtyHtml + '</span>'
+                            + '<span class="dispatched-label" style="margin-right:0.5rem;">✓ 已撥料</span>'
+                            + '<button class="btn-undo" onclick="undoItem(' + pk + ', this)">還原</button>';
                     });
                 } else {
                     showToast(data.message || '操作失敗', true);
@@ -537,13 +596,18 @@
             .then(data => {
                 if (data.success) {
                     showToast(data.message);
-                    btn.outerHTML = '<span class="backordered-label" style="font-size:1rem; margin-right:0.5rem;">⚠ 缺料</span>';
-                    if (siblingBtn) siblingBtn.remove();
+                    btn.parentElement.innerHTML = '<span class="backordered-label" style="font-size:1rem; margin-right:0.5rem;">⚠ 缺料</span>'
+                        + '<button class="btn-undo" onclick="undoMaterial(\'' + materialNumber + '\', this)">還原</button>'
+                        + '<span class="expand-icon" style="margin-left: 0.25rem;">▶</span>';
                     
                     card.querySelectorAll('.order-row').forEach(row => {
-                        row.innerHTML = '<span class="order-num">' + row.querySelector('.order-num').textContent + '</span>'
-                            + '<span class="order-qty">' + row.querySelector('.order-qty').textContent + '</span>'
-                            + '<span class="backordered-label">⚠ 缺料</span>';
+                        const pk = row.id.split('-')[1];
+                        const orderNumHtml = row.querySelector('.order-num').innerHTML;
+                        const orderQtyHtml = row.querySelector('.order-qty').innerHTML;
+                        row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + orderNumHtml + '</span>'
+                            + '<span class="order-qty">' + orderQtyHtml + '</span>'
+                            + '<span class="backordered-label" style="margin-right:0.5rem;">⚠ 缺料</span>'
+                            + '<button class="btn-undo" onclick="undoItem(' + pk + ', this)">還原</button>';
                     });
                 } else {
                     showToast(data.message || '操作失敗', true);
@@ -556,6 +620,48 @@
                 btn.disabled = false;
                 if (siblingBtn) siblingBtn.disabled = false;
             });
+    }
+    function undoMaterial(materialNumber, btn) {
+        const card = btn.closest('.material-card');
+        btn.disabled = true;
+        const formData = new FormData();
+        formData.append('action', 'undo_material');
+        formData.append('material_number', materialNumber);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    // 還原標題列
+                    const actionCol = btn.parentElement;
+                    const totalQty = actionCol.querySelector('span[style*="font-weight: 600"]').textContent;
+                    actionCol.innerHTML = '<span style="font-weight: 600; color: #111827; margin-right: 0.5rem; font-size: 1.1rem;">' + totalQty + '</span>'
+                        + '<button class="btn-dispatch" onclick="event.stopPropagation(); dispatchMaterial(\'' + materialNumber + '\', this)">撥料</button>'
+                        + '<button class="btn-backorder" style="margin-left:0.5rem;" onclick="event.stopPropagation(); backorderMaterial(\'' + materialNumber + '\', this)">缺料</button>'
+                        + '<span class="expand-icon" style="margin-left: 0.25rem;">▶</span>';
+                    
+                    // 還原細項列
+                    card.querySelectorAll('.order-row').forEach(row => {
+                        const pk = row.id.split('-')[1];
+                        const orderNumHtml = row.querySelector('.order-num').innerHTML;
+                        const orderQtyHtml = row.querySelector('.order-qty').innerHTML;
+                        row.innerHTML = '<span class="order-num" style="display: flex; align-items: center;">' + orderNumHtml + '</span>'
+                            + '<span class="order-qty">' + orderQtyHtml + '</span>'
+                            + '<button class="btn-dispatch" style="margin-right:0.5rem;" onclick="dispatchItem(' + pk + ', this)">撥料</button>'
+                            + '<button class="btn-backorder" onclick="backorderItem(' + pk + ', this)">缺料</button>';
+                    });
+                } else {
+                    showToast(data.message || '還原失敗', true);
+                    btn.disabled = false;
+                }
+            })
+            .catch(() => { showToast('伺服器錯誤', true); btn.disabled = false; });
     }
 
 </script>

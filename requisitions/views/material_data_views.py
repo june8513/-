@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.db.models import Q, F, Value, DecimalField, OuterRef, Subquery, Exists, ExpressionWrapper, Sum, Count
 from django.db import models
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Greatest
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.urls import reverse
 from django.db import IntegrityError
@@ -153,7 +153,11 @@ def work_order_material_list(request):
             import_count=Count('requisition_items'),
             bin=material_subquery_bin,
             stock_quantity=inventory_subquery_stock_quantity,
-            total_confirmed_quantity=Coalesce(Subquery(total_confirmed_subquery, output_field=DecimalField()), Decimal('0.0')),
+            total_confirmed_quantity=Greatest(
+                Coalesce(Subquery(total_confirmed_subquery, output_field=DecimalField()), Decimal('0.0')),
+                Coalesce(F('sap_withdrawn_quantity'), Decimal('0.0')),
+                Coalesce(F('confirmed_quantity'), Decimal('0.0'))
+            ),
             has_pt_history=Exists(WorkOrderMaterialProcessTypeLog.objects.filter(work_order_material=OuterRef('pk')))
         )
         # Apply is_active filter
@@ -693,8 +697,8 @@ def update_work_order_quantities(request):
                 messages.success(request, f"成功更新撥料數量: {','.join(updated_materials)}")
             
             if redirect_to_requisition_pk:
-                # If a requisition completed dispatch, redirect to its detail page
-                return redirect('requisitions:requisition_detail', pk=redirect_to_requisition_pk)
+                # Redirect back to the material list
+                return redirect(f'{redirect_url}{query_string}')
             else:
                 # If no requisition completed dispatch, but materials were updated,
                 # we need to find the requisition associated with the order_number and process_type
@@ -714,7 +718,7 @@ def update_work_order_quantities(request):
                             process_type=process_type_obj.name
                         ).first()
                         if current_requisition:
-                            return redirect('requisitions:requisition_detail', pk=current_requisition.pk)
+                            return redirect(f'{redirect_url}{query_string}')
                     except ProcessType.DoesNotExist:
                         pass # Fallback to default redirect
 
@@ -725,7 +729,7 @@ def update_work_order_quantities(request):
           # we should still redirect to the requisition detail page if current_requisition exists.
           if current_requisition:
               messages.info(request, "沒有物料數量被明確更新，但已處理未撥物料狀態。")
-              return redirect('requisitions:requisition_detail', pk=current_requisition.pk)
+              return redirect(f'{redirect_url}{query_string}')
           else:
               messages.info(request, "沒有物料數量被更新。")
               return redirect(f'{redirect_url}{query_string}')

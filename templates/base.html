@@ -51,7 +51,6 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="dropdownMenuLink">
                             <li><a class="dropdown-item" href="{% url 'core:homepage' %}">儀表板</a></li>
-                            <li><a class="dropdown-item" href="{% url 'requisitions:assistant' %}">智慧助理</a></li>
                             {% if is_simple_applicant %}
                             <li><a class="dropdown-item text-success fw-bold" href="{% url 'requisitions:simple_applicant_home' %}"><i class="fas fa-mobile-alt me-1"></i> 簡易申請介面</a></li>
                             {% endif %}
@@ -104,8 +103,6 @@
                                     <li><a class="dropdown-item"
                                             href="{% url 'requisitions:semi_finished_process_type_list' %}">🏭 投料點管理</a></li>
                                     {% endif %}
-                                    <li><a class="dropdown-item fw-bold text-primary"
-                                            href="{% url 'interactive_picking:index' %}"><i class="fas fa-route me-1"></i> 互動式揀料 ✨</a></li>
                                     {% endif %}
                                     <li><a class="dropdown-item text-muted" href="#">（更多功能開發中...）</a></li>
                                 </ul>

@@ -352,7 +352,12 @@
 
     <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">
         {% if current_type == 'finished' %}
-        <a href="{% url 'requisitions:simple_applicant_create' %}" class="create-btn" style="flex: 3; margin-bottom: 0; display: flex; align-items: center; justify-content: center;">建立申請單</a>
+        <div style="flex: 3; display: flex; flex-direction: column; gap: 0.5rem;">
+            <a href="{% url 'requisitions:simple_applicant_create' %}" class="create-btn" style="margin-bottom: 0; display: flex; align-items: center; justify-content: center;">建立申請單</a>
+            {% if user.profile.can_access_special_request %}
+            <a href="{% url 'requisitions:special_request_home' %}" class="create-btn" style="margin-bottom: 0; background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3); display: flex; align-items: center; justify-content: center;">🚀 特殊批量申請</a>
+            {% endif %}
+        </div>
         <a href="{% url 'requisitions:work_order_material_list' %}" class="create-btn" style="flex: 2; margin-bottom: 0; background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); display: flex; align-items: center; justify-content: center; font-size: 1rem;">📝 主物料清單</a>
         <a href="{% url 'requisitions:export_simple_applicant_requisition_excel' %}?type=finished" class="create-btn" style="flex: 1; margin-bottom: 0; background: #F3F4F6; color: #374151; box-shadow: none; border: 1px solid #D1D5DB; display: flex; align-items: center; justify-content: center; font-size: 1rem;">📊 匯出</a>
         {% else %}
@@ -369,7 +374,7 @@
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
                 {% if req.is_from_other %}
                 <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
@@ -410,7 +415,7 @@
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
                 {% if req.is_from_other %}
                 <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
@@ -451,7 +456,7 @@
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
                 {% if req.is_from_other %}
                 <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
@@ -486,7 +491,7 @@
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem;">{{ req.process_type }}</span>
                 {% if req.is_from_other %}
                 <span class="alert-badge" style="background: #E0E7FF; color: #3730A3; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>
@@ -522,7 +527,7 @@
     <a href="{% url 'requisitions:simple_applicant_detail' pk=req.pk %}" class="requisition-card signed-off-card" style="opacity: 0.6; filter: grayscale(100%);">
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;">
-                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">{{ req.order_number }}</span>
+                <span class="order-number" style="margin-bottom: 0; font-size: 1.1rem; line-height: 1;">工單: {{ req.order_number }}</span>
                 <span class="process-badge" style="margin-bottom: 0; line-height: 1; padding: 0.2rem 0.5rem; background: #F3F4F6; color: #6B7280;">{{ req.process_type }}</span>
                 {% if req.is_from_other %}
                 <span class="alert-badge" style="background: #F3F4F6; color: #6B7280; line-height: 1; padding: 0.2rem 0.5rem;">👤 {{ req.applicant.first_name }}{{ req.applicant.last_name }}{% if not req.applicant.first_name %}{{ req.applicant.username }}{% endif %}</span>

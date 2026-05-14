@@ -446,7 +446,7 @@
             <span class="pending-badge {% if cat.pending_count > 0 %}has-pending{% endif %}">
                 待撥: {{ cat.pending_count }}
             </span>
-            <span class="category-name">{{ cat.name }}</span>
+            <span class="category-name">{{ cat.display_name|default:cat.name }}</span>
         </a>
         {% empty %}
         <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #9CA3AF;">

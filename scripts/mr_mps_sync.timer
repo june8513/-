@@ -1,0 +1,12 @@
+[Unit]
+Description=Run MPS Order Info Sync every 4 hours
+
+[Timer]
+# Run 2 minutes after boot
+OnBootSec=2min
+# Then run every 4 hours
+OnUnitActiveSec=4h
+Unit=mr_mps_sync.service
+
+[Install]
+WantedBy=timers.target

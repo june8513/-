@@ -19,7 +19,7 @@ class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
     verbose_name_plural = '使用者設定檔'
-    fields = ('requested_role', 'can_publish_announcements')
+    fields = ('requested_role', 'can_publish_announcements', 'can_access_special_request')
 
 @admin.register(Requisition)
 class RequisitionAdmin(admin.ModelAdmin):

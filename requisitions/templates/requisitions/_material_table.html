@@ -25,6 +25,10 @@
                         <a href="{% url 'specifications:material_spec_list' %}?q={{ material.material_number }}" class="text-decoration-none text-dark">
                             {{ material.material_number }}
                         </a>
+                        <div class="mt-1">
+                            <span class="badge bg-primary" style="font-size: 0.7rem;">工單: {{ material.order_number }}</span>
+                            <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">儲格: {{ material.storage_bin }}</span>
+                        </div>
                         {% if not material.is_active %}
                             <span class="badge bg-danger ms-1">已歸檔</span>
                         {% endif %}
@@ -62,14 +66,16 @@
                         </div>
                     </td>
                     <td data-label="簽收狀態" class="responsive-group-item dispatch-status-{{ material.pk }}">
-                        {% if material.total_confirmed_quantity == material.required_quantity and material.is_signed_off %}
-                            <span class="badge bg-success">已撥料</span>
-                        {% elif material.total_confirmed_quantity == 0 and not material.is_signed_off %}
-                            <span class="badge bg-secondary">未撥料</span>
-                        {% elif material.total_confirmed_quantity > 0 and material.total_confirmed_quantity < material.required_quantity %}
+                        {% if material.total_confirmed_quantity >= material.required_quantity %}
+                            {% if material.is_signed_off %}
+                                <span class="badge bg-success">已簽收</span>
+                            {% else %}
+                                <span class="badge bg-primary">已撥料</span>
+                            {% endif %}
+                        {% elif material.total_confirmed_quantity > 0 %}
                             <span class="badge bg-warning">部分撥料</span>
-                        {% else %} {# This is the case where buttons should appear #}
-                            <span class="badge bg-info">未簽收</span>
+                        {% else %}
+                            <span class="badge bg-secondary">未撥料</span>
                         {% endif %}
                     </td>
                     <td data-label="需求" class="responsive-group-item">{{ material.required_quantity|floatformat:2 }}</td>

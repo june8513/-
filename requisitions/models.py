@@ -82,6 +82,7 @@ class Requisition(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新時間")
+    demand_person = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requisitions_demanded', verbose_name="需求人員")
 
     class Meta:
         verbose_name = "撥料申請單"
@@ -108,6 +109,8 @@ class WorkOrderMaterial(models.Model):
     item_name = models.CharField(max_length=255, verbose_name="品名", null=True, blank=True)
     required_quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="需求數量")
     process_type = models.ForeignKey(ProcessType, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="投料點")
+    parent_material_description = models.CharField(max_length=255, blank=True, null=True, verbose_name="上層物料說明")
+    operation_description = models.CharField(max_length=255, blank=True, null=True, verbose_name="作業說明")
     
     # 新增：區分成品/半成品
     material_type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES, default='finished', verbose_name="物料類型", db_index=True)
@@ -353,6 +356,7 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="使用者")
     requested_role = models.CharField(max_length=50, blank=True, null=True, verbose_name="申請角色")
     can_publish_announcements = models.BooleanField(default=False, verbose_name="可發佈公告")
+    can_access_special_request = models.BooleanField(default=False, verbose_name="可使用成品特殊申請功能")
     
     class Meta:
         verbose_name = "使用者設定檔"
@@ -413,3 +417,18 @@ class Announcement(models.Model):
 
     def __str__(self):
         return f"公告: {self.content[:30]}..."
+
+
+class UserSelectedMaterial(models.Model):
+    """申請人自定義關注的物料清單 (用於特殊篩選需求)"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='selected_materials', verbose_name="使用者")
+    material_number = models.CharField(max_length=100, db_index=True, verbose_name="物料號碼")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="建立時間")
+
+    class Meta:
+        verbose_name = "使用者自選物料"
+        verbose_name_plural = "使用者自選物料"
+        unique_together = ('user', 'material_number')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.material_number}"

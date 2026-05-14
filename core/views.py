@@ -2,7 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count, Q, F, DecimalField, Prefetch
-from requisitions.constants import GROUP_NAMES
+from common.constants import GROUP_NAMES
+from common.permissions import is_simple_applicant, is_simple_dispatcher, is_supervisor
 from requisitions.models import Requisition, RequisitionItem, ProcessType, SemiFinishedProcessType, WorkOrderMaterial
 
 def homepage(request):
@@ -57,17 +58,30 @@ def homepage(request):
                 requisition_type='finished',
                 is_archived=False
             ).values('process_type').annotate(
-                total_count=Count('id'),
-                week_count=Count('id', filter=Q(created_at__gte=start_of_week))
+                total_count=Count('id', distinct=True),
+                week_count=Count('id', filter=Q(created_at__gte=start_of_week), distinct=True),
+                total_items=Count('items'),
+                dispatched_items=Count('items', filter=Q(items__dispatch_status='dispatched')),
+                signed_items=Count('items', filter=Q(items__is_signed_off=True))
             )}
             
             for name in target_finished_names:
-                stat = finished_stats.get(name, {'total_count': 0, 'week_count': 0})
+                stat = finished_stats.get(name, {'total_count': 0, 'week_count': 0, 'total_items': 0, 'dispatched_items': 0, 'signed_items': 0})
+                
+                t_items = stat.get('total_items', 0)
+                d_items = stat.get('dispatched_items', 0)
+                s_items = stat.get('signed_items', 0)
+                
+                dispatch_progress = int((d_items / t_items * 100)) if t_items > 0 else 0
+                sign_progress = int((s_items / d_items * 100)) if d_items > 0 else 0
+
                 process_summaries.append({
                     'name': name,
                     'display_name': name,
                     'total': stat['total_count'],
                     'week': stat['week_count'],
+                    'dispatch_progress': dispatch_progress,
+                    'sign_progress': sign_progress,
                     'type': 'finished'
                 })
             
@@ -80,8 +94,11 @@ def homepage(request):
                 'applicant__first_name', 
                 'applicant__last_name'
             ).annotate(
-                total_count=Count('id'),
-                week_count=Count('id', filter=Q(created_at__gte=start_of_week))
+                total_count=Count('id', distinct=True),
+                week_count=Count('id', filter=Q(created_at__gte=start_of_week), distinct=True),
+                total_items=Count('items'),
+                dispatched_items=Count('items', filter=Q(items__dispatch_status='dispatched')),
+                signed_items=Count('items', filter=Q(items__is_signed_off=True))
             ).order_by('applicant__username')
             
             for stat in semi_stats:
@@ -93,11 +110,20 @@ def homepage(request):
                     # 格式化姓名：如果有姓或名就組合，否則用帳號
                     display_name = f"{last_name}{first_name}" if (last_name or first_name) else username
                     
+                    t_items = stat.get('total_items', 0)
+                    d_items = stat.get('dispatched_items', 0)
+                    s_items = stat.get('signed_items', 0)
+                    
+                    dispatch_progress = int((d_items / t_items * 100)) if t_items > 0 else 0
+                    sign_progress = int((s_items / d_items * 100)) if d_items > 0 else 0
+
                     process_summaries.append({
                         'name': username,
                         'display_name': display_name,
                         'total': stat['total_count'],
                         'week': stat['week_count'],
+                        'dispatch_progress': dispatch_progress,
+                        'sign_progress': sign_progress,
                         'type': 'semi_finished'
                     })
 
@@ -148,7 +174,8 @@ def supervisor_process_detail(request, process_name):
         is_archived=False
     ).annotate(
         total_items_count=Count('items'),
-        dispatched_items_count=Count('items', filter=Q(items__dispatch_status='dispatched'))
+        dispatched_items_count=Count('items', filter=Q(items__dispatch_status='dispatched')),
+        signed_items_count=Count('items', filter=Q(items__is_signed_off=True))
     ).prefetch_related(short_items_prefetch).order_by('-created_at')
     
     # 嘗試獲取顯示名稱 (如果是領料人則顯示姓名)
@@ -171,6 +198,12 @@ def supervisor_process_detail(request, process_name):
             req.progress = int((req.dispatched_items_count / req.total_items_count) * 100)
         else:
             req.progress = 0
+            
+        if req.dispatched_items_count > 0:
+            req.sign_progress = int((req.signed_items_count / req.dispatched_items_count) * 100)
+        else:
+            req.sign_progress = 0
+
         # 賦予機型名稱
         req.machine_model_name = machine_model_map.get(req.order_number, "未知機型")
 

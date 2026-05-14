@@ -6,7 +6,16 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'material_requisition_system.settings')
+    # 載入環境變數
+    try:
+        from pathlib import Path
+        from dotenv import load_dotenv
+        BASE_DIR = Path(__file__).resolve().parent
+        load_dotenv(BASE_DIR / '.env')
+    except ImportError:
+        pass
+    
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'material_requisition_system.settings.development')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

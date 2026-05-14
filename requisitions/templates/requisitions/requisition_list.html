@@ -95,7 +95,7 @@
                                 {% if is_admin or is_material_handler %}
                                     <a href="{% url 'requisitions:work_order_material_list' %}?order_number={{ req.order_number }}&process_type_name={{ req.process_type }}" class="btn btn-primary btn-sm">撥料</a>
                                 {% endif %}
-                                <a href="{% url 'requisitions:requisition_detail' pk=req.pk %}" class="btn btn-info btn-sm mt-1">查看詳情</a>
+
                             </td>
                         </tr>
                     {% endfor %}

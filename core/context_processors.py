@@ -2,7 +2,7 @@ from django.contrib.auth.models import Group
 
 def role_context(request):
     from peer_requests.models import PeerRequest
-    from requisitions.constants import GROUP_NAMES
+    from common.constants import GROUP_NAMES
     
     is_admin = request.user.is_superuser
     is_authenticated = request.user.is_authenticated

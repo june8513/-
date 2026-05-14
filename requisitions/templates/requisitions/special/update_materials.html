@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}更新物料資料庫 - 撥料系統{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:simple_applicant_home' %}">簡易申請首頁</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'requisitions:special_request_home' %}">特殊申請功能</a></li>
+                    <li class="breadcrumb-item active">更新物料資料庫</li>
+                </ol>
+            </nav>
+            <h1 class="display-6">資料庫物料儲存更新</h1>
+            <p class="text-muted">請在下方輸入您想要關注的物料號碼，每行一筆。您可以直接從 Excel 複製貼上。</p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="materials" class="form-label fw-bold">物料清單</label>
+                    <textarea class="form-control" id="materials" name="materials" rows="15" placeholder="例如：
+11002233
+11004455
+11006677">{{ raw_text }}</textarea>
+                    <div class="form-text">系統會自動過濾重複的內容與空白行。</div>
+                </div>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'requisitions:special_request_home' %}" class="btn btn-outline-secondary me-md-2">取消</a>
+                    <button type="submit" class="btn btn-success px-5">儲存更新</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -156,101 +156,6 @@ def requisition_list(request):
     }
     return render(request, 'requisitions/requisition_list.html', context)
 
-@login_required
-def requisition_detail(request, pk):
-    requisition = get_object_or_404(Requisition, pk=pk)
-
-    # Permissions check
-    is_admin = request.user.is_superuser
-    is_applicant = request.user == requisition.applicant
-    is_material_handler = request.user.groups.filter(name='撥料人員').exists()
-
-    if not (is_admin or is_applicant or is_material_handler):
-        messages.error(request, "您沒有權限查看此撥料申請單詳情。")
-        return redirect('requisitions:requisition_list')
-
-    if request.method == 'POST':
-        # Check if the user has permission to upload
-        if not (is_admin or is_applicant or is_material_handler):
-            messages.error(request, "您沒有權限上傳圖片。")
-            return redirect(requisition.get_absolute_url()) # Assumes get_absolute_url is defined
-
-        upload_form = RequisitionImageForm(request.POST, request.FILES)
-        if upload_form.is_valid():
-            images = request.FILES.getlist('image')
-            for img in images:
-                RequisitionImage.objects.create(
-                    requisition=requisition,
-                    image=img,
-                    uploaded_by=request.user
-                )
-            messages.success(request, f"成功上傳 {len(images)} 張圖片。")
-            return redirect(f"{reverse('requisitions:requisition_detail', kwargs={'pk': pk})}#images-card")
-    else:
-        upload_form = RequisitionImageForm()
-
-    # Fetch all RequisitionItems for this requisition
-    all_items = RequisitionItem.objects.filter(requisition=requisition).order_by('material_number')
-    images = requisition.images.all()
-
-    # Subquery to get bin and system_quantity from inventory.models.Material
-    inventory_subquery_storage_bin = Subquery(
-        Material.objects.filter(material_code=OuterRef('material_number')).values('bin')[:1]
-    )
-    inventory_subquery_stock_quantity = Subquery(
-        Material.objects.filter(material_code=OuterRef('material_number')).values('system_quantity')[:1]
-    )
-
-    # Correctly identify items with shortages
-    shortage_items_qs = RequisitionItem.objects.filter(
-        requisition=requisition,
-        required_quantity__gt=Coalesce(F('confirmed_quantity'), Decimal('0'))
-    ).annotate(
-        shortage_quantity=ExpressionWrapper(
-            F('required_quantity') - Coalesce(F('confirmed_quantity'), Decimal('0')),
-            output_field=DecimalField()
-        ),
-        inventory_storage_bin=inventory_subquery_storage_bin,
-        inventory_stock_quantity=inventory_subquery_stock_quantity
-    ).order_by('material_number')
-
-    # Get items that are fully dispatched but not yet signed off
-    dispatched_items_qs = all_items.filter(
-        is_signed_off=False,
-        required_quantity__lte=Coalesce(F('confirmed_quantity'), Decimal('0'))
-    )
-    
-    signed_off_items_qs = all_items.filter(is_signed_off=True)
-
-    items_per_page = 10
-
-    # Paginate dispatched items
-    dispatched_paginator = Paginator(dispatched_items_qs, items_per_page)
-    page_dispatched = request.GET.get('page_dispatched', 1)
-    dispatched_items_page = dispatched_paginator.get_page(page_dispatched)
-
-    # Paginate shortage items
-    shortage_paginator = Paginator(shortage_items_qs, items_per_page)
-    page_shortage = request.GET.get('page_shortage', 1)
-    shortage_items_page = shortage_paginator.get_page(page_shortage)
-
-    # Paginate signed off items
-    signed_off_paginator = Paginator(signed_off_items_qs, items_per_page)
-    page_signed_off = request.GET.get('page_signed_off', 1)
-    signed_off_items_page = signed_off_paginator.get_page(page_signed_off)
-
-    context = {
-        'requisition': requisition,
-        'dispatched_items': dispatched_items_page,
-        'shortage_items': shortage_items_page, # Changed from backordered_items
-        'signed_off_items': signed_off_items_page,
-        'images': images,
-        'upload_form': upload_form,
-        'is_admin': is_admin,
-        'is_applicant': is_applicant,
-        'is_material_handler': is_material_handler,
-    }
-    return render(request, 'requisitions/requisition_detail.html', context)
 
 @login_required
 def archived_requisition_list(request):
@@ -587,70 +492,7 @@ def requisition_history(request):
         'process_type_choices': process_type_choices, # Add process type choices to context
     })
 
-@login_required
-def requisition_sign_off(request, pk):
-    requisition = get_object_or_404(Requisition, pk=pk)
 
-    is_admin = request.user.is_superuser
-    is_applicant = request.user == requisition.applicant
-
-    if not (is_applicant or is_admin):
-        messages.error(request, "您沒有權限執行最終簽收操作。")
-        return redirect('requisitions:requisition_list')
-
-    if request.method == 'POST':
-        with transaction.atomic():
-            signed_off_count = 0
-            if 'confirm_all_sign_off' in request.POST:
-                # Sign off all dispatched items for this requisition
-                dispatched_items_to_sign_off = RequisitionItem.objects.filter(
-                    requisition=requisition,
-                    dispatch_status='dispatched',
-                    is_signed_off=False
-                )
-                for item in dispatched_items_to_sign_off:
-                    item.is_signed_off = True
-                    item.sign_off_by = request.user
-                    item.sign_off_date = timezone.now()
-                    item.save()
-                    signed_off_count += 1
-                if signed_off_count > 0:
-                    messages.success(request, f"成功簽收 {signed_off_count} 筆已撥料項目。")
-                else:
-                    messages.info(request, "沒有新的已撥料項目需要簽收。")
-            else: # Process individual sign-off buttons
-                for key in request.POST.keys():
-                    if key.startswith('sign_off_item_'):
-                        item_pk = key.split('_')[-1]
-                        try:
-                            item = RequisitionItem.objects.get(pk=item_pk, requisition=requisition)
-                            if not item.is_signed_off:
-                                item.is_signed_off = True
-                                item.sign_off_by = request.user
-                                item.sign_off_date = timezone.now()
-                                item.save()
-                                signed_off_count += 1
-                        except RequisitionItem.DoesNotExist:
-                            messages.error(request, f"物料項目 ID {item_pk} 不存在。")
-                            continue
-                if signed_off_count > 0:
-                    messages.success(request, f"成功簽收 {signed_off_count} 筆物料項目。")
-
-            # Check if all relevant RequisitionItems for this requisition are signed off
-            all_items = requisition.items.all()
-            if all_items.exists() and all(item.is_signed_off for item in all_items):
-                requisition.status = 'signed_off'
-                requisition.sign_off_by = request.user
-                requisition.sign_off_date = timezone.now()
-                requisition.save()
-                messages.success(request, "撥料單已全部最終簽收！")
-            elif all_relevant_items.exists():
-                messages.info(request, "部分物料已簽收，但仍有未簽收項目。")
-            else:
-                messages.warning(request, "此申請單沒有可簽收的物料項目。")
-
-    redirect_url = reverse('requisitions:requisition_detail', kwargs={'pk': requisition.pk})
-    return redirect(f'{redirect_url}#dispatched-items-card')
 
 
 
@@ -783,26 +625,7 @@ def get_requisition_items_json(request, pk):
 
 
 
-@login_required
-def sign_off_item(request, pk, item_pk): # Removed version_pk
-    requisition = get_object_or_404(Requisition, pk=pk)
-    item = get_object_or_404(RequisitionItem, pk=item_pk, requisition=requisition) # Directly link to Requisition
 
-    is_admin = request.user.is_superuser
-    is_applicant = request.user == requisition.applicant # Consistent with requisition_sign_off
-
-    if not is_applicant and not is_admin:
-        return JsonResponse({'success': False, 'message': "您沒有權限簽收物料項目。"}, status=403)
-
-    if request.method == 'POST':
-        if not item.is_signed_off:
-            item.is_signed_off = True
-            item.save()
-            return JsonResponse({'success': True, 'message': "物料項目已簽收。"})
-        else:
-            return JsonResponse({'success': False, 'message': "此物料項目已經簽收過了。"})
-    
-    return JsonResponse({'success': False, 'message': "無效的請求方法。"}, status=405)
 
 @login_required
 def dismiss_requisition_alert(request, pk):
@@ -823,4 +646,11 @@ def dismiss_requisition_alert(request, pk):
     next_url = request.POST.get('next') or request.GET.get('next')
     if next_url:
         return redirect(next_url)
-    return redirect('requisitions:requisition_detail', pk=pk)
+        
+    # Default redirect to simple interface based on role
+    if request.user.groups.filter(name='撥料人員').exists() or request.user.is_superuser:
+        return redirect('requisitions:simple_dispatcher_home')
+    elif request.user.groups.filter(name='申請人員').exists():
+        return redirect('requisitions:simple_applicant_home')
+    else:
+        return redirect('requisitions:requisition_list')
