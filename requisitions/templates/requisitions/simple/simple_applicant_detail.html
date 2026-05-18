@@ -381,6 +381,22 @@
         font-size: 0.9rem;
         cursor: pointer;
     }
+
+    /* Requisition Images CSS */
+    .img-gallery-card:hover {
+        transform: translateY(-4px) scale(1.03);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+        border-color: #3B82F6 !important;
+    }
+    .img-gallery-card img {
+        transition: transform 0.3s ease;
+    }
+    .img-gallery-card:hover img {
+        transform: scale(1.05);
+    }
+    .object-fit-cover {
+        object-fit: cover;
+    }
 </style>
 {% endblock %}
 {% block content %}
@@ -399,7 +415,8 @@
             <h1 class="page-title">{{ requisition.order_number }}{% if machine_model_name %} <span
                     style="font-size:0.8em;color:#6B7280;">{{ machine_model_name }}</span>{% endif %}</h1>
         </div>
-        <div style="display: flex; gap: 0.5rem;">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1" style="border-radius: 10px; font-weight: 600; padding: 0.5rem 0.75rem;" data-bs-toggle="modal" data-bs-target="#imageManagerModal">📸 拍照與上傳 (<span id="image-count-badge">{{ images.count }}</span>)</button>
             <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center" style="border-radius: 10px; font-weight: 600; padding: 0.5rem 0.75rem;" data-bs-toggle="modal" data-bs-target="#shortageModal">📋 缺料項目</button>
             <a href="{% url 'requisitions:export_single_requisition_excel' pk=requisition.pk %}" class="btn btn-sm btn-outline-primary d-flex align-items-center" style="border-radius: 10px; font-weight: 600; padding: 0.5rem 0.75rem;">📊 匯出 Excel</a>
         </div>
@@ -517,6 +534,7 @@
         </div>
         {% endif %}
     </div>
+
     <!-- Materials List -->
     <div class="materials-card">
         <h3 class="materials-title">物料清單 ({{ total_count }} 項)</h3>
@@ -564,10 +582,10 @@
             </div>
             {% if item.has_issue %}
             <span class="signed-badge" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA;">有異況處理中</span>
-            <button type="button" class="btn btn-sm btn-link" style="padding: 0; font-size: 0.8rem;" onclick="viewIssueHistory({{ item.pk }})">檢視紀錄</button>
+            <button type="button" class="btn btn-sm btn-link" style="padding: 0; font-size: 0.8rem;" onclick="viewIssueHistory('{{ item.pk }}')">檢視紀錄</button>
             {% elif item.dispatch_status == 'dispatched' and not item.is_signed_off and not requisition.is_archived %}
             <div style="display: flex; gap: 0.5rem;">
-                <button type="button" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; font-weight: 600;" onclick="openIssueModal({{ item.pk }}, '{{ item.material_number }}', '{{ item.item_name }}')">異況</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; font-weight: 600;" onclick="openIssueModal('{{ item.pk }}', '{{ item.material_number }}', '{{ item.item_name }}')">異況</button>
                 <form method="post" action="{% url 'requisitions:simple_applicant_sign_off' pk=requisition.pk %}"
                     style="display:inline;" class="sign-off-form">
                     {% csrf_token %}
@@ -721,11 +739,20 @@
         function showToast(message, success) {
             const toast = document.createElement('div');
             toast.className = 'alert ' + (success ? 'alert-success' : 'alert-danger');
-            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;padding:12px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:10000;padding:12px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-weight:600;pointer-events:none;transition:opacity 0.3s ease;opacity:0;';
             toast.textContent = message;
             document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
+            
+            // Trigger reflow for opacity transition
+            toast.offsetHeight;
+            toast.style.opacity = '1';
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
         }
+        window.showToast = showToast;
         function handleSignOff(e) {
             e.preventDefault();
             const form = e.target;
@@ -938,6 +965,126 @@
     </div>
 </div>
 
+<!-- Requisition Image Manager Modal -->
+<div class="modal fade" id="imageManagerModal" tabindex="-1" aria-labelledby="imageManagerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; background: #FFF;">
+            <div class="modal-header border-0 pb-0 justify-content-between p-3" style="background: #F8FAFC; border-top-left-radius: 20px; border-top-right-radius: 20px;">
+                <h5 class="modal-title fw-bold text-dark" id="imageManagerModalLabel" style="font-size: 1.15rem;">📸 圖片管理與上傳</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Navigation Tabs -->
+                <ul class="nav nav-pills nav-fill mb-3 p-1 bg-light rounded-3" id="imageTab" role="tablist" style="border: 1px solid #E2E8F0;">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-semibold d-flex align-items-center justify-content-center gap-1 py-2" id="view-tab" data-bs-toggle="tab" data-bs-target="#view-pane" type="button" role="tab" aria-controls="view-pane" aria-selected="true" style="border-radius: 6px;">
+                            🖼️ 觀看圖片 (<span id="modal-image-count">{{ images.count }}</span>)
+                        </button>
+                    </li>
+                    {% if not requisition.is_archived %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold d-flex align-items-center justify-content-center gap-1 py-2" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera-pane" type="button" role="tab" aria-controls="camera-pane" aria-selected="false" style="border-radius: 6px;">
+                            📷 拍照
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold d-flex align-items-center justify-content-center gap-1 py-2" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload-pane" type="button" role="tab" aria-controls="upload-pane" aria-selected="false" style="border-radius: 6px;">
+                            📁 上傳
+                        </button>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <!-- Tab Contents -->
+                <div class="tab-content" id="imageTabContent">
+                    <!-- Tab 1: View Images -->
+                    <div class="tab-pane fade show active" id="view-pane" role="tabpanel" aria-labelledby="view-tab" tabindex="0">
+                        <div id="image-gallery" class="row row-cols-3 row-cols-sm-4 row-cols-md-5 g-2" style="max-height: 50vh; overflow-y: auto; padding: 0.25rem;">
+                            {% for img in images %}
+                            <div class="col img-container-col" id="img-card-{{ img.id }}">
+                                <div class="position-relative overflow-hidden img-gallery-card" style="border-radius: 12px; aspect-ratio: 1; border: 1px solid #E5E7EB; cursor: pointer; transition: all 0.3s ease;">
+                                    <img src="{{ img.image.url }}" alt="撥料單圖片" class="w-100 h-100 object-fit-cover inspectable-img" data-url="{{ img.image.url }}" data-user="{{ img.uploaded_by.first_name }}{{ img.uploaded_by.last_name|default:img.uploaded_by.username }}" data-time="{{ img.uploaded_at|date:'Y-m-d H:i' }}">
+                                    {% if not requisition.is_archived and img.uploaded_by == user or user.is_superuser %}
+                                    <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-1 bg-dark rounded-circle shadow-sm delete-img-btn" data-id="{{ img.id }}" style="padding: 0.25rem; font-size: 0.6rem; opacity: 0.8;" title="刪除圖片"></button>
+                                    {% endif %}
+                                    <div class="position-absolute bottom-0 start-0 w-100 p-1 bg-dark bg-opacity-50 text-white text-center" style="font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;">
+                                        {{ img.uploaded_by.first_name }}{{ img.uploaded_by.last_name|default:img.uploaded_by.username }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center py-5 text-muted" id="no-images-placeholder">
+                                <div class="fs-1 mb-2">🖼️</div>
+                                尚未上傳任何圖片
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    {% if not requisition.is_archived %}
+                    <!-- Tab 2: Take Photo -->
+                    <div class="tab-pane fade" id="camera-pane" role="tabpanel" aria-labelledby="camera-tab" tabindex="0">
+                        <div class="text-center py-5">
+                            <div class="mb-4">
+                                <div class="display-1 text-primary mb-3">📷</div>
+                                <p class="text-muted">啟動手機相機拍照並自動上傳至此申請單</p>
+                            </div>
+                            <button type="button" class="btn btn-lg btn-primary px-5 py-3 shadow" style="border-radius: 12px; font-weight: 700; background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); border: none;" onclick="document.getElementById('cameraInput').click()">
+                                📸 啟動相機拍照
+                              </button>
+                            <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <!-- Tab 3: Upload -->
+                    <div class="tab-pane fade" id="upload-pane" role="tabpanel" aria-labelledby="upload-tab" tabindex="0">
+                        <div class="text-center py-5">
+                            <div class="mb-4">
+                                <div class="display-1 text-secondary mb-3">📁</div>
+                                <p class="text-muted">選擇您手機或電腦中的現有圖片檔案進行上傳</p>
+                            </div>
+                            <button type="button" class="btn btn-lg btn-outline-secondary px-5 py-3" style="border-radius: 12px; font-weight: 700;" onclick="document.getElementById('fileInput').click()">
+                                📁 選擇圖片檔案
+                            </button>
+                            <input type="file" accept="image/*" id="fileInput" multiple style="display: none;">
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3" style="background: #F8FAFC; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal" style="border-radius: 8px; font-weight: 600;">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Premium Image Inspection Modal -->
+<div class="modal fade" id="imageInspectionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);">
+            <div class="modal-header border-0 pb-0 justify-content-between p-3">
+                <div>
+                    <h5 class="modal-title fw-bold text-dark" style="font-size: 1.1rem;">🔍 圖片檢視</h5>
+                    <span id="inspect-metadata" class="text-muted" style="font-size: 0.8rem;"></span>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-3">
+                <div class="position-relative overflow-hidden d-inline-block rounded-3 shadow-sm border" style="max-height: 70vh; max-width: 100%; background: #F3F4F6;">
+                    <img id="inspect-image" src="" alt="檢視圖片" style="max-height: 70vh; max-width: 100%; object-fit: contain; transition: transform 0.3s ease;">
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center p-3 gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 py-1.5" style="border-radius: 8px; font-weight: 600;" onclick="zoomImage(1.2)">🔍 放大</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 py-1.5" style="border-radius: 8px; font-weight: 600;" onclick="zoomImage(0.8)">🔍 縮小</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3 py-1.5" style="border-radius: 8px; font-weight: 600;" onclick="resetImageZoom()">🔄 重設</button>
+                <a id="inspect-download" href="" download class="btn btn-sm btn-primary px-3 py-1.5" style="border-radius: 8px; font-weight: 600;">📥 下載</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('shortageModal');
@@ -952,6 +1099,198 @@
                 }
             });
         }
+
+        // Delegate image inspect and delete button clicks to avoid inline onclick syntax lint issues
+        document.addEventListener('click', function(e) {
+            // Check image inspection click
+            if (e.target.classList.contains('inspectable-img')) {
+                const url = e.target.dataset.url;
+                const user = e.target.dataset.user;
+                const time = e.target.dataset.time;
+                openImageInspection(url, user, time);
+            }
+            
+            // Check image delete click
+            if (e.target.classList.contains('delete-img-btn')) {
+                e.stopPropagation();
+                const imgId = e.target.dataset.id;
+                deleteRequisitionImage(imgId);
+            }
+        });
     });
+
+    // Image Inspection & Zoom Logic
+    let currentZoom = 1;
+    function openImageInspection(url, user, time) {
+        document.getElementById('inspect-image').src = url;
+        document.getElementById('inspect-metadata').textContent = `由 ${user} 上傳於 ${time}`;
+        document.getElementById('inspect-download').href = url;
+        resetImageZoom();
+        const modal = new bootstrap.Modal(document.getElementById('imageInspectionModal'));
+        modal.show();
+    }
+    
+    function zoomImage(factor) {
+        currentZoom *= factor;
+        if (currentZoom < 0.5) currentZoom = 0.5;
+        if (currentZoom > 3) currentZoom = 3;
+        document.getElementById('inspect-image').style.transform = `scale(${currentZoom})`;
+    }
+    
+    function resetImageZoom() {
+        currentZoom = 1;
+        document.getElementById('inspect-image').style.transform = `scale(1)`;
+    }
+
+    // Ajax Upload and Camera Capturing
+    document.addEventListener('DOMContentLoaded', function() {
+        const cameraInput = document.getElementById('cameraInput');
+        const fileInput = document.getElementById('fileInput');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]') ? document.querySelector('[name=csrfmiddlewaretoken]').value : '';
+        
+        if (cameraInput) {
+            cameraInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    uploadImages(this.files);
+                }
+            });
+        }
+        
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    uploadImages(this.files);
+                }
+            });
+        }
+        
+        function uploadImages(files) {
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('image', files[i]);
+            }
+            
+            showToast('正在上傳圖片，請稍候...', true);
+            
+            fetch("{% url 'requisitions:simple_upload_requisition_images' pk=requisition.pk %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, true);
+                    
+                    const placeholder = document.getElementById('no-images-placeholder');
+                    if (placeholder) placeholder.remove();
+                    
+                    const gallery = document.getElementById('image-gallery');
+                    data.images.forEach(img => {
+                        const col = document.createElement('div');
+                        col.className = 'col img-container-col';
+                        col.id = `img-card-${img.id}`;
+                        
+                        let deleteBtnHtml = '';
+                        const isReqArchived = "{{ requisition.is_archived|yesno:'true,false' }}" === "true";
+                        if (!isReqArchived) {
+                            deleteBtnHtml = `
+                                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-1 bg-dark rounded-circle shadow-sm delete-img-btn" data-id="${img.id}" style="padding: 0.25rem; font-size: 0.6rem; opacity: 0.8;" title="刪除圖片"></button>
+                            `;
+                        }
+                        
+                        col.innerHTML = `
+                            <div class="position-relative overflow-hidden img-gallery-card" style="border-radius: 12px; aspect-ratio: 1; border: 1px solid #E5E7EB; cursor: pointer; transition: all 0.3s ease;">
+                                <img src="${img.url}" alt="撥料單圖片" class="w-100 h-100 object-fit-cover inspectable-img" data-url="${img.url}" data-user="${img.uploaded_by}" data-time="${img.uploaded_at}">
+                                ${deleteBtnHtml}
+                                <div class="position-absolute bottom-0 start-0 w-100 p-1 bg-dark bg-opacity-50 text-white text-center" style="font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;">
+                                    ${img.uploaded_by}
+                                </div>
+                            </div>
+                        `;
+                        
+                        gallery.appendChild(col);
+                    });
+                    
+                    // Switch back to "觀看圖片" tab automatically
+                    const viewTab = document.getElementById('view-tab');
+                    if (viewTab) {
+                        bootstrap.Tab.getOrCreateInstance(viewTab).show();
+                    }
+                    
+                    // Update badges
+                    const countBadge = document.getElementById('image-count-badge');
+                    if (countBadge) {
+                        countBadge.textContent = parseInt(countBadge.textContent) + data.images.length;
+                    }
+                    const modalCountBadge = document.getElementById('modal-image-count');
+                    if (modalCountBadge) {
+                        modalCountBadge.textContent = parseInt(modalCountBadge.textContent) + data.images.length;
+                    }
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showToast('圖片上傳發生異常，請重試。', false);
+            });
+        }
+    });
+
+    // Ajax Image Deletion
+    window.deleteRequisitionImage = function(imgId) {
+        if (!confirm('確定要刪除這張圖片嗎？')) return;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]') ? document.querySelector('[name=csrfmiddlewaretoken]').value : '';
+        
+        fetch(`/requisitions/simple/applicant/{{ requisition.pk }}/delete-image/${imgId}/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            showToast(data.message, data.success);
+            if (data.success) {
+                const imgCard = document.getElementById(`img-card-${imgId}`);
+                if (imgCard) {
+                    imgCard.style.transition = 'all 0.3s ease';
+                    imgCard.style.opacity = '0';
+                    imgCard.style.transform = 'scale(0.8)';
+                    setTimeout(() => {
+                        imgCard.remove();
+                        const gallery = document.getElementById('image-gallery');
+                        if (gallery && gallery.querySelectorAll('.img-container-col').length === 0) {
+                            gallery.innerHTML = `
+                                <div class="col-12 text-center py-5 text-muted" id="no-images-placeholder">
+                                    <div class="fs-1 mb-2">🖼️</div>
+                                    尚未上傳任何圖片
+                                </div>
+                            `;
+                        }
+                    }, 300);
+                }
+                
+                // Update badges
+                const countBadge = document.getElementById('image-count-badge');
+                if (countBadge) {
+                    countBadge.textContent = Math.max(0, parseInt(countBadge.textContent) - 1);
+                }
+                const modalCountBadge = document.getElementById('modal-image-count');
+                if (modalCountBadge) {
+                    modalCountBadge.textContent = Math.max(0, parseInt(modalCountBadge.textContent) - 1);
+                }
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('刪除圖片時發生系統錯誤。', false);
+        });
+    };
 </script>
 {% endblock %}

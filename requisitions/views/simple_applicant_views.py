@@ -25,6 +25,7 @@ from ..forms import RequisitionForm
 from inventory.models import Material
 from ..utils import get_sap_user, _update_requisition_alert
 from common.permissions import is_simple_applicant, is_simple_dispatcher
+from ..services.requisition_service import RequisitionService
 
 @login_required
 def simple_applicant_home(request):
@@ -532,6 +533,7 @@ def simple_applicant_detail(request, pk):
         'total_count': total,
         'machine_model_name': machine_model_name,
         'has_over_dispatched_items': has_over_dispatched_items,
+        'images': requisition.images.all().order_by('-uploaded_at'),
     }
     return render(request, 'requisitions/simple/simple_applicant_detail.html', context)
 
@@ -837,3 +839,175 @@ def resolve_item_issue(request, item_id):
         item.save()
         
     return JsonResponse({'success': True, 'message': '異況已解除。'})
+
+
+@login_required
+def simple_applicant_batch_sign_off(request):
+    """批量簽收 - 申請人可以選擇多張申請單並一次性簽收其中的物料"""
+    if not is_simple_applicant(request.user) and not request.user.is_superuser:
+        return redirect('requisitions:requisition_list')
+    
+    current_type = request.GET.get('type', 'finished')
+    action = request.POST.get('action')
+    
+    # 取得被授權查看的使用者列表
+    share_groups = request.user.requisition_share_groups.all()
+    viewable_owners = User.objects.filter(requisition_share_groups__in=share_groups).distinct()
+    
+    if request.method == 'POST' and action == 'select_requisitions':
+        # 階段 2：顯示選中申請單的物料
+        selected_ids = request.POST.getlist('selected_requisitions')
+        if not selected_ids:
+            messages.warning(request, "請至少選擇一張申請單。")
+            return redirect(f"{reverse('requisitions:simple_applicant_batch_sign_off')}?type={current_type}")
+        
+        requisitions = Requisition.objects.filter(
+            id__in=selected_ids,
+            is_archived=False
+        ).filter(
+            Q(applicant=request.user) | Q(applicant__in=viewable_owners) | Q(demand_person=request.user)
+        )
+        
+        # 取得這些申請單中「已撥料」且「未簽收」且「無異況」的項目
+        items = RequisitionItem.objects.filter(
+            requisition__in=requisitions,
+            dispatch_status='dispatched',
+            is_signed_off=False,
+            has_issue=False
+        ).select_related('requisition').order_by('order_number', 'material_number')
+        
+        return render(request, 'requisitions/simple/simple_applicant_batch_sign_off_items.html', {
+            'requisitions': requisitions,
+            'items': items,
+            'current_type': current_type,
+            'selected_ids': ','.join(selected_ids)
+        })
+
+    elif request.method == 'POST' and action == 'execute_sign_off':
+        # 階段 3：執行簽收
+        item_ids = request.POST.getlist('selected_items')
+        if not item_ids:
+            messages.warning(request, "請至少選擇一個物料項目。")
+            return redirect(f"{reverse('requisitions:simple_applicant_home')}?type={current_type}")
+        
+        signed_count = RequisitionService.sign_off_items(item_ids, request.user)
+        messages.success(request, f"成功簽收 {signed_count} 筆物料項目。")
+        return redirect(f"{reverse('requisitions:simple_applicant_home')}?type={current_type}")
+
+    elif request.method == 'POST' and action == 'execute_all_sign_off':
+        # 階段 3：執行全部簽收
+        req_ids_str = request.POST.get('requisition_ids', '')
+        if not req_ids_str:
+            return redirect(f"{reverse('requisitions:simple_applicant_home')}?type={current_type}")
+            
+        req_ids = req_ids_str.split(',')
+        signed_count = RequisitionService.sign_off_all_items_in_requisitions(req_ids, request.user)
+        messages.success(request, f"成功簽收全部 {signed_count} 筆物料項目。")
+        return redirect(f"{reverse('requisitions:simple_applicant_home')}?type={current_type}")
+
+    # 階段 1：顯示可選申請單列表 (GET)
+    requisitions = Requisition.objects.filter(
+        Q(applicant=request.user) | Q(applicant__in=viewable_owners) | Q(demand_person=request.user),
+        requisition_type=current_type,
+        status__in=['dispatch_in_progress', 'dispatch_completed'],
+        is_archived=False
+    ).annotate(
+        unsigned_items_count=Count('items', filter=Q(items__dispatch_status='dispatched', items__is_signed_off=False))
+    ).filter(unsigned_items_count__gt=0).order_by('-updated_at')
+    
+    return render(request, 'requisitions/simple/simple_applicant_batch_sign_off_select.html', {
+        'requisitions': requisitions,
+        'current_type': current_type
+    })
+
+
+@login_required
+@require_POST
+def simple_upload_requisition_images(request, pk):
+    """簡易申請單上傳/拍照圖片"""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    
+    # 檢查權限：與詳情頁一致，新增允許撥料/派工人員上傳
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    is_dispatcher = is_simple_dispatcher(request.user)
+    
+    if (requisition.applicant != request.user and 
+        requisition.demand_person != request.user and 
+        not is_supervisor and 
+        not request.user.is_superuser and 
+        not is_group_member and 
+        not is_dispatcher):
+        return JsonResponse({'success': False, 'message': '您沒有權限為此申請單上傳圖片。'})
+        
+    if requisition.is_archived:
+        return JsonResponse({'success': False, 'message': '此申請單已歸檔，無法上傳圖片。'})
+
+    if 'image' in request.FILES or 'images' in request.FILES:
+        from requisitions.models import RequisitionImage
+        # 支援單張或多張上傳
+        uploaded_files = request.FILES.getlist('image') or request.FILES.getlist('images')
+        
+        saved_images = []
+        for f in uploaded_files:
+            img_obj = RequisitionImage.objects.create(
+                requisition=requisition,
+                image=f,
+                uploaded_by=request.user
+            )
+            
+            uploader_name = img_obj.uploaded_by.first_name + img_obj.uploaded_by.last_name if img_obj.uploaded_by and (img_obj.uploaded_by.first_name or img_obj.uploaded_by.last_name) else (img_obj.uploaded_by.username if img_obj.uploaded_by else '未知')
+            
+            saved_images.append({
+                'id': img_obj.id,
+                'url': img_obj.image.url,
+                'uploaded_at': img_obj.uploaded_at.strftime('%Y-%m-%d %H:%M'),
+                'uploaded_by': uploader_name
+            })
+            
+        return JsonResponse({
+            'success': True,
+            'message': f'成功上傳 {len(saved_images)} 張圖片！',
+            'images': saved_images
+        })
+    else:
+        return JsonResponse({'success': False, 'message': '未檢測到上傳的圖片檔案。'})
+
+
+@login_required
+@require_POST
+def simple_delete_requisition_image(request, pk, img_id):
+    """刪除上傳的圖片"""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    
+    # 檢查權限：與詳情頁一致，新增允許撥料/派工人員刪除自己上傳的圖片
+    is_supervisor = request.user.groups.filter(name=GROUP_NAMES['APPLICANT_SUPERVISOR']).exists()
+    is_group_member = RequisitionShareGroup.objects.filter(
+        members=request.user
+    ).filter(members=requisition.applicant).exists()
+    is_dispatcher = is_simple_dispatcher(request.user)
+    
+    if (requisition.applicant != request.user and 
+        requisition.demand_person != request.user and 
+        not is_supervisor and 
+        not request.user.is_superuser and 
+        not is_group_member and 
+        not is_dispatcher):
+        return JsonResponse({'success': False, 'message': '您沒有權限刪除此圖片。'})
+        
+    if requisition.is_archived:
+        return JsonResponse({'success': False, 'message': '此申請單已歸檔，無法刪除圖片。'})
+        
+    from requisitions.models import RequisitionImage
+    img_obj = get_object_or_404(RequisitionImage, pk=img_id, requisition=requisition)
+    
+    # 僅限上傳者本人或主管、超級管理員可以刪除
+    if img_obj.uploaded_by != request.user and not is_supervisor and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': '您只能刪除自己上傳的圖片。'})
+        
+    img_obj.image.delete(save=False) # 刪除實體檔案
+    img_obj.delete() # 刪除資料庫紀錄
+    
+    return JsonResponse({'success': True, 'message': '圖片已成功刪除。'})
